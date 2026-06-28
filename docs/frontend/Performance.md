@@ -1,0 +1,1 @@
+Code splitting, image optimization, virtualization, memoization, prefetching.

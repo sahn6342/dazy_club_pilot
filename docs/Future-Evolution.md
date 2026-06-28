@@ -1,0 +1,1 @@
+Multi-location, Mobile Apps, Cafe POS, AI Assistant, Franchise platform.

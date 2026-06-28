@@ -1,0 +1,1 @@
+Context -> Requirements -> APIs -> DB -> UI -> Tests -> Acceptance Criteria -> Documentation.

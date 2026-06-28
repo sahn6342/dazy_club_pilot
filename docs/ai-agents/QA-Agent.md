@@ -1,0 +1,1 @@
+Generate unit, integration and Playwright tests for every completed feature.

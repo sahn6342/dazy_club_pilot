@@ -1,0 +1,1 @@
+Recommended extensions, settings, launch configurations and tasks.

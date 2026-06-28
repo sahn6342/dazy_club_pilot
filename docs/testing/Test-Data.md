@@ -1,0 +1,1 @@
+Seed venues, sports, courts, pricing, customers, bookings for deterministic tests.

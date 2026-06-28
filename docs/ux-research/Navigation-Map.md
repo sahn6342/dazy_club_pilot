@@ -1,0 +1,1 @@
+Desktop mega-menu, mobile bottom navigation, booking shortcuts and contextual CTAs.

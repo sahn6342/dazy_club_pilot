@@ -1,0 +1,1 @@
+Planning, Daily Standup, Refinement, Review, Retrospective.

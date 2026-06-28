@@ -1,0 +1,1 @@
+Design PostgreSQL schema, EF Core configs, indexes and migrations only from approved docs.

@@ -1,0 +1,1 @@
+React 19, Vite, TypeScript, Motion, Tailwind, shadcn/ui, ASP.NET Core, PostgreSQL, Redis, SignalR.

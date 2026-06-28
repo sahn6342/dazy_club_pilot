@@ -1,0 +1,7 @@
+# SignalR Events
+
+AvailabilityUpdated
+CourtBlocked
+CourtReleased
+MaintenanceCreated
+BookingConfirmed

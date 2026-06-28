@@ -1,0 +1,1 @@
+Read PROJECT_CONTEXT -> Relevant docs -> Implement -> Test -> Update docs.

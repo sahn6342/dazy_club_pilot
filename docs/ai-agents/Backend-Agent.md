@@ -1,0 +1,1 @@
+Implement ASP.NET Core APIs using Clean Architecture, validation, tests and ProblemDetails.

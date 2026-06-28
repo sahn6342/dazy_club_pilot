@@ -1,0 +1,1 @@
+Lucide icons only. 20/24px default.

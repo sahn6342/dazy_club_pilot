@@ -1,0 +1,1 @@
+Feature-first architecture with app/, shared/, entities/, features/, widgets/. React 19 + Vite + TypeScript.

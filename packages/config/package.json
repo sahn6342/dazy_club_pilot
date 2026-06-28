@@ -1,0 +1,9 @@
+{
+  "name": "@dazy/config",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./typescript": "./typescript/base.json"
+  }
+}

@@ -1,0 +1,1 @@
+Feature accepted only after tests pass, documentation updated, responsive verified and review completed.

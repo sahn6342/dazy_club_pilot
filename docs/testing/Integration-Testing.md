@@ -1,0 +1,1 @@
+API + DB + Redis + SignalR integration. TestContainers preferred.

@@ -1,0 +1,1 @@
+Serilog + OpenTelemetry + Application Insights. Structured logs only.

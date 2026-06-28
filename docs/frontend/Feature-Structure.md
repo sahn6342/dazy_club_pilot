@@ -1,0 +1,1 @@
+Each feature contains api/, components/, hooks/, types/, validation/, pages/, tests/.

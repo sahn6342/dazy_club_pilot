@@ -1,0 +1,1 @@
+Light/Dark variables, spacing, radius, motion duration and opacity scales.

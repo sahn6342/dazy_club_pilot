@@ -1,0 +1,1 @@
+Alpha -> Internal Beta -> Closed Beta -> Soft Launch -> Public Launch.

@@ -1,0 +1,1 @@
+Dashboard → Bookings → Pricing → CRM → CMS → Gallery → Notifications → Reports.

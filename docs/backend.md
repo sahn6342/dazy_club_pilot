@@ -1,0 +1,1 @@
+Generate ASP.NET Core 9 Clean Architecture code with CQRS, FluentValidation, EF Core and ProblemDetails.

@@ -1,0 +1,1 @@
+Initialize pnpm workspace, .NET solution, shared configs, Husky, linting, formatting.

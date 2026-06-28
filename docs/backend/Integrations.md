@@ -1,0 +1,1 @@
+Payment Gateway, SMS OTP, Email, Cloud Storage, SignalR, Redis.

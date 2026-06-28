@@ -1,0 +1,1 @@
+GitHub Actions -> Build -> Test -> Lint -> Security Scan -> Deploy.

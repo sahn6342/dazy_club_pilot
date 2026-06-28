@@ -1,0 +1,1 @@
+Conventional commits, small PRs, update documentation with every feature.

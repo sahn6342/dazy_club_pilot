@@ -1,0 +1,1 @@
+ASP.NET Core 9, Clean Architecture, Vertical Slice where appropriate, modular monolith ready for future services.

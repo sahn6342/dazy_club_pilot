@@ -1,0 +1,1 @@
+Presentation, Application, Domain, Infrastructure. Domain independent of frameworks.

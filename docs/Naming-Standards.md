@@ -1,0 +1,1 @@
+Consistent names across React, .NET, PostgreSQL and APIs.

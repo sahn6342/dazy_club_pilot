@@ -1,0 +1,1 @@
+Skeletons over spinners where possible.

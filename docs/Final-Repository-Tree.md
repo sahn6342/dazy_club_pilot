@@ -1,0 +1,11 @@
+apps/
+  web/
+  admin/
+  api/
+packages/
+  ui/
+  shared/
+  config/
+infra/
+docs/
+assets/

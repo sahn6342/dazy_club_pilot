@@ -1,0 +1,1 @@
+Buttons, validation messages, booking confirmations, payment messages and onboarding copy guidelines.

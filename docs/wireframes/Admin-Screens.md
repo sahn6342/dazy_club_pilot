@@ -1,0 +1,10 @@
+Dashboard
+Bookings
+Customers
+CRM
+Pricing
+CMS
+Gallery
+Notifications
+Analytics
+Settings

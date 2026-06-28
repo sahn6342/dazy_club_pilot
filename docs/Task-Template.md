@@ -1,0 +1,1 @@
+Goal, Scope, Dependencies, Acceptance Criteria, Tests.

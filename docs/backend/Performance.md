@@ -1,0 +1,1 @@
+Caching, pagination, async APIs, batching, indexes, compiled EF queries where needed.

@@ -1,0 +1,1 @@
+Commands mutate state. Queries are read-only. MediatR optional. Keep handlers feature-scoped.

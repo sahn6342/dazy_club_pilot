@@ -1,0 +1,1 @@
+Shadow levels 0-5 and glass surfaces.

@@ -1,0 +1,1 @@
+Semantic versioning for documentation and implementation artifacts.

@@ -1,0 +1,1 @@
+Generate PostgreSQL schema, EF Core configurations, migrations and indexes only from approved entities.

@@ -1,0 +1,1 @@
+Booking rules, pricing engine, availability engine, validators, utilities. xUnit + FluentAssertions.

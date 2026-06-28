@@ -1,0 +1,1 @@
+Use GitHub Secrets/Azure Key Vault. Never commit secrets.
