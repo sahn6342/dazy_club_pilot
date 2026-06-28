@@ -1,6 +1,6 @@
 # Dazy.club Pilot
 
-Dazy.club is a premium sports experience platform. This pilot implements the first launch slice: public browse and enquiry for Cricket, Badminton, and Pickleball.
+Dazy.club is a premium sports experience platform. This pilot implements the first launch slice: public browse and enquiry for Cricket, Badminton, and Pickleball. updated
 
 ## Scope
 - Launch: public website, seeded content, gallery/testimonials, contact enquiry, corporate enquiry.
