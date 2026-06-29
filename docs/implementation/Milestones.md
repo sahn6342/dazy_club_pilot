@@ -13,7 +13,7 @@ Git, workspace, root files, apps, packages, and CI skeleton exist.
 Public screens match Figma and render seeded content.
 
 ## M5 API Foundation
-ASP.NET Core 9 API serves public content and persists enquiries.
+FastAPI API serves public content and persists enquiries.
 
 ## M6 Quality Gate
 Build, lint, typecheck, tests, accessibility checks, and responsive smoke pass.

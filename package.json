@@ -3,20 +3,31 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "pnpm --filter @dazy/web dev",
+    "dev": "concurrently -n api,web,admin -c blue,green,magenta \"pnpm dev:api\" \"pnpm dev:web\" \"pnpm dev:admin\"",
+    "dev:api": "cd apps/api && python -m uv run uvicorn main:app --reload --port 8000",
+    "dev:web": "pnpm --filter @dazy/web dev",
+    "dev:admin": "pnpm --filter @dazy/admin dev",
+    "dev:web-only": "pnpm --filter @dazy/web dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "format": "pnpm -r format",
     "typecheck": "pnpm -r typecheck",
     "preview": "pnpm --filter @dazy/web preview",
-    "api:dev": "dotnet run --project apps/api/Dazy.Api/Dazy.Api.csproj",
-    "api:build": "dotnet build apps/api/Dazy.Api/Dazy.Api.csproj",
-    "db:migrate": "echo \"EF Core migrations will be added after the API project is restored.\"",
-    "seed": "echo \"Seed data is embedded in launch contracts for the pilot.\""
+    "api:dev": "cd apps/api && python -m uv run uvicorn main:app --reload --port 8000",
+    "api:build": "cd apps/api && python -m uv sync --frozen",
+    "api:test": "cd apps/api && python -m uv run pytest tests/ -v",
+    "setup": "pnpm install --ignore-scripts && cd apps/api && python -m uv sync",
+    "e2e": "playwright test",
+    "e2e:web": "playwright test --project=web",
+    "e2e:admin": "playwright test --project=admin",
+    "e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^22.10.2",
+    "concurrently": "^9.1.0",
+    "playwright": "^1.61.1",
     "typescript": "^5.7.2"
   },
   "packageManager": "pnpm@11.5.3"

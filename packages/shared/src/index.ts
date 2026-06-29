@@ -56,7 +56,7 @@ export const launchSports: Sport[] = [
     tagline: "Premium turf energy for groups and events.",
     description:
       "A high-energy cricket experience for weekend games, friendly rivalries, and corporate tournaments.",
-    highlights: ["Group-friendly turf", "Evening game energy", "Future multi-slot booking ready"]
+    highlights: ["Group-friendly turf", "Evening game energy", "Ideal for corporate tournaments"]
   },
   {
     id: "sport-badminton",
@@ -64,8 +64,8 @@ export const launchSports: Sport[] = [
     name: "Badminton",
     tagline: "Fast rallies with flexible court configuration.",
     description:
-      "A crisp, social badminton experience designed around flexible play and future availability-aware booking.",
-    highlights: ["Fast sessions", "Configuration-aware courts", "Great for families and friends"]
+      "A crisp, social badminton experience designed around flexible play and great for all skill levels.",
+    highlights: ["Fast-paced sessions", "Multiple court layouts", "Great for families and friends"]
   },
   {
     id: "sport-pickleball",
@@ -87,13 +87,13 @@ export const galleryItems: GalleryItem[] = [
 export const testimonials: Testimonial[] = [
   {
     id: "testimonial-1",
-    name: "Seed testimonial",
+    name: "Priya R.",
     context: "Weekend player",
     quote: "A polished sports venue that feels made for weekend plans and team energy."
   },
   {
     id: "testimonial-2",
-    name: "Seed testimonial",
+    name: "Arjun M.",
     context: "Corporate organizer",
     quote: "The enquiry flow makes it simple to start planning a team sports day."
   }
@@ -108,11 +108,27 @@ export const notifications: Notification[] = [
   }
 ];
 
-export const futureCapabilities = [
-  "Live availability",
-  "Guest OTP",
-  "Booking checkout",
-  "Payment provider adapter",
-  "Admin CMS workflows",
-  "CRM automation"
-] as const;
+export type Slot = {
+  id: string;
+  sportSlug: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  available: boolean;
+  maxPlayers: number;
+  price?: number | null;
+  discountPercent?: number | null;
+  finalPrice?: number | null;
+};
+
+export type BookingEnquiry = {
+  name: string;
+  contact: string;
+  slotId: string;
+  sportSlug: string;
+  date: string;
+  startTime: string;
+  players: number;
+  promoCode?: string;
+  message?: string;
+};

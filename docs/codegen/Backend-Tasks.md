@@ -1,9 +1,9 @@
 # Backend Tasks
 
-1. Create ASP.NET Core 9 API project.
-2. Add OpenAPI, health endpoint, validation, exception handling, logging, and CORS.
-3. Configure PostgreSQL and EF Core.
-4. Create launch entities and migrations.
+1. Create FastAPI project with pyproject.toml and uv.
+2. Add OpenAPI (auto), health endpoint, Pydantic v2 validation, exception handlers, GZip, and CORS.
+3. Configure PostgreSQL with SQLAlchemy async + asyncpg.
+4. Create launch models and Alembic migrations.
 5. Add seed data for venue, sports, courts/configurations, gallery, testimonials, and notifications.
 6. Implement GET /api/v1/sports.
 7. Implement GET /api/v1/gallery.

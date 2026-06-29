@@ -1,1 +1,1 @@
-Consistent names across React, .NET, PostgreSQL and APIs.
+Consistent names across React, Python/FastAPI, PostgreSQL and APIs.

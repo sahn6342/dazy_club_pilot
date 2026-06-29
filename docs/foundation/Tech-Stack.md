@@ -1,3 +1,3 @@
 # Tech Stack
 Frontend: React+Vite+TS+Motion+Tailwind+shadcn
-Backend: ASP.NET Core+PostgreSQL+SignalR+Redis
+Backend: FastAPI+Python 3.12+PostgreSQL+Redis (SignalR replaced by WebSockets/SSE)

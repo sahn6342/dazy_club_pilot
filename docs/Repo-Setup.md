@@ -1,1 +1,1 @@
-Initialize pnpm workspace, .NET solution, shared configs, Husky, linting, formatting.
+Initialize pnpm workspace, FastAPI app (uv), shared configs, Husky, linting, formatting.

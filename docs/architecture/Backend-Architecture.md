@@ -1,10 +1,11 @@
 # Backend Architecture
 
 ## Stack
-- ASP.NET Core 9 / .NET 9.
-- Modular monolith.
-- Clean Architecture with vertical slices where useful.
-- EF Core with PostgreSQL.
+- FastAPI (Python 3.12) — see ADR-011.
+- Pydantic v2 for validation.
+- uvicorn ASGI server.
+- SQLAlchemy (async) + asyncpg with PostgreSQL (Phase 2).
+- Alembic for migrations (Phase 2).
 
 ## Launch Modules
 - Public Content.

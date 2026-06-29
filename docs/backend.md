@@ -1,1 +1,1 @@
-Generate ASP.NET Core 9 Clean Architecture code with CQRS, FluentValidation, EF Core and ProblemDetails.
+Generate FastAPI (Python 3.12) code with Pydantic v2 validation, SQLAlchemy async, Alembic, and structured error responses.

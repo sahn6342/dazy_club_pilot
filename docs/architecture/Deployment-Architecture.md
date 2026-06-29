@@ -3,7 +3,7 @@
 ## Launch Target
 Deployment provider is open. The architecture must support:
 - Static/public frontend hosting for `apps/web`.
-- ASP.NET Core API hosting for `apps/api`.
+- FastAPI/uvicorn hosting for `apps/api` (ASGI-compatible host or container).
 - PostgreSQL database.
 - Environment variables for secrets and endpoints.
 

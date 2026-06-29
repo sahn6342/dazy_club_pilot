@@ -22,7 +22,7 @@ Dazy.club is a premium sports experience platform. The first launch is a public 
 - Design first in Figma, then implement.
 - Monorepo: apps/web, apps/admin, apps/api, packages/ui, packages/shared, packages/config, infra, assets, docs.
 - Frontend: React, Vite, TypeScript, Tailwind, shadcn-style components, motion.
-- Backend: ASP.NET Core 9 / .NET 9 modular monolith.
+- Backend: FastAPI (Python 3.12) — see ADR-011.
 - Database: PostgreSQL.
 - Payment and OTP must be designed behind provider adapters even while deferred.
 

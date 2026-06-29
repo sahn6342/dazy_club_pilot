@@ -1,7 +1,7 @@
 # Migration Strategy
 
 ## Tooling
-Use EF Core migrations for ASP.NET Core 9.
+Use Alembic for FastAPI/SQLAlchemy migrations.
 
 ## Launch Migration Order
 1. Venue and sport lookup tables.

@@ -13,6 +13,16 @@ obj/
 .env.local
 *.user
 
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# sqlite
+*.db
+*.db-journal
+*.sqlite3
+
 # tooling
 .DS_Store
 Thumbs.db

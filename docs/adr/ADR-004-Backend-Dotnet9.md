@@ -1,7 +1,7 @@
 # ADR-004: ASP.NET Core 9 Backend
 
 ## Status
-Accepted
+Superseded by ADR-011 (2026-06-28)
 
 ## Context
 The generated docs selected ASP.NET Core and the user confirmed .NET 9 should remain the backend target.

@@ -1,1 +1,1 @@
-Implement ASP.NET Core APIs using Clean Architecture, validation, tests and ProblemDetails.
+Implement FastAPI routes using Pydantic v2 validation, pytest tests, and RFC 7807 error responses.

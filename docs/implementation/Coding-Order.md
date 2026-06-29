@@ -7,7 +7,7 @@
 5. Shared UI package.
 6. Public web app shell.
 7. Public web screens from approved Figma.
-8. ASP.NET Core 9 API shell.
+8. FastAPI API shell (pyproject.toml, main.py, routes, models, seed).
 9. PostgreSQL schema and seed data.
 10. Public content endpoints.
 11. Contact and corporate enquiry endpoints.
