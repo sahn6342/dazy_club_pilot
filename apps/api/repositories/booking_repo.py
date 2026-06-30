@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, delete as sa_delete, update as sa_update
 
 from models import BookingRecord
 from repositories.base import BaseRepository
@@ -27,13 +27,18 @@ def _to_model(row: BookingRow) -> BookingRecord:
         message=row.message,
         status=row.status,
         createdAt=row.createdAt,
+        is_primary=row.is_primary,
     )
 
 
 class SqliteBookingRepository(BaseRepository[BookingRecord]):
     def get_all(self) -> list[BookingRecord]:
+        """Return primary booking rows only (one per bookingRef)."""
         with _session() as s:
-            return [_to_model(r) for r in s.scalars(select(BookingRow)).all()]
+            return [
+                _to_model(r)
+                for r in s.scalars(select(BookingRow).where(BookingRow.is_primary.is_(True))).all()
+            ]
 
     def get_by_id(self, id: str) -> Optional[BookingRecord]:
         with _session() as s:
@@ -57,6 +62,15 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
                     setattr(row, k, v)
             s.flush()
             return _to_model(row)
+
+    def cancel_by_ref(self, booking_ref: str) -> None:
+        """Cancel all rows (primary + secondary) sharing a bookingRef."""
+        with _session() as s:
+            s.execute(
+                sa_update(BookingRow)
+                .where(BookingRow.bookingRef == booking_ref)
+                .values(status="cancelled")
+            )
 
     def delete(self, id: str) -> bool:
         with _session() as s:

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { StatusBadge } from "../components/StatusBadge";
+import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 
 type Booking = {
@@ -10,7 +11,15 @@ type Booking = {
   party_size: number; price: number | null; promo_code: string | null; status: string; createdAt: string;
 };
 
+const STATUS_MSG: Record<string, string> = {
+  confirmed: "Booking confirmed",
+  completed: "Booking completed",
+  cancelled: "Booking cancelled",
+  no_show: "Marked as no-show",
+};
+
 export function Bookings() {
+  const toast = useToast();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState({ sport: "", status: "" });
   const [error, setError] = useState("");
@@ -27,8 +36,13 @@ export function Bookings() {
   useEffect(() => { load(); }, [filter]);
 
   async function setStatus(id: string, status: string) {
-    await api.patch(`/admin/bookings/${id}`, { status });
-    load();
+    try {
+      await api.patch(`/admin/bookings/${id}`, { status });
+      load();
+      toast.success(STATUS_MSG[status] ?? "Booking updated");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to update booking");
+    }
   }
 
   return (

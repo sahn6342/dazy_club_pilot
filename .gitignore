@@ -23,6 +23,9 @@ __pycache__/
 *.db-journal
 *.sqlite3
 
+# uploaded media (gallery images stored locally)
+apps/api/media/
+
 # tooling
 .DS_Store
 Thumbs.db

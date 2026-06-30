@@ -34,7 +34,8 @@ class SqliteCustomerRepository:
         with _session() as s:
             row = s.scalar(select(CustomerRow).where(CustomerRow.phone == contact))
             if row:
-                row.name = name  # refresh name in case it changed
+                if name.strip():
+                    row.name = name.strip()  # only update if non-empty
             else:
                 row = CustomerRow(
                     id=str(uuid.uuid4()),

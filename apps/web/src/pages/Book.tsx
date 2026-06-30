@@ -19,6 +19,24 @@ interface FieldErrors {
   players?: string;
 }
 
+function totalFinalPrice(slots: Slot[]): number | null {
+  if (slots.length === 0) return null;
+  if (slots.every((s) => s.finalPrice == null)) return null;
+  return slots.reduce((sum, s) => sum + (s.finalPrice ?? 0), 0);
+}
+
+function formatDuration(slots: Slot[]): string {
+  if (slots.length <= 1) return "";
+  const [fh, fm] = slots[0].startTime.split(":").map(Number);
+  const [eh, em] = slots[slots.length - 1].endTime.split(":").map(Number);
+  const totalMin = eh * 60 + em - (fh * 60 + fm);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} hr`;
+  return `${h} hr ${m} min`;
+}
+
 export function Book() {
   const [searchParams] = useSearchParams();
   const initialSport = searchParams.get("sport") ?? "cricket";
@@ -29,16 +47,23 @@ export function Book() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const [selectedCourtId, setSelectedCourtId] = useState<string>("all");
+
+  const [selectedSlots, setSelectedSlots] = useState<Slot[]>([]);
   const [bookingStatus, setBookingStatus] = useState<FormStatus>("idle");
   const [bookingRef, setBookingRef] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
   const [promo, setPromo] = useState("");
   const [promoError, setPromoError] = useState("");
   const [promoStatus, setPromoStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
   const [promoResult, setPromoResult] = useState<PromoValidationResult | null>(null);
+
   const [bookedPrice, setBookedPrice] = useState<number | null>(null);
   const [bookedPromo, setBookedPromo] = useState<string | null>(null);
+  const [bookedStartTime, setBookedStartTime] = useState("");
+  const [bookedEndTime, setBookedEndTime] = useState("");
+  const [bookedSlotCount, setBookedSlotCount] = useState(1);
 
   const [fields, setFields] = useState<BookingFields>({ name: "", contact: "", players: "1", message: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -53,15 +78,21 @@ export function Book() {
   }, [bookSport, bookDate]);
 
   useEffect(() => {
-    setSelectedSlot(null);
+    setSelectedSlots([]);
     setBookingStatus("idle");
+    setSelectedCourtId("all");
     loadSlots();
   }, [loadSlots]);
 
-  // Live promo validation — debounced 600ms, fires after 3+ chars
+  // Derived: total price across all selected slots.
+  const slotTotal = totalFinalPrice(selectedSlots);
+  const firstSlot = selectedSlots[0] ?? null;
+  const lastSlot = selectedSlots[selectedSlots.length - 1] ?? null;
+
+  // Live promo validation — debounced 600ms, fires after 3+ chars.
   useEffect(() => {
     const trimmed = promo.trim();
-    if (!selectedSlot || trimmed.length < 3) {
+    if (!firstSlot || trimmed.length < 3) {
       setPromoStatus("idle");
       setPromoResult(null);
       if (!trimmed) setPromoError("");
@@ -70,7 +101,7 @@ export function Book() {
     setPromoStatus("checking");
     const timer = setTimeout(async () => {
       try {
-        const res = await validatePromo(trimmed, selectedSlot.sportSlug, selectedSlot.finalPrice);
+        const res = await validatePromo(trimmed, firstSlot.sportSlug, slotTotal);
         if (res.valid) {
           setPromoStatus("valid");
           setPromoResult(res);
@@ -87,7 +118,7 @@ export function Book() {
       }
     }, 600);
     return () => clearTimeout(timer);
-  }, [promo, selectedSlot]);
+  }, [promo, firstSlot, slotTotal]);
 
   function onBlur(field: keyof FieldErrors) {
     setTouched((t) => ({ ...t, [field]: true }));
@@ -95,7 +126,7 @@ export function Book() {
   }
 
   function validateFields(vals: BookingFields): FieldErrors {
-    const max = selectedSlot?.maxPlayers ?? 12;
+    const max = firstSlot?.maxPlayers ?? 12;
     const errs: FieldErrors = {
       name: validateName(vals.name) ?? undefined,
       contact: validateContact(vals.contact) ?? undefined,
@@ -113,11 +144,47 @@ export function Book() {
     }
   }
 
+  function handleSlotClick(slot: Slot) {
+    if (!slot.available) return;
+
+    setBookingStatus("idle");
+
+    if (selectedSlots.length === 0) {
+      setSelectedSlots([slot]);
+      return;
+    }
+
+    const last = selectedSlots[selectedSlots.length - 1];
+
+    // Clicking the last selected slot trims it off.
+    if (slot.id === last.id) {
+      const next = selectedSlots.slice(0, -1);
+      setSelectedSlots(next);
+      if (next.length === 0) {
+        setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
+        setErrors({}); setTouched({ name: false, contact: false, players: false });
+      }
+      return;
+    }
+
+    // Extend if adjacent to the last selected slot on the same court.
+    if (slot.startTime === last.endTime && slot.courtId === last.courtId) {
+      setSelectedSlots([...selectedSlots, slot]);
+      return;
+    }
+
+    // Start a fresh selection.
+    setSelectedSlots([slot]);
+    setFields((f) => ({ ...f, players: "1" }));
+    setErrors({});
+    setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
+    setTouched({ name: false, contact: false, players: false });
+  }
+
   async function submitBooking(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedSlot) return;
+    if (!firstSlot) return;
 
-    // Mark all fields touched and validate
     setTouched({ name: true, contact: true, players: true });
     const errs = validateFields(fields);
     if (Object.values(errs).some(Boolean)) return;
@@ -128,10 +195,11 @@ export function Book() {
       const result = await createBooking({
         name: fields.name.trim(),
         contact: fields.contact.trim(),
-        slotId: selectedSlot.id,
-        sportSlug: selectedSlot.sportSlug,
-        date: selectedSlot.date,
-        startTime: selectedSlot.startTime,
+        slotIds: selectedSlots.map((s) => s.id),
+        slotId: firstSlot.id,
+        sportSlug: firstSlot.sportSlug,
+        date: firstSlot.date,
+        startTime: firstSlot.startTime,
         players: Number(fields.players),
         promoCode: promo.trim() || undefined,
         message: fields.message.trim(),
@@ -139,11 +207,13 @@ export function Book() {
       setBookingRef(result.bookingRef);
       setBookedPrice(result.price ?? null);
       setBookedPromo(result.promoCode ?? null);
+      setBookedStartTime(result.startTime ?? firstSlot.startTime);
+      setBookedEndTime(result.endTime ?? lastSlot!.endTime);
+      setBookedSlotCount(result.slotCount ?? selectedSlots.length);
       setBookingStatus("success");
       loadSlots();
     } catch (err: any) {
       const msg = err?.message ?? "Booking failed.";
-      // Promo-specific failures come back as 400 with a "promo" message — show inline.
       if (/promo/i.test(msg)) {
         setPromoError(msg);
       } else {
@@ -156,13 +226,33 @@ export function Book() {
   }
 
   const selectedDay = days.find((d) => d.iso === bookDate);
+  const duration = formatDuration(selectedSlots);
+
+  // Unique courts present in the loaded slot list.
+  const courtOptions: { id: string; name: string }[] = [];
+  const seen = new Set<string>();
+  for (const s of slots) {
+    if (s.courtId && !seen.has(s.courtId)) {
+      seen.add(s.courtId);
+      courtOptions.push({ id: s.courtId, name: s.courtName ?? s.courtId });
+    }
+  }
+  const multiCourt = courtOptions.length > 1;
+
+  // Slots shown in the grid — filtered by the selected court pill.
+  const displaySlots = multiCourt && selectedCourtId !== "all"
+    ? slots.filter((s) => s.courtId === selectedCourtId)
+    : slots;
+
+  // Show court labels on chips only when "All courts" view is active.
+  const showCourtLabel = multiCourt && selectedCourtId === "all";
 
   return (
     <section id="book" className="section">
       <div className="section-heading">
         <p className="eyebrow">Book a court</p>
         <h2>Pick your sport, date, and slot.</h2>
-        <p>Select an available slot below and confirm your booking.</p>
+        <p>Select one or more consecutive slots and confirm your booking.</p>
       </div>
 
       <div className="sport-tabs" role="tablist">
@@ -190,73 +280,119 @@ export function Book() {
         ))}
       </div>
 
+      {multiCourt && (
+        <div className="court-pills" role="group" aria-label="Select court">
+          <button
+            className={`court-pill${selectedCourtId === "all" ? " active" : ""}`}
+            onClick={() => { setSelectedCourtId("all"); setSelectedSlots([]); }}
+          >
+            All courts
+          </button>
+          {courtOptions.map((c) => (
+            <button
+              key={c.id}
+              className={`court-pill${selectedCourtId === c.id ? " active" : ""}`}
+              onClick={() => { setSelectedCourtId(c.id); setSelectedSlots([]); }}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="slot-section">
         <p className="slot-heading">
           {SPORT_LABELS[bookSport]} — {selectedDay?.label}
+          {selectedSlots.length > 0 && (
+            <span className="slot-range-badge">
+              {firstSlot!.startTime}–{lastSlot!.endTime}
+              {duration && <> &nbsp;·&nbsp; {duration}</>}
+            </span>
+          )}
         </p>
+        {selectedSlots.length > 1 && (
+          <p className="slot-hint">Tap the last selected slot to shorten. Tap an adjacent slot to extend.</p>
+        )}
+        {selectedSlots.length === 1 && (
+          <p className="slot-hint">Tap the next adjacent slot to book multiple hours, or fill in the form below.</p>
+        )}
         {slotsLoading ? (
           <p className="slot-loading">Loading slots…</p>
         ) : slotsError ? (
           <p className="slot-loading" style={{ color: "var(--color-error, #f87171)" }}>{slotsError}</p>
-        ) : slots.length === 0 ? (
+        ) : displaySlots.length === 0 ? (
           <p className="slot-loading">No slots available for this selection.</p>
         ) : (
           <div className="slot-grid">
-            {slots.map((slot) => (
-              <button
-                key={slot.id}
-                disabled={!slot.available}
-                className={`slot-chip${!slot.available ? " unavailable" : ""}${selectedSlot?.id === slot.id ? " selected" : ""}`}
-                onClick={() => {
-                  if (slot.available) {
-                    setSelectedSlot(slot);
-                    setBookingStatus("idle");
-                    setFields((f) => ({ ...f, players: "1" }));
-                    setErrors({});
-                    setPromo("");
-                    setPromoError("");
-                    setPromoStatus("idle");
-                    setPromoResult(null);
-                    setTouched({ name: false, contact: false, players: false });
+            {displaySlots.map((slot) => {
+              const isSelected = selectedSlots.some((s) => s.id === slot.id);
+              const isFirst = firstSlot?.id === slot.id;
+              const isLast = lastSlot?.id === slot.id;
+              return (
+                <button
+                  key={slot.id}
+                  disabled={!slot.available}
+                  className={[
+                    "slot-chip",
+                    !slot.available ? "unavailable" : "",
+                    isSelected ? "selected" : "",
+                    isSelected && selectedSlots.length > 1 && isFirst ? "slot-range-start" : "",
+                    isSelected && selectedSlots.length > 1 && isLast ? "slot-range-end" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => handleSlotClick(slot)}
+                  title={
+                    slot.available
+                      ? isLast && selectedSlots.length > 1
+                        ? `Tap to remove this slot from your selection`
+                        : `${slot.startTime}–${slot.endTime}, up to ${slot.maxPlayers} players`
+                      : "Already booked"
                   }
-                }}
-                title={slot.available ? `${slot.startTime}–${slot.endTime}, up to ${slot.maxPlayers} players` : "Already booked"}
-              >
-                {slot.startTime}
-                {slot.finalPrice != null ? (
-                  <span className="slot-price" data-testid="slot-price">
-                    {slot.discountPercent ? (
-                      <>
-                        <s className="slot-price-strike">₹{slot.price}</s> ₹{slot.finalPrice}
-                        <span className="slot-discount-badge">-{slot.discountPercent}%</span>
-                      </>
-                    ) : (
-                      <>₹{slot.finalPrice}</>
-                    )}
-                  </span>
-                ) : (
-                  slot.price == null && <span className="slot-price">Free</span>
-                )}
-                {!slot.available && <span className="slot-booked-tag">Booked</span>}
-              </button>
-            ))}
+                >
+                  {slot.startTime}
+                  {showCourtLabel && slot.courtName && (
+                    <span className="slot-court-label">{slot.courtName}</span>
+                  )}
+                  {slot.finalPrice != null ? (
+                    <span className="slot-price" data-testid="slot-price">
+                      {slot.discountPercent ? (
+                        <>
+                          <s className="slot-price-strike">₹{slot.price}</s> ₹{slot.finalPrice}
+                          <span className="slot-discount-badge">-{slot.discountPercent}%</span>
+                        </>
+                      ) : (
+                        <>₹{slot.finalPrice}</>
+                      )}
+                    </span>
+                  ) : (
+                    slot.price == null && <span className="slot-price">Free</span>
+                  )}
+                  {!slot.available && <span className="slot-booked-tag">Booked</span>}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {selectedSlot && bookingStatus !== "success" && (
+      {selectedSlots.length > 0 && bookingStatus !== "success" && (
         <div className="booking-form-wrap">
           <div className="booking-summary">
-            <span className="eyebrow">Selected slot</span>
+            <span className="eyebrow">Selected slot{selectedSlots.length > 1 ? "s" : ""}</span>
             <strong>
-              {SPORT_LABELS[selectedSlot.sportSlug]} &nbsp;·&nbsp; {selectedDay?.label} &nbsp;·&nbsp;
-              {selectedSlot.startTime}–{selectedSlot.endTime}
+              {SPORT_LABELS[firstSlot!.sportSlug]} &nbsp;·&nbsp; {selectedDay?.label} &nbsp;·&nbsp;
+              {firstSlot!.startTime}–{lastSlot!.endTime}
+              {duration && <span className="muted"> &nbsp;({duration})</span>}
+              {firstSlot!.courtName && multiCourt && (
+                <span className="muted"> &nbsp;· {firstSlot!.courtName}</span>
+              )}
             </strong>
-            <span className="muted">Up to {selectedSlot.maxPlayers} players</span>
-            {selectedSlot.finalPrice != null && (
+            <span className="muted">Up to {firstSlot!.maxPlayers} players</span>
+            {slotTotal != null && (
               <span className="summary-total" data-testid="summary-total">
-                Total: ₹{selectedSlot.finalPrice}
-                {selectedSlot.discountPercent ? <span className="muted"> (was ₹{selectedSlot.price})</span> : null}
+                Total: ₹{slotTotal}
+                {selectedSlots.length > 1 && (
+                  <span className="muted"> ({selectedSlots.length} slots)</span>
+                )}
               </span>
             )}
           </div>
@@ -295,7 +431,7 @@ export function Book() {
                 <input
                   type="number"
                   min="1"
-                  max={selectedSlot.maxPlayers}
+                  max={firstSlot!.maxPlayers}
                   value={fields.players}
                   onChange={(e) => change("players", e.target.value)}
                   onBlur={() => onBlur("players")}
@@ -313,6 +449,7 @@ export function Book() {
                   onChange={(e) => { setPromo(e.target.value.toUpperCase()); setPromoError(""); }}
                   className={`promo-input${promoStatus === "valid" ? " input-valid" : promoError ? " input-error" : ""}`}
                   placeholder="e.g. WELCOME10"
+                  maxLength={40}
                   data-testid="promo-input"
                 />
               </label>
@@ -322,10 +459,10 @@ export function Book() {
               {promoStatus === "valid" && promoResult && (
                 <p className="promo-feedback valid" data-testid="promo-valid">
                   ✓ {promoResult.code} applied
-                  {promoResult.discountedAmount != null && selectedSlot?.finalPrice != null && (
+                  {promoResult.discountedAmount != null && slotTotal != null && (
                     <>
                       {" — "}
-                      <s className="promo-original">₹{selectedSlot.finalPrice}</s>
+                      <s className="promo-original">₹{slotTotal}</s>
                       {" → "}
                       <strong data-testid="promo-discounted-price">₹{promoResult.discountedAmount}</strong>
                       {promoResult.savedAmount != null && (
@@ -341,10 +478,10 @@ export function Book() {
             <label>Message (optional) <textarea value={fields.message} onChange={(e) => change("message", e.target.value)} rows={3} /></label>
 
             <button className="button primary" type="submit" disabled={submitting}>
-              {submitting ? "Confirming…" : "Confirm booking"}
+              {submitting ? "Confirming…" : `Confirm booking${selectedSlots.length > 1 ? ` (${selectedSlots.length} slots)` : ""}`}
             </button>
             {bookingStatus === "error" && (
-              <p className="form-message error">Booking failed. Slot may have just been taken. Please choose another.</p>
+              <p className="form-message error">Booking failed. One or more slots may have just been taken. Please choose again.</p>
             )}
           </form>
         </div>
@@ -356,7 +493,8 @@ export function Book() {
           <h3>You're booked in!</h3>
           <p>
             <strong>Ref: {bookingRef}</strong> &nbsp;—&nbsp;
-            {SPORT_LABELS[selectedSlot!.sportSlug]}, {selectedDay?.label}, {selectedSlot!.startTime}–{selectedSlot!.endTime}
+            {SPORT_LABELS[firstSlot!.sportSlug]}, {selectedDay?.label}, {bookedStartTime}–{bookedEndTime}
+            {bookedSlotCount > 1 && <span className="muted"> &nbsp;({bookedSlotCount} slots)</span>}
           </p>
           {bookedPrice != null && (
             <p className="summary-total" data-testid="confirmed-amount">
@@ -368,17 +506,14 @@ export function Book() {
           <button
             className="button secondary"
             onClick={() => {
-              setSelectedSlot(null);
+              setSelectedSlots([]);
               setBookingStatus("idle");
               setBookingRef("");
               setFields({ name: "", contact: "", players: "1", message: "" });
               setErrors({});
-              setPromo("");
-              setPromoError("");
-              setPromoStatus("idle");
-              setPromoResult(null);
-              setBookedPrice(null);
-              setBookedPromo(null);
+              setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
+              setBookedPrice(null); setBookedPromo(null);
+              setBookedStartTime(""); setBookedEndTime(""); setBookedSlotCount(1);
               setTouched({ name: false, contact: false, players: false });
             }}
           >

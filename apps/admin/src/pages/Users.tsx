@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
+import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 
 type User = { id: string; username: string; role: string; createdAt: string; createdBy: string };
 
 function validateUsername(v: string): string | null {
-  if (!v.trim()) return "Username is required.";
-  if (v.trim().length < 3) return "Minimum 3 characters.";
-  if (v.trim().length > 50) return "Maximum 50 characters.";
+  const t = v.trim();
+  if (!t) return "Username is required.";
+  if (t.length < 3) return "Minimum 3 characters.";
+  if (t.length > 50) return "Maximum 50 characters.";
+  if (!/^[a-zA-Z0-9_]+$/.test(t)) return "Only letters, numbers, and underscores allowed.";
   return null;
 }
 
@@ -19,6 +22,7 @@ function validatePassword(v: string): string | null {
 }
 
 export function Users() {
+  const toast = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [form, setForm] = useState({ username: "", password: "" });
   const [touched, setTouched] = useState({ username: false, password: false });
@@ -46,8 +50,10 @@ export function Users() {
       setForm({ username: "", password: "" });
       setTouched({ username: false, password: false });
       load();
+      toast.success("Manager added");
     } catch (err: any) {
       setServerError(err?.message ?? "Failed to create manager.");
+      toast.error(err?.message ?? "Failed to create manager");
     } finally {
       setCreating(false);
     }
@@ -57,6 +63,7 @@ export function Users() {
     if (!window.confirm(`Delete manager "${username}"?`)) return;
     await api.delete(`/admin/users/${id}`);
     load();
+    toast.success("Manager removed");
   }
 
   return (

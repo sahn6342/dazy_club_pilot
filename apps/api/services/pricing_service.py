@@ -43,6 +43,8 @@ def validate_promo(promo_row, sport: str, today: str) -> None:
         raise PromoError("Promo code usage limit reached.")
     if promo_row.sport_slug and promo_row.sport_slug != sport:
         raise PromoError("Promo code not valid for this sport.")
+    if promo_row.kind == "percent" and promo_row.value > 100:
+        raise PromoError("Promo code has invalid discount value.")
 
 
 def apply_promo(promo_row, amount: float | None) -> float | None:

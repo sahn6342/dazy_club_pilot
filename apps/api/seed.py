@@ -28,9 +28,12 @@ SPORTS: list[SportDto] = [
 ]
 
 GALLERY_ITEMS: list[GalleryItemDto] = [
-    GalleryItemDto(id="gallery-1", title="Evening turf sessions", sportSlug="cricket", tone="electric"),
-    GalleryItemDto(id="gallery-2", title="Fast rally corners", sportSlug="badminton", tone="focused"),
-    GalleryItemDto(id="gallery-3", title="Weekend social play", sportSlug="pickleball", tone="playful"),
+    GalleryItemDto(id="gallery-1", title="Evening turf sessions", sportSlug="cricket", tone="electric",
+                   imageUrl="https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=800&q=80"),
+    GalleryItemDto(id="gallery-2", title="Fast rally corners", sportSlug="badminton", tone="focused",
+                   imageUrl="https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=800&q=80"),
+    GalleryItemDto(id="gallery-3", title="Weekend social play", sportSlug="pickleball", tone="playful",
+                   imageUrl="https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?auto=format&fit=crop&w=800&q=80"),
 ]
 
 TESTIMONIALS: list[TestimonialDto] = [

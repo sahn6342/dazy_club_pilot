@@ -92,17 +92,17 @@ def test_no_bearer_prefix(client):
     assert r.status_code in (401, 403)
 
 
-def test_deleted_manager_token_still_valid_until_expiry(client, auth_headers):
-    """JWT is stateless — token remains valid after account deletion."""
+def test_deleted_manager_token_rejected(client, auth_headers):
+    """Deleted manager's token must be rejected immediately (DB existence check in get_current_admin)."""
     client.post("/api/v1/admin/users", json={"username": "ghost", "password": "secure123"}, headers=auth_headers)
     mgr_token = client.post("/api/v1/admin/login", json={"username": "ghost", "password": "secure123"}).json()["access_token"]
     mgr_headers = {"Authorization": f"Bearer {mgr_token}"}
     # Delete the manager
     uid = client.get("/api/v1/admin/users", headers=auth_headers).json()[0]["id"]
     client.delete(f"/api/v1/admin/users/{uid}", headers=auth_headers)
-    # Token still works (stateless JWT — intentional limitation, fix with token revocation list in production)
+    # Token is now invalid — account no longer exists in DB.
     r = client.get("/api/v1/admin/bookings", headers=mgr_headers)
-    assert r.status_code == 200
+    assert r.status_code == 401
 
 
 # ── Slots edge cases ───────────────────────────────────────────────────────────
@@ -206,11 +206,11 @@ def test_booking_whitespace_name_passes_min_length(client):
     assert r.status_code in (200, 201)
 
 
-def test_booking_very_long_name_accepted(client):
-    """No max_length on name field — 500 chars passes."""
+def test_booking_very_long_name_rejected(client):
+    """max_length=80 on name — 500 chars now rejected."""
     slot = _get_available_slot(client)
     r = _book(client, slot, name="A" * 500)
-    assert r.status_code in (200, 201)
+    assert r.status_code == 422
 
 
 def test_booking_ref_is_unique(client):
@@ -237,10 +237,10 @@ def test_cancelled_booking_reopens_slot(client, auth_headers):
 
 def test_booking_fake_slot_id_rejected(client):
     r = client.post("/api/v1/bookings", json={
-        "name": "A", "contact": "1",
+        "name": "Test User", "contact": "9000000001",
         "slotId": str(uuid.uuid4()),
         "sportSlug": "cricket",
-        "date": _today(),
+        "date": _date_offset(1),
         "startTime": "06:00",
         "players": 1,
     })
@@ -264,7 +264,7 @@ def test_booking_response_has_expected_keys(client):
 
 def test_contact_enquiry_optional_fields_omitted(client):
     """interestedSport and message are optional."""
-    r = client.post("/api/v1/contact-enquiries", json={"name": "X", "contact": "Y"})
+    r = client.post("/api/v1/contact-enquiries", json={"name": "Test User", "contact": "9800000001"})
     assert r.status_code in (200, 201)
 
 
@@ -279,15 +279,15 @@ def test_contact_enquiry_all_fields(client):
 def test_corporate_group_size_one(client):
     """Minimum valid group size is 1 (gt=0)."""
     r = client.post("/api/v1/corporate-enquiries", json={
-        "contactName": "A", "company": "B", "contact": "C", "estimatedGroupSize": 1,
+        "contactName": "Corp Person", "company": "Acme Ltd", "contact": "9800000002", "estimatedGroupSize": 1,
     })
     assert r.status_code in (200, 201)
 
 
 def test_corporate_group_size_large(client):
-    """No upper cap on group size."""
+    """Upper cap is 10000."""
     r = client.post("/api/v1/corporate-enquiries", json={
-        "contactName": "A", "company": "B", "contact": "C", "estimatedGroupSize": 10000,
+        "contactName": "Corp Person", "company": "Acme Ltd", "contact": "9800000002", "estimatedGroupSize": 10000,
     })
     assert r.status_code in (200, 201)
 
@@ -302,7 +302,7 @@ def test_corporate_group_size_float_rejected(client):
 
 
 def test_contact_enquiry_returns_id(client):
-    r = client.post("/api/v1/contact-enquiries", json={"name": "X", "contact": "Y"})
+    r = client.post("/api/v1/contact-enquiries", json={"name": "Test User", "contact": "9800000003"})
     body = r.json()
     assert "id" in body
     assert len(body["id"]) > 0
@@ -311,7 +311,8 @@ def test_contact_enquiry_returns_id(client):
 def test_multiple_enquiries_have_unique_ids(client):
     ids = []
     for i in range(5):
-        r = client.post("/api/v1/contact-enquiries", json={"name": f"User{i}", "contact": str(i)})
+        phone = f"980000000{i}"
+        r = client.post("/api/v1/contact-enquiries", json={"name": f"User{i}", "contact": phone})
         ids.append(r.json()["id"])
     assert len(ids) == len(set(ids))
 

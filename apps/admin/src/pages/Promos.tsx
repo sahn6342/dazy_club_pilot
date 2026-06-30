@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
+import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 
 type Promo = {
@@ -13,14 +14,27 @@ const inputStyle = { padding: "0.55rem 0.75rem", borderRadius: "8px", fontFamily
 const emptyForm = { code: "", kind: "percent", value: "", valid_from: "", valid_to: "", max_uses: "", sport_slug: "", active: true };
 
 export function Promos() {
+  const toast = useToast();
   const [promos, setPromos] = useState<Promo[]>([]);
   const [form, setForm] = useState({ ...emptyForm });
   const [touched, setTouched] = useState(false);
   const [serverError, setServerError] = useState("");
   const [creating, setCreating] = useState(false);
 
+  const maxUsesNum = form.max_uses === "" ? null : Number(form.max_uses);
+  const maxUsesErr = touched && form.max_uses !== "" && (maxUsesNum === null || !Number.isInteger(maxUsesNum) || maxUsesNum < 1)
+    ? "Max uses must be a positive whole number."
+    : undefined;
   const codeErr = touched && !form.code.trim() ? "Code is required." : undefined;
-  const valueErr = touched && !(Number(form.value) > 0) ? "Value must be greater than 0." : undefined;
+  const valueNum = Number(form.value);
+  const valueErr = touched && !(valueNum > 0)
+    ? "Value must be greater than 0."
+    : touched && form.kind === "percent" && valueNum > 100
+    ? "Percent discount cannot exceed 100."
+    : undefined;
+  const dateErr = touched && form.valid_from && form.valid_to && form.valid_from > form.valid_to
+    ? "Valid from must not be after Valid to."
+    : undefined;
 
   function load() {
     api.get<Promo[]>("/admin/promos").then(setPromos).catch((e) => setServerError(e.message));
@@ -30,7 +44,7 @@ export function Promos() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setTouched(true);
-    if (!form.code.trim() || !(Number(form.value) > 0)) return;
+    if (codeErr || valueErr || dateErr || maxUsesErr) return;
     setServerError("");
     setCreating(true);
     try {
@@ -47,8 +61,10 @@ export function Promos() {
       setForm({ ...emptyForm });
       setTouched(false);
       load();
+      toast.success("Promo created");
     } catch (err: any) {
       setServerError(err?.message ?? "Failed to create promo.");
+      toast.error(err?.message ?? "Failed to create promo");
     } finally {
       setCreating(false);
     }
@@ -57,12 +73,14 @@ export function Promos() {
   async function toggleActive(p: Promo) {
     await api.patch(`/admin/promos/${p.id}`, { active: !p.active });
     load();
+    toast.success(p.active ? "Promo deactivated" : "Promo activated");
   }
 
   async function remove(p: Promo) {
     if (!window.confirm(`Delete promo "${p.code}"?`)) return;
     await api.delete(`/admin/promos/${p.id}`);
     load();
+    toast.success("Promo deleted");
   }
 
   return (
@@ -110,7 +128,7 @@ export function Promos() {
                 <div className="field-group">
                   <label className="cms-label">Code
                     <input className={`cms-textarea${codeErr ? " input-error" : ""}`} style={inputStyle}
-                      data-testid="promo-code" value={form.code}
+                      data-testid="promo-code" maxLength={40} value={form.code}
                       onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
                       placeholder="WELCOME10" />
                   </label>
@@ -151,21 +169,23 @@ export function Promos() {
 
                 <div className="field-group">
                   <label className="cms-label">Valid from
-                    <input className="cms-textarea" style={inputStyle} type="date" value={form.valid_from}
+                    <input className={`cms-textarea${dateErr ? " input-error" : ""}`} style={inputStyle} type="date" value={form.valid_from}
                       onChange={(e) => setForm((f) => ({ ...f, valid_from: e.target.value }))} />
                   </label>
                 </div>
                 <div className="field-group">
                   <label className="cms-label">Valid to
-                    <input className="cms-textarea" style={inputStyle} type="date" value={form.valid_to}
+                    <input className={`cms-textarea${dateErr ? " input-error" : ""}`} style={inputStyle} type="date" value={form.valid_to}
                       onChange={(e) => setForm((f) => ({ ...f, valid_to: e.target.value }))} />
                   </label>
+                  {dateErr && <p className="field-error">{dateErr}</p>}
                 </div>
                 <div className="field-group">
                   <label className="cms-label">Max uses (optional)
-                    <input className="cms-textarea" style={inputStyle} type="number" value={form.max_uses}
+                    <input className={`cms-textarea${maxUsesErr ? " input-error" : ""}`} style={inputStyle} type="number" min="1" step="1" value={form.max_uses}
                       onChange={(e) => setForm((f) => ({ ...f, max_uses: e.target.value }))} placeholder="unlimited" />
                   </label>
+                  {maxUsesErr && <p className="field-error">{maxUsesErr}</p>}
                 </div>
                 <label className="cms-label">
                   <input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} /> Active

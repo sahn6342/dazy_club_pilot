@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, delete as sa_delete, or_
 
 from db import _session
 from db_models import ScheduleRuleRow, ScheduleExceptionRow
@@ -68,7 +68,10 @@ class SqliteScheduleRepository:
         with _session() as s:
             stmt = select(ScheduleExceptionRow)
             if court_id:
-                stmt = stmt.where(ScheduleExceptionRow.court_id == court_id)
+                # Include venue-wide (NULL) exceptions so holidays show on every court's page.
+                stmt = stmt.where(
+                    or_(ScheduleExceptionRow.court_id == court_id, ScheduleExceptionRow.court_id.is_(None))
+                )
             return [_exc_dto(r) for r in s.scalars(stmt).all()]
 
     def create_exception(self, data: ScheduleExceptionCreate) -> ScheduleExceptionDto:

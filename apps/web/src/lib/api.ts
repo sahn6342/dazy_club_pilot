@@ -2,6 +2,28 @@ import type { Slot } from "@dazy/shared";
 
 const API = (import.meta as any).env?.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
+// API origin without /api/v1 — resolves relative /media image paths to absolute URLs.
+export const API_ORIGIN = API.replace(/\/api\/v1\/?$/, "");
+
+export function resolveImg(url: string | null | undefined): string {
+  if (!url) return "";
+  return /^https?:\/\//.test(url) ? url : `${API_ORIGIN}${url}`;
+}
+
+export interface GalleryItem {
+  id: string;
+  title: string;
+  sportSlug: string;
+  tone: string;
+  imageUrl?: string | null;
+}
+
+export async function getGallery(): Promise<GalleryItem[]> {
+  const r = await fetch(`${API}/gallery`);
+  if (!r.ok) throw new Error("Failed to load gallery");
+  return r.json();
+}
+
 export async function getSlots(sport: string, date: string): Promise<Slot[]> {
   const r = await fetch(`${API}/slots?sport=${sport}&date=${date}`);
   if (!r.ok) throw new Error("Failed to load slots");
@@ -11,7 +33,8 @@ export async function getSlots(sport: string, date: string): Promise<Slot[]> {
 export interface BookingPayload {
   name: string;
   contact: string;
-  slotId: string;
+  slotIds: string[];      // one or more consecutive slot IDs
+  slotId?: string;        // kept for backward compat — derived from slotIds[0] by API
   sportSlug: string;
   date: string;
   startTime: string;
@@ -26,7 +49,10 @@ export interface BookingResult {
   name: string;
   sport: string;
   date: string;
+  startTime: string;
+  endTime: string;
   time: string;
+  slotCount: number;
   price?: number | null;
   basePrice?: number | null;
   discountPercent?: number | null;

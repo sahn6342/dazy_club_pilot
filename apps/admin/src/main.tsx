@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./styles.css";
 
 import { AuthGuard } from "./components/AuthGuard";
+import { ToastProvider } from "./components/Toast";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
@@ -14,9 +15,12 @@ import { CMS } from "./pages/CMS";
 import { Users } from "./pages/Users";
 import { Schedule } from "./pages/Schedule";
 import { Promos } from "./pages/Promos";
+import { ContactDetails } from "./pages/ContactDetails";
+import { Courts } from "./pages/Courts";
 
 function App() {
   return (
+    <ToastProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -28,10 +32,13 @@ function App() {
         <Route path="/gallery" element={<AuthGuard><Gallery /></AuthGuard>} />
         <Route path="/testimonials" element={<AuthGuard><Testimonials /></AuthGuard>} />
         <Route path="/cms" element={<AuthGuard><CMS /></AuthGuard>} />
+        <Route path="/courts" element={<AuthGuard><Courts /></AuthGuard>} />
+        <Route path="/contact-details" element={<AuthGuard><ContactDetails /></AuthGuard>} />
         <Route path="/users" element={<AuthGuard><Users /></AuthGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </ToastProvider>
   );
 }
 

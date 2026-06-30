@@ -1,9 +1,9 @@
-import { test, expect, Page } from "@playwright/test";
+﻿import { test, expect, Page } from "@playwright/test";
 
 async function login(page: Page) {
   await page.goto("/");
   await page.locator("input[name=username]").fill("admin");
-  await page.locator("input[name=password]").fill("dazy-admin-2024");
+  await page.locator("input[name=password]").fill("admin");
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page.locator(".admin-layout")).toBeVisible({ timeout: 10_000 });
 }

@@ -1,8 +1,8 @@
-"""Auth: login validation, JWT issuance, token rejection."""
+﻿"""Auth: login validation, JWT issuance, token rejection."""
 
 
 def test_login_superadmin_success(client):
-    r = client.post("/api/v1/admin/login", json={"username": "admin", "password": "dazy-admin-2024"})
+    r = client.post("/api/v1/admin/login", json={"username": "admin", "password": "admin"})
     assert r.status_code == 200
     body = r.json()
     assert "access_token" in body
@@ -15,7 +15,7 @@ def test_login_wrong_password(client):
 
 
 def test_login_wrong_username(client):
-    r = client.post("/api/v1/admin/login", json={"username": "ghost", "password": "dazy-admin-2024"})
+    r = client.post("/api/v1/admin/login", json={"username": "ghost", "password": "admin"})
     assert r.status_code == 401
 
 

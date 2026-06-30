@@ -67,6 +67,13 @@ def _cms_seed():
         CmsEntry(key="hero_tagline", label="Hero tagline", value="Premium sports energy, built for your next game."),
         CmsEntry(key="hero_copy", label="Hero body copy", value="Dazy.club brings together Cricket, Badminton, and Pickleball in one premium venue. Whether it's a casual weekend game or a corporate event, we've got your court."),
         CmsEntry(key="footer_tagline", label="Footer tagline", value="Premium sports experience. Cricket, Badminton & Pickleball."),
+        CmsEntry(key="venue_name", label="Venue name", value="Dazy.club"),
+        CmsEntry(key="venue_address", label="Venue address", value="123 Sports Complex, Main Street, Hyderabad 500001"),
+        CmsEntry(key="venue_phone", label="Venue phone", value="+91 98765 43210"),
+        CmsEntry(key="venue_email", label="Venue email", value="hello@dazy.club"),
+        CmsEntry(key="venue_hours", label="Venue hours", value="Mon–Sun: 6:00 AM – 9:00 PM"),
+        CmsEntry(key="social_instagram", label="Instagram handle / URL", value=""),
+        CmsEntry(key="social_facebook", label="Facebook page URL", value=""),
     ]
 
 
@@ -89,24 +96,26 @@ def seed_if_empty() -> None:
     with _session() as s:
         if s.scalar(select(func.count()).select_from(GalleryRow)) == 0:
             for g in GALLERY_ITEMS:
-                s.add(GalleryRow(id=g.id, title=g.title, sportSlug=g.sportSlug, tone=g.tone, approved=True))
+                s.add(GalleryRow(id=g.id, title=g.title, sportSlug=g.sportSlug, tone=g.tone, imageUrl=g.imageUrl, approved=True))
         if s.scalar(select(func.count()).select_from(TestimonialRow)) == 0:
             for t in TESTIMONIALS:
                 s.add(TestimonialRow(id=t.id, name=t.name, context=t.context, quote=t.quote, approved=True))
         if s.scalar(select(func.count()).select_from(CmsRow)) == 0:
             for e in _cms_seed():
                 s.add(CmsRow(key=e.key, label=e.label, value=e.value))
-        # Venue + one court per sport (capacity from former _MAX_PLAYERS).
+        # Venue — seeded once, never cleared.
+        venue_id = "venue-dazy"
         if s.scalar(select(func.count()).select_from(VenueRow)) == 0:
-            venue_id = "venue-dazy"
             s.add(VenueRow(id=venue_id, name="Dazy.club", timezone="Asia/Kolkata", active=True, createdAt=now))
+        # Courts — re-seeded whenever the table is empty (e.g. after test teardown).
+        if s.scalar(select(func.count()).select_from(CourtRow)) == 0:
             for sport in SPORTS:
                 s.add(CourtRow(
                     id=f"court-{sport.slug}",
                     venue_id=venue_id,
                     sport=sport.slug,
                     name="Court 1",
-                    capacity=1,  # binary court (one booking per slot); Phase 2 introduces shared courts
+                    capacity=1,
                     active=True,
                     createdAt=now,
                 ))

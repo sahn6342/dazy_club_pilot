@@ -11,6 +11,8 @@ router = APIRouter()
 
 @router.get("/promos/validate")
 def validate_promo_code(code: str, sport: str, amount: float | None = None):
+    if not code or not code.strip():
+        return {"valid": False, "code": "", "error": "Promo code is required."}
     """Check whether a promo is valid for a sport/amount without redeeming it.
 
     Returns {valid, code, kind, value, discountedAmount, savedAmount} on success

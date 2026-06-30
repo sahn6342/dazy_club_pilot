@@ -1,3 +1,9 @@
+export const BRAND = {
+  name: "Dazy.club",
+  adminTitle: "Dazy Admin",
+  tagline: "Cricket · Badminton · Pickleball",
+} as const;
+
 export type LaunchScope = "launch" | "future" | "excluded";
 
 export type Sport = {
@@ -110,6 +116,8 @@ export const notifications: Notification[] = [
 
 export type Slot = {
   id: string;
+  courtId?: string | null;
+  courtName?: string | null;
   sportSlug: string;
   date: string;
   startTime: string;

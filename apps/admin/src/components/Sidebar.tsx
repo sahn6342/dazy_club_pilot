@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { BRAND } from "@dazy/shared";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: "⬛" },
@@ -9,6 +10,8 @@ const NAV = [
   { to: "/gallery", label: "Gallery", icon: "🖼" },
   { to: "/testimonials", label: "Testimonials", icon: "💬" },
   { to: "/cms", label: "CMS", icon: "✏️" },
+  { to: "/courts", label: "Courts", icon: "🏟" },
+  { to: "/contact-details", label: "Contact Details", icon: "📍" },
   { to: "/users", label: "Managers", icon: "👤" },
 ];
 
@@ -16,7 +19,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="brand-text">Dazy Admin</span>
+        <span className="brand-text">{BRAND.adminTitle}</span>
       </div>
       <nav className="sidebar-nav">
         {NAV.map((item) => (

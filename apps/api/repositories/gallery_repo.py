@@ -10,7 +10,8 @@ from db_models import GalleryRow
 
 def _to_model(row: GalleryRow) -> GalleryItemAdmin:
     return GalleryItemAdmin(
-        id=row.id, title=row.title, sportSlug=row.sportSlug, tone=row.tone, approved=row.approved
+        id=row.id, title=row.title, sportSlug=row.sportSlug, tone=row.tone,
+        imageUrl=row.imageUrl, approved=row.approved,
     )
 
 

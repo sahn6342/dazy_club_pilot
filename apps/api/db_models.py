@@ -43,7 +43,7 @@ class ScheduleRuleRow(Base):
 class ScheduleExceptionRow(Base):
     __tablename__ = "schedule_exceptions"
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    court_id: Mapped[str] = mapped_column(String, ForeignKey("courts.id"), index=True, nullable=False)
+    court_id: Mapped[str | None] = mapped_column(String, ForeignKey("courts.id"), index=True, nullable=True)  # NULL = all courts (venue-wide)
     day: Mapped[str] = mapped_column(String, index=True, nullable=False)  # "YYYY-MM-DD"
     closed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     open_time: Mapped[str | None] = mapped_column(String, nullable=True)  # special hours if not closed
@@ -78,6 +78,7 @@ class BookingRow(Base):
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, default="pending", nullable=False)
     createdAt: Mapped[str] = mapped_column(String, nullable=False)
+    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class EnquiryRow(Base):
@@ -103,6 +104,7 @@ class GalleryRow(Base):
     title: Mapped[str] = mapped_column(String, nullable=False)
     sportSlug: Mapped[str] = mapped_column(String, nullable=False)
     tone: Mapped[str] = mapped_column(String, nullable=False)
+    imageUrl: Mapped[str | None] = mapped_column(String, nullable=True)  # absolute URL or /media/gallery/<uuid>.<ext>
     approved: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 

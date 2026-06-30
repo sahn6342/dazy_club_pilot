@@ -60,13 +60,14 @@ def test_slot_shape_complete(client):
         assert isinstance(s["available"], bool)
         assert isinstance(s["maxPlayers"], int) and s["maxPlayers"] > 0
         assert isinstance(s["courtId"], str)
+        assert isinstance(s["courtName"], str)  # court display name
 
 
 def test_slot_id_format(client):
-    """Slot id = slot-{sport}-{YYYY-MM-DD}-{HHMM}."""
+    """Slot id = slot-{court_id}-{YYYY-MM-DD}-{HHMM}."""
     day = _future()
     slots = client.get(f"/api/v1/slots?sport=badminton&date={day}").json()
-    expected_prefix = f"slot-badminton-{day}-"
+    expected_prefix = f"slot-court-badminton-{day}-"
     assert all(s["id"].startswith(expected_prefix) for s in slots)
 
 
@@ -445,5 +446,6 @@ def test_manager_token_accesses_all_non_user_endpoints(client, auth_headers):
     assert client.get("/api/v1/admin/cms", headers=h).status_code == 200
     assert client.get("/api/v1/admin/schedule/rules", headers=h).status_code == 200
     assert client.get("/api/v1/admin/customers", headers=h).status_code == 200
+    assert client.get("/api/v1/admin/courts", headers=h).status_code == 200
     # users endpoint blocked for manager
     assert client.get("/api/v1/admin/users", headers=h).status_code == 403

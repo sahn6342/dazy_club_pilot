@@ -1,6 +1,6 @@
-import { test, expect, APIRequestContext } from "@playwright/test";
+﻿import { test, expect, APIRequestContext } from "@playwright/test";
 
-const ADMIN_CREDS = { username: "admin", password: "dazy-admin-2024" };
+const ADMIN_CREDS = { username: "admin", password: "admin" };
 const API_BASE = "http://localhost:8000/api/v1";
 
 async function login(page: import("@playwright/test").Page) {
@@ -11,12 +11,24 @@ async function login(page: import("@playwright/test").Page) {
   await expect(page.locator(".admin-layout")).toBeVisible({ timeout: 10_000 });
 }
 
+async function token(request: APIRequestContext): Promise<string> {
+  const r = await request.post(`${API_BASE}/admin/login`, { data: ADMIN_CREDS });
+  return (await r.json()).access_token;
+}
+
+async function deleteBooking(request: APIRequestContext, id: string): Promise<void> {
+  const tok = await token(request);
+  await request.delete(`${API_BASE}/admin/bookings/${id}`, {
+    headers: { Authorization: `Bearer ${tok}` },
+  });
+}
+
 /**
  * Create a booking via the API directly.
  * Tries all sports across the next 6 days until a 2xx response is received.
- * Returns the unique phone used so the test can locate its row.
+ * Returns the unique phone and booking id.
  */
-async function createBookingViaAPI(request: APIRequestContext): Promise<string> {
+async function createBookingViaAPI(request: APIRequestContext): Promise<{ phone: string; id: string }> {
   const phone = "9" + String(Date.now()).slice(-9);
 
   for (let daysAhead = 1; daysAhead <= 6; daysAhead++) {
@@ -42,7 +54,10 @@ async function createBookingViaAPI(request: APIRequestContext): Promise<string> 
           players: 1,
         },
       });
-      if (bookRes.ok()) return phone;
+      if (bookRes.ok()) {
+        const body = await bookRes.json();
+        return { phone, id: body.id };
+      }
     }
   }
   throw new Error("No available slot found across 6 days × 3 sports");
@@ -56,67 +71,77 @@ test.describe("Admin — bookings management", () => {
   });
 
   test("booking created via API appears in admin list", async ({ page, request }) => {
-    const phone = await createBookingViaAPI(request);
-    await login(page);
-    await page.goto("/bookings");
-    // Row identified by its unique phone number
-    await expect(page.locator("tr", { hasText: phone }).first()).toBeVisible({ timeout: 8_000 });
-    await expect(page.locator("tr", { hasText: phone }).first()).toContainText("E2E Admin Tester");
+    const { phone, id } = await createBookingViaAPI(request);
+    try {
+      await login(page);
+      await page.goto("/bookings");
+      await expect(page.locator("tr", { hasText: phone }).first()).toBeVisible({ timeout: 8_000 });
+      await expect(page.locator("tr", { hasText: phone }).first()).toContainText("E2E Admin Tester");
+    } finally {
+      await deleteBooking(request, id);
+    }
   });
 
   test("pending booking can be confirmed via admin", async ({ page, request }) => {
-    const phone = await createBookingViaAPI(request);
-    await login(page);
-    await page.goto("/bookings");
+    const { phone, id } = await createBookingViaAPI(request);
+    try {
+      await login(page);
+      await page.goto("/bookings");
 
-    // Row uniquely identified by phone — not shared with other test workers
-    const row = page.locator("tr", { hasText: phone }).first();
-    await expect(row).toBeVisible({ timeout: 8_000 });
+      const row = page.locator("tr", { hasText: phone }).first();
+      await expect(row).toBeVisible({ timeout: 8_000 });
 
-    const confirmBtn = row.getByRole("button", { name: /^confirm$/i });
-    await expect(confirmBtn).toBeVisible({ timeout: 5_000 });
-    await confirmBtn.click();
+      const confirmBtn = row.getByRole("button", { name: /^confirm$/i });
+      await expect(confirmBtn).toBeVisible({ timeout: 5_000 });
+      await confirmBtn.click();
 
-    // After confirm: Complete + No-show appear; Confirm disappears
-    await expect(row.getByRole("button", { name: /complete/i })).toBeVisible({ timeout: 8_000 });
-    await expect(row.getByRole("button", { name: /no.?show/i })).toBeVisible();
-    await expect(row.getByRole("button", { name: /^confirm$/i })).toHaveCount(0);
+      await expect(row.getByRole("button", { name: /complete/i })).toBeVisible({ timeout: 8_000 });
+      await expect(row.getByRole("button", { name: /no.?show/i })).toBeVisible();
+      await expect(row.getByRole("button", { name: /^confirm$/i })).toHaveCount(0);
+    } finally {
+      await deleteBooking(request, id);
+    }
   });
 
   test("pending booking can be cancelled via admin", async ({ page, request }) => {
-    const phone = await createBookingViaAPI(request);
-    await login(page);
-    await page.goto("/bookings");
+    const { phone, id } = await createBookingViaAPI(request);
+    try {
+      await login(page);
+      await page.goto("/bookings");
 
-    const row = page.locator("tr", { hasText: phone }).first();
-    await expect(row).toBeVisible({ timeout: 8_000 });
+      const row = page.locator("tr", { hasText: phone }).first();
+      await expect(row).toBeVisible({ timeout: 8_000 });
 
-    const cancelBtn = row.getByRole("button", { name: /^cancel$/i });
-    await expect(cancelBtn).toBeVisible({ timeout: 5_000 });
-    await cancelBtn.click();
+      const cancelBtn = row.getByRole("button", { name: /^cancel$/i });
+      await expect(cancelBtn).toBeVisible({ timeout: 5_000 });
+      await cancelBtn.click();
 
-    // After cancel: no action buttons remain in this row
-    await expect(row.getByRole("button", { name: /^confirm$/i })).toHaveCount(0, { timeout: 8_000 });
-    await expect(row.getByRole("button", { name: /^cancel$/i })).toHaveCount(0);
-    await expect(row.getByRole("button", { name: /^complete$/i })).toHaveCount(0);
+      await expect(row.getByRole("button", { name: /^confirm$/i })).toHaveCount(0, { timeout: 8_000 });
+      await expect(row.getByRole("button", { name: /^cancel$/i })).toHaveCount(0);
+      await expect(row.getByRole("button", { name: /^complete$/i })).toHaveCount(0);
+    } finally {
+      await deleteBooking(request, id);
+    }
   });
 
   test("sport filter narrows booking list", async ({ page, request }) => {
-    await createBookingViaAPI(request); // creates a cricket booking
-    await login(page);
-    await page.goto("/bookings");
-    await expect(page.locator("table tbody tr").first()).toBeVisible({ timeout: 8_000 });
-    const totalRows = await page.locator("tbody tr").count();
+    const { id } = await createBookingViaAPI(request);
+    try {
+      await login(page);
+      await page.goto("/bookings");
+      await expect(page.locator("table tbody tr").first()).toBeVisible({ timeout: 8_000 });
+      const totalRows = await page.locator("tbody tr").count();
 
-    // Filter to pickleball — cricket booking should not appear
-    await page.locator(".filter-bar select").first().selectOption("pickleball");
-    await page.waitForTimeout(600);
-    const filteredCount = await page.locator("tbody tr").count();
-    expect(filteredCount).toBeLessThan(totalRows);
+      await page.locator(".filter-bar select").first().selectOption("pickleball");
+      await page.waitForTimeout(600);
+      const filteredCount = await page.locator("tbody tr").count();
+      expect(filteredCount).toBeLessThan(totalRows);
 
-    // Reset
-    await page.locator(".filter-bar select").first().selectOption("");
-    await page.waitForTimeout(600);
-    await expect(page.locator("tbody tr")).toHaveCount(totalRows);
+      await page.locator(".filter-bar select").first().selectOption("");
+      await page.waitForTimeout(600);
+      await expect(page.locator("tbody tr")).toHaveCount(totalRows);
+    } finally {
+      await deleteBooking(request, id);
+    }
   });
 });

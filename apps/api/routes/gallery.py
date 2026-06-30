@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Response
-from seed import GALLERY_ITEMS
+
+from deps import gallery_repo
 
 router = APIRouter()
 
 
 @router.get("/gallery")
 def get_gallery(response: Response):
-    response.headers["Cache-Control"] = "public, max-age=60"
-    return GALLERY_ITEMS
+    """Public gallery — live from DB, approved items only."""
+    response.headers["Cache-Control"] = "public, max-age=10"
+    return [g for g in gallery_repo.get_all() if g.approved]

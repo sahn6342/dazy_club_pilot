@@ -1,4 +1,4 @@
-"""
+﻿"""
 Shared fixtures. Every test gets clean DB state so tests are order-independent.
 Uses a throwaway temp-file SQLite DB — the env var MUST be set before importing
 deps/main (engine is built at import time).
@@ -21,6 +21,7 @@ from starlette.testclient import TestClient
 import deps
 from db import init_db, seed_if_empty
 from main import app
+from routes.admin.auth import clear_login_attempts
 
 # Create schema once before any test runs.
 init_db()
@@ -34,9 +35,11 @@ def _reset_repos():
     deps.testimonial_repo.clear()
     deps.cms_repo.clear()
     deps.schedule_repo.clear()  # clear rules + exceptions; seed re-adds default rules
+    deps.court_repo.clear()    # clear courts; seed re-adds 3 seeded courts
     deps.customer_repo.clear()
     deps.promo_repo.clear()  # clear promos; seed re-adds WELCOME10 + FLAT100
     seed_if_empty()  # re-insert gallery/testimonials/cms + venue/courts/rules idempotently
+    clear_login_attempts()  # reset rate-limit counters so test fixture logins never hit the cap
 
 
 @pytest.fixture(autouse=True)
@@ -53,7 +56,7 @@ def client():
 
 @pytest.fixture()
 def admin_token(client):
-    r = client.post("/api/v1/admin/login", json={"username": "admin", "password": "dazy-admin-2024"})
+    r = client.post("/api/v1/admin/login", json={"username": "admin", "password": "admin"})
     return r.json()["access_token"]
 
 

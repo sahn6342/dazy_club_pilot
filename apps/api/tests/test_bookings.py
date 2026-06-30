@@ -62,7 +62,7 @@ def test_create_booking_zero_players(client):
 
 def test_create_booking_nonexistent_slot(client):
     r = client.post("/api/v1/bookings", json={
-        "name": "A", "contact": "1", "slotId": "fake-id",
+        "name": "Test User", "contact": "9000000099", "slotId": "fake-id",
         "sportSlug": "cricket", "date": _today(), "startTime": "06:00", "players": 1,
     })
     assert r.status_code == 404

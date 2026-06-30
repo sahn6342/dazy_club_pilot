@@ -10,6 +10,8 @@ router = APIRouter()
 def list_enquiries(
     type: str | None = None,
     status: str | None = None,
+    limit: int = 500,
+    offset: int = 0,
     _: str = Depends(get_current_admin),
 ):
     result = enquiry_repo.get_all()
@@ -17,7 +19,7 @@ def list_enquiries(
         result = [e for e in result if e.type == type]
     if status:
         result = [e for e in result if e.status == status]
-    return result
+    return result[offset: offset + min(limit, 1000)]
 
 
 @router.patch("/admin/enquiries/{enquiry_id}")

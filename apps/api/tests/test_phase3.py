@@ -172,3 +172,35 @@ def test_no_show_frees_slot(client, auth_headers):
     found = next((s for s in slots if s["id"] == slot["id"]), None)
     assert found is not None
     assert found["available"] is True
+
+
+# ── Delete booking (admin, used by E2E cleanup) ──────────────────────────────────
+
+def test_delete_booking_removes_it(client, auth_headers):
+    bid = _book_and_get_id(client, auth_headers)
+    r = client.delete(f"/api/v1/admin/bookings/{bid}", headers=auth_headers)
+    assert r.status_code == 204
+    remaining = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    assert all(b["id"] != bid for b in remaining)
+
+
+def test_delete_booking_frees_slot(client, auth_headers):
+    """Deleting a booking releases its slot capacity."""
+    slot = _get_available_slot(client)
+    _book(client, slot)
+    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()[0]["id"]
+    client.delete(f"/api/v1/admin/bookings/{bid}", headers=auth_headers)
+    slots = client.get(f"/api/v1/slots?sport={slot['sportSlug']}&date={_offset(1)}").json()
+    found = next((s for s in slots if s["id"] == slot["id"]), None)
+    assert found is not None
+    assert found["available"] is True
+
+
+def test_delete_missing_booking_404(client, auth_headers):
+    r = client.delete("/api/v1/admin/bookings/does-not-exist", headers=auth_headers)
+    assert r.status_code == 404
+
+
+def test_delete_booking_requires_auth(client):
+    r = client.delete("/api/v1/admin/bookings/whatever")
+    assert r.status_code in (401, 403)

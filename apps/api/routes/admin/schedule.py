@@ -1,17 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from models import (
-    CourtDto, ScheduleRuleDto, ScheduleRuleCreate, ScheduleRuleUpdate,
+    ScheduleRuleDto, ScheduleRuleCreate, ScheduleRuleUpdate,
     ScheduleExceptionDto, ScheduleExceptionCreate,
 )
 from auth import get_current_admin
 from deps import court_repo, schedule_repo
 
 router = APIRouter()
-
-
-@router.get("/admin/courts", response_model=list[CourtDto])
-def list_courts(_: dict = Depends(get_current_admin)):
-    return [CourtDto.model_validate(c) for c in court_repo.get_all(active_only=False)]
 
 
 # ── Schedule rules ──
@@ -49,7 +44,8 @@ def list_exceptions(court_id: str | None = None, _: dict = Depends(get_current_a
 
 @router.post("/admin/schedule/exceptions", response_model=ScheduleExceptionDto, status_code=201)
 def create_exception(body: ScheduleExceptionCreate, _: dict = Depends(get_current_admin)):
-    if not court_repo.get_by_id(body.court_id):
+    # court_id None = venue-wide (all courts); only validate when a specific court is given.
+    if body.court_id is not None and not court_repo.get_by_id(body.court_id):
         raise HTTPException(status_code=404, detail="Court not found.")
     return schedule_repo.create_exception(body)
 

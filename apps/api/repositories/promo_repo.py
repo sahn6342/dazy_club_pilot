@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import select, delete as sa_delete, update as sa_update
+from sqlalchemy import select, delete as sa_delete, update as sa_update, or_
 
 from db import _session
 from db_models import PromoCodeRow
@@ -65,12 +65,43 @@ class SqlitePromoRepository:
             s.delete(row)
             return True
 
+    def validate_and_increment(self, code: str, sport: str, today: str) -> PromoCodeRow:
+        """Validate promo + atomically increment if still under limit.
+        Returns the (pre-increment) ORM row. Raises PromoError on any failure."""
+        from services.pricing_service import validate_promo, PromoError
+        with _session() as s:
+            row = s.scalar(select(PromoCodeRow).where(PromoCodeRow.code == code.strip().upper()))
+            validate_promo(row, sport, today)  # raises PromoError for active/expiry/sport/percent
+            # Conditional increment: only succeeds if still under max_uses.
+            # Two concurrent callers both pass validate_promo (reads stale count), but SQLite
+            # serializes writes so exactly one wins the WHERE clause; the other gets rowcount=0.
+            result = s.execute(
+                sa_update(PromoCodeRow)
+                .where(
+                    PromoCodeRow.code == code.strip().upper(),
+                    or_(PromoCodeRow.max_uses.is_(None), PromoCodeRow.used_count < PromoCodeRow.max_uses),
+                )
+                .values(used_count=PromoCodeRow.used_count + 1)
+            )
+            s.flush()
+            if result.rowcount == 0:
+                raise PromoError("Promo code usage limit reached.")
+            return row
+
     def increment_use(self, code: str) -> None:
         with _session() as s:
             s.execute(
                 sa_update(PromoCodeRow)
                 .where(PromoCodeRow.code == code.strip().upper())
                 .values(used_count=PromoCodeRow.used_count + 1)
+            )
+
+    def decrement_use(self, code: str) -> None:
+        with _session() as s:
+            s.execute(
+                sa_update(PromoCodeRow)
+                .where(PromoCodeRow.code == code.strip().upper())
+                .values(used_count=PromoCodeRow.used_count - 1)
             )
 
     def clear(self) -> None:

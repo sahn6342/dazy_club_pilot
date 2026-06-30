@@ -1,4 +1,4 @@
-# Dazy.club — Session Extract & System Snapshot
+﻿# Dazy.club — Session Extract & System Snapshot
 
 > Generated 2026-06-29. Single-file handoff: what was built this session + full system overview.
 
@@ -69,7 +69,7 @@ Single commands: `pnpm dev:api` / `dev:web` / `dev:admin`. Stop with Ctrl+C in t
 
 ### Ports
 - Public site → http://localhost:5173
-- Admin → http://localhost:5174 (login `admin` / `dazy-admin-2024`)
+- Admin → http://localhost:5174 (login `admin` / `admin`)
 - API → http://localhost:8000 (Swagger `/docs`)
 
 ### Repo layout (source)
@@ -133,7 +133,7 @@ Admin (JWT): `POST /admin/login`; `GET/PATCH /admin/bookings`; `GET/PATCH /admin
 ### Env vars (`.env.example`)
 ```
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=dazy-admin-2024
+ADMIN_PASSWORD=admin
 JWT_SECRET=change-this-to-a-long-random-string-in-production
 # optional: DAZY_DB_URL=sqlite:///./dazy.db
 VITE_API_BASE_URL=http://localhost:8000/api/v1   # apps/web/.env
@@ -181,7 +181,7 @@ Sport tabs and date pills wrap; slot chips reflow to a compact grid; booking for
 
 ### Admin — Login (`/login`)
 ![Admin login](screenshots/admin-login.png)
-JWT login card. Credentials from env vars (`admin` / `dazy-admin-2024` by default). Token stored in localStorage; `AuthGuard` redirects unauthenticated users here.
+JWT login card. Credentials from env vars (`admin` / `admin` by default). Token stored in localStorage; `AuthGuard` redirects unauthenticated users here.
 
 ### Admin — Dashboard (`/`)
 ![Admin dashboard](screenshots/admin-dashboard.png)

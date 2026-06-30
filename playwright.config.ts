@@ -41,8 +41,10 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
+      // uv may not be on PATH; the project venv has uvicorn. reuseExistingServer
+      // means a manually-started API on :8000 is preferred.
       command:
-        "cd apps/api && python -m uv run uvicorn main:app --port 8000",
+        "cd apps/api && .venv/Scripts/python -m uvicorn main:app --port 8000",
       url: `${API_URL}/api/v1/health`,
       reuseExistingServer: true,
       timeout: 30_000,

@@ -1,8 +1,32 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { launchSports } from "@dazy/shared";
 import { submitContactEnquiry, submitCorporateEnquiry, todayIso } from "../lib/api";
 import { validateName, validateContact, validateCompany, validateGroupSize } from "../lib/validate";
+
+const API = (import.meta as any).env?.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+type VenueInfo = { address: string; phone: string; email: string; hours: string; instagram: string; facebook: string };
+
+function useVenueInfo(): VenueInfo {
+  const [info, setInfo] = useState<VenueInfo>({ address: "", phone: "", email: "", hours: "", instagram: "", facebook: "" });
+  useEffect(() => {
+    fetch(`${API}/venue`)
+      .then((r) => r.json())
+      .then((entries: { key: string; value: string }[]) => {
+        const v = Object.fromEntries(entries.map((e) => [e.key, e.value]));
+        setInfo({
+          address:   v.venue_address   ?? "",
+          phone:     v.venue_phone     ?? "",
+          email:     v.venue_email     ?? "",
+          hours:     v.venue_hours     ?? "",
+          instagram: v.social_instagram ?? "",
+          facebook:  v.social_facebook  ?? "",
+        });
+      })
+      .catch(() => {});
+  }, []);
+  return info;
+}
 
 type FormStatus = "idle" | "submitting" | "success" | "error";
 
@@ -10,6 +34,9 @@ export function Contact() {
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") === "corporate" ? "corporate" : "contact";
   const [tab, setTab] = useState<"contact" | "corporate">(initialTab);
+  const venue = useVenueInfo();
+
+  const hasVenueInfo = venue.address || venue.phone || venue.email || venue.hours;
 
   return (
     <section id="contact" className="section">
@@ -18,6 +45,45 @@ export function Contact() {
         <h2>Questions or planning an event?</h2>
         <p>Send a general enquiry, or tell us about a corporate event.</p>
       </div>
+
+      {hasVenueInfo && (
+        <div className="venue-info-band">
+          {venue.address && (
+            <div className="venue-info-item">
+              <span className="venue-info-icon">📍</span>
+              <span>{venue.address}</span>
+            </div>
+          )}
+          {venue.phone && (
+            <div className="venue-info-item">
+              <span className="venue-info-icon">📞</span>
+              <a href={`tel:${venue.phone.replace(/\s/g, "")}`}>{venue.phone}</a>
+            </div>
+          )}
+          {venue.email && (
+            <div className="venue-info-item">
+              <span className="venue-info-icon">✉️</span>
+              <a href={`mailto:${venue.email}`}>{venue.email}</a>
+            </div>
+          )}
+          {venue.hours && (
+            <div className="venue-info-item">
+              <span className="venue-info-icon">🕐</span>
+              <span>{venue.hours}</span>
+            </div>
+          )}
+          {(venue.instagram || venue.facebook) && (
+            <div className="venue-info-item">
+              <span className="venue-info-icon">🔗</span>
+              <span>
+                {venue.instagram && <a href={venue.instagram} target="_blank" rel="noopener noreferrer">Instagram</a>}
+                {venue.instagram && venue.facebook && " · "}
+                {venue.facebook && <a href={venue.facebook} target="_blank" rel="noopener noreferrer">Facebook</a>}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="sport-tabs" role="tablist">
         <button role="tab" className={`tab-btn${tab === "contact" ? " active" : ""}`} onClick={() => setTab("contact")}>

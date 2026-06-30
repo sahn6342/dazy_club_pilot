@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { StatusBadge } from "../components/StatusBadge";
+import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 
 type Enquiry = {
@@ -12,6 +13,7 @@ type Enquiry = {
 };
 
 export function Enquiries() {
+  const toast = useToast();
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [tab, setTab] = useState<"all" | "contact" | "corporate">("all");
 
@@ -25,6 +27,7 @@ export function Enquiries() {
   async function markHandled(id: string) {
     await api.patch(`/admin/enquiries/${id}`, { status: "handled" });
     load();
+    toast.success("Marked as handled");
   }
 
   return (

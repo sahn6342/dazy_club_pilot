@@ -5,7 +5,7 @@ against bookings. Slots are value objects, never stored.
 from datetime import date as date_cls, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 
 from db import _session
 from db_models import CourtRow, VenueRow, ScheduleRuleRow, ScheduleExceptionRow, BookingRow
@@ -34,10 +34,15 @@ def _blocks_for(court_id: str, d: str, weekday: int, s) -> list[tuple[str, str, 
             ScheduleRuleRow.court_id == court_id, ScheduleRuleRow.weekday == weekday
         )
     ).all()
+    # Match a court-specific exception OR a venue-wide one (court_id IS NULL).
+    # order_by puts court-specific first (False=0 sorts before True=1), so it wins.
     exc = s.scalar(
-        select(ScheduleExceptionRow).where(
-            ScheduleExceptionRow.court_id == court_id, ScheduleExceptionRow.day == d
+        select(ScheduleExceptionRow)
+        .where(
+            ScheduleExceptionRow.day == d,
+            or_(ScheduleExceptionRow.court_id == court_id, ScheduleExceptionRow.court_id.is_(None)),
         )
+        .order_by(ScheduleExceptionRow.court_id.is_(None))
     )
     if exc is not None:
         if exc.closed:
@@ -127,12 +132,13 @@ def generate_slots(sport: str | None = None, date: str | None = None, drop_past:
                         if is_past and drop_past:
                             cur += step
                             continue
-                        sid = f"slot-{court.sport}-{d}-{start_hhmm.replace(':', '')}"
+                        sid = f"slot-{court.id}-{d}-{start_hhmm.replace(':', '')}"
                         # A slot is available when there's remaining capacity AND it's not past.
                         under_capacity = (occupied.get(sid, 0) + 1 <= court.capacity)
                         out.append(SlotDto(
                             id=sid,
                             courtId=court.id,
+                            courtName=court.name,
                             sportSlug=court.sport,
                             date=d,
                             startTime=start_hhmm,

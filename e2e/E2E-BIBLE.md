@@ -1,4 +1,4 @@
-# E2E Bible — Dazy.club
+﻿# E2E Bible — Dazy.club
 
 Canonical reference for writing, maintaining, and extending Playwright E2E tests in this repo.
 Living document — update when a new pattern is proven, a flaky fix is discovered, or the stack changes.
@@ -47,7 +47,7 @@ Rule: one spec per feature domain. Don't put web + admin tests in the same file.
 async function login(page: Page) {
   await page.goto("/");
   await page.locator("input[name=username]").fill("admin");
-  await page.locator("input[name=password]").fill("dazy-admin-2024");
+  await page.locator("input[name=password]").fill("admin");
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page.locator(".admin-layout")).toBeVisible({ timeout: 10_000 });
 }
@@ -58,7 +58,7 @@ async function login(page: Page) {
 ```ts
 async function token(request: APIRequestContext): Promise<string> {
   const r = await request.post(`${API}/admin/login`, {
-    data: { username: "admin", password: "dazy-admin-2024" }
+    data: { username: "admin", password: "admin" }
   });
   return (await r.json()).access_token;
 }
@@ -187,13 +187,54 @@ await done; // resolves when debounce fires and server responds
 | Confirmed amount | `confirmed-amount` |
 | Summary total | `summary-total` |
 | Court selector | `court-select` |
-| Save block button | `save-block` |
-| Add block button | `add-block-{weekday}` |
+| Weekly editor container | `weekly-editor` |
+| Weekly: add block / make continuous / save | `weekly-add-block` / `weekly-continuous` / `weekly-save` |
+| Weekly editor block row (class) | `.weekly-block-row` |
+| Advanced per-day toggle / panel | `advanced-toggle` / `advanced-panel` |
+| Save block button (per-day) | `save-block` |
+| Add block button (per-day) | `add-block-{weekday}` |
 | Add exception button | `exception-add` |
+| Toast (success/error popup) | `toast` (container: `toast-container`) |
 | Promo submit | `promo-submit` |
 | Promo code input (admin) | `promo-code` |
 | Promo kind select | `promo-kind` |
 | Promo value input | `promo-value` |
+| Exception "all courts" toggle | `exception-all-courts` |
+| Gallery create: title/sport/tone | `gallery-title` / `gallery-sport` / `gallery-tone` |
+| Gallery image URL / file picker | `gallery-image-url` / `gallery-image-file` |
+| Gallery submit / edit / edit-save | `gallery-submit` / `gallery-edit` / `gallery-edit-save` |
+| Testimonial create fields | `testimonial-name` / `testimonial-context` / `testimonial-quote` |
+| Testimonial submit / edit / edit-save | `testimonial-submit` / `testimonial-edit` / `testimonial-edit-save` |
+| CMS create fields | `cms-new-key` / `cms-new-label` / `cms-new-value` |
+| CMS create / per-row delete | `cms-create` / `cms-delete` |
+
+Row-level data attributes for selecting existing items:
+- Gallery card: `.gallery-card[data-id="..."]`
+- Testimonial card: `.enquiry-card[data-id="..."]`
+- CMS entry: `.cms-entry[data-key="..."]`
+- Exception row court: `tr[data-exc-court="all"]` (venue-wide) or the court id
+
+---
+
+## File upload (gallery)
+
+Use `setInputFiles` on the file `<input>`; the upload returns a `/media/...` path that
+becomes the item's `imageUrl`. For a deterministic test, prefer the **image URL** field
+(`gallery-image-url`) over a real upload — assert the `<img src>` equals the URL.
+
+```ts
+// URL path (deterministic — no file needed)
+await page.locator('[data-testid="gallery-image-url"]').fill("https://example.com/x.jpg");
+
+// Real upload path (when exercising the upload endpoint)
+await page.locator('[data-testid="gallery-image-file"]').setInputFiles({
+  name: "shot.png", mimeType: "image/png", buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+});
+```
+
+`resolveImg`: an absolute `http(s)` URL is used as-is; a relative `/media/...` path is
+prefixed with the API origin (`http://localhost:8000`). Assert the resolved `src`
+accordingly in web tests.
 
 ---
 
@@ -372,3 +413,35 @@ d.setDate(d.getDate() + 20); // far enough to avoid collisions with other tests
   across test runs. Tests must not assert an exact count — assert a relative increment.
 - **Schedule horizon**: slots only exist 7 days ahead. Tests using `pillIdx > 6` will get 0 slots.
 - **Late-night runs**: `pillIdx = 1` is safe at any time since it's tomorrow.
+- **Venue-wide exceptions**: the "Apply to all courts" toggle defaults ON, so an added
+  exception posts `court_id: null` and closes EVERY sport that day. It also shows on every
+  court's exceptions table. Always delete the exception you create (cleanup) and use a
+  far-future date (`+20`d or more) to avoid colliding with slot-dependent tests.
+- **Public gallery**: now DB-driven (`/gallery`, `Cache-Control: max-age=10`), not static seed.
+  It reflects admin create/approve/reject in near-real-time. Assert relative changes (item
+  appears/disappears), not absolute counts — seeded items + other tests' items coexist.
+- **Gallery uploads**: a real upload writes a file under `apps/api/media/gallery/` (gitignored).
+  Prefer the image-URL field for deterministic assertions; reserve `setInputFiles` for
+  exercising the upload endpoint itself.
+- **Schedule UI (weekly + advanced)**: the page now leads with a single **Weekly hours**
+  editor (`weekly-editor`) that writes the same blocks to all 7 weekdays on save (one
+  POST/DELETE pass per day). Per-day editing lives behind the `advanced-toggle` — tests
+  that touch `.weekday-section`/`.block-row`/`add-block-{wd}` must click it first
+  (`expandAdvanced` helper) or the sections won't be in the DOM. Use `.weekly-block-row`
+  (or `waitLoaded`) as the "rules loaded / courtId set" guard instead of `.block-row`.
+  The weekly-save test mutates **every** weekday, so wrap it in a full-week snapshot/restore
+  (`withFullRestore`), not the single-weekday `withRestore`.
+- **Toasts**: every admin save/edit/delete fires a bottom-right auto-dismiss toast
+  (`[data-testid="toast"]`, ~2.5s). Assert it with `toContainText(/saved|added|deleted|.../i)`
+  **before** it fades. Toasts stack in `toast-container`; click to dismiss early. They are
+  cosmetic — never use a toast as the sole proof an API call succeeded (assert the response
+  status or resulting DOM/data too).
+- **Slot mocks are synthetic**: `mockSlots`/`mockAllSlotsAvailable` in the web specs now
+  fulfill `**/api/v1/slots**` with locally-built slot objects (parsed from the request's
+  `sport`/`date`) instead of `route.fetch()`-ing the real API. This removes the
+  "Response has been disposed" flake and makes slot-dependent UI tests independent of live
+  schedule data. Real booking POSTs still hit the API after `page.unroute`.
+- **Booking cleanup**: web booking/pricing tests that submit a real booking capture the
+  created id from the `POST /bookings` 201 response (`page.on("response")`) and delete it via
+  `DELETE /admin/bookings/{id}` in a `finally`. Admin booking tests get the id from
+  `createBookingViaAPI` and do the same. Keeps `dazy.db` free of E2E booking rows.

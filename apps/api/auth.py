@@ -39,7 +39,7 @@ def create_access_token(username: str, role: str = "admin") -> str:
 
 def verify_env_admin(username: str, password: str) -> bool:
     expected_user = os.environ.get("ADMIN_USERNAME", "admin")
-    expected_pass = os.environ.get("ADMIN_PASSWORD", "dazy-admin-2024")
+    expected_pass = os.environ.get("ADMIN_PASSWORD", "admin")
     return username == expected_user and password == expected_pass
 
 
@@ -57,7 +57,13 @@ def get_current_admin(
 ) -> dict:
     """Returns {"sub": username, "role": "admin"|"manager"}. Accepts both roles."""
     payload = _decode_token(credentials.credentials)
-    return {"sub": payload["sub"], "role": payload.get("role", "admin")}
+    role = payload.get("role", "admin")
+    if role == "manager":
+        # Verify the manager account still exists (guards against deleted-token reuse).
+        from repositories.user_repo import SqliteUserRepository
+        if not SqliteUserRepository().get_by_username(payload["sub"]):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists.")
+    return {"sub": payload["sub"], "role": role}
 
 
 def require_superadmin(

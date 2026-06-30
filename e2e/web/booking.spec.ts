@@ -1,14 +1,45 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect, APIRequestContext } from "@playwright/test";
 
-/** Intercept slots API and mark every slot available — for UI-only tests. */
+const API = "http://localhost:8000/api/v1";
+
+async function token(request: APIRequestContext): Promise<string> {
+  const r = await request.post(`${API}/admin/login`, { data: { username: "admin", password: "admin" } });
+  return (await r.json()).access_token;
+}
+
+async function deleteBooking(request: APIRequestContext, id: string): Promise<void> {
+  const tok = await token(request);
+  await request.delete(`${API}/admin/bookings/${id}`, { headers: { Authorization: `Bearer ${tok}` } });
+}
+
+/** Return 3 synthetic available slots for sport/date parsed from the request URL. */
+function syntheticSlots(url: string) {
+  const dateMatch = url.match(/date=([^&]+)/);
+  const date = dateMatch?.[1] ?? "2099-01-01";
+  const sportMatch = url.match(/sport=([^&]+)/);
+  const sport = sportMatch?.[1] ?? "cricket";
+  return Array.from({ length: 3 }, (_, i) => ({
+    id: `mock-slot-${i}`,
+    courtId: `court-${sport}`,
+    sportSlug: sport,
+    date,
+    startTime: `0${6 + i}:00`,
+    endTime: `0${7 + i}:00`,
+    available: true,
+    maxPlayers: 10,
+    price: 1000,
+    discountPercent: null,
+    finalPrice: 1000,
+  }));
+}
+
+/** Intercept slots API with synthetic available slots — no real fetch needed. */
 async function mockAllSlotsAvailable(page: import("@playwright/test").Page) {
   await page.route("**/api/v1/slots**", async (route) => {
-    const res = await route.fetch();
-    const slots: any[] = await res.json();
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(slots.map((s) => ({ ...s, available: true }))),
+      body: JSON.stringify(syntheticSlots(route.request().url())),
     });
   });
 }
@@ -38,6 +69,22 @@ async function selectDate(
   await expect(page.locator(".slot-chip").first()).toBeVisible({ timeout: 5_000 });
 }
 
+/**
+ * Real-API only: click upcoming date pills (1..6) until one renders slot chips.
+ * Robust against machine-clock drift where "tomorrow" may land on a date the server
+ * has no slots for (today is past-filtered; horizon is 7 days). Returns the pill index.
+ */
+async function selectFirstDateWithSlots(page: import("@playwright/test").Page): Promise<number> {
+  for (let i = 1; i <= 6; i++) {
+    await page.locator(".date-pill").nth(i).click();
+    try {
+      await expect(page.locator(".slot-chip").first()).toBeVisible({ timeout: 3_000 });
+      return i;
+    } catch { /* try next pill */ }
+  }
+  throw new Error("No date with slots found in the next 6 days (real API).");
+}
+
 // ── Slot selection tests ────────────────────────────────────────────────────
 
 test.describe("Book page — slot selection", () => {
@@ -53,8 +100,8 @@ test.describe("Book page — slot selection", () => {
   });
 
   test("loads slot chips for a future date", async ({ page }) => {
-    await selectDate(page, 1); // tomorrow
-    // Any non-zero count — exact count depends on schedule rules + existing bookings
+    // Pick the first upcoming date that actually has slots (robust to clock drift).
+    await selectFirstDateWithSlots(page);
     const count = await page.locator(".slot-chip").count();
     expect(count).toBeGreaterThan(0);
   });
@@ -125,11 +172,9 @@ test.describe("Book page — form validation", () => {
 // ── End-to-end booking success tests ─────────────────────────────────────────
 
 test.describe("Book page — successful booking", () => {
-  test("complete booking flow shows confirmation", async ({ page }) => {
-    // Mock slots available so form opens reliably
+  test("complete booking flow shows confirmation", async ({ page, request }) => {
     await mockAllSlotsAvailable(page);
     await page.goto("/book");
-    // Use badminton day-1 — less likely to be exhausted
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const dateStr = tomorrow.toISOString().slice(0, 10);
@@ -148,17 +193,26 @@ test.describe("Book page — successful booking", () => {
     const phone = "9" + String(Date.now()).slice(-9);
     await page.getByPlaceholder("10-digit mobile or email").fill(phone);
 
-    // Unroute so the POST hits the real API
-    await page.unroute("**/api/v1/slots**");
-    await page.getByRole("button", { name: /confirm booking/i }).click();
+    let createdBookingId: string | null = null;
+    page.on("response", async (res) => {
+      if (res.url().includes("/api/v1/bookings") && res.request().method() === "POST" && res.status() === 201) {
+        try { const b = await res.json(); createdBookingId = b.id; } catch { /* ignore */ }
+      }
+    });
 
-    // Accept either success or "slot taken" — both are valid outcomes
-    await expect(
-      page.getByText(/you're booked in/i).or(page.getByText(/slot may have just been taken/i))
-    ).toBeVisible({ timeout: 10_000 });
+    try {
+      await page.unroute("**/api/v1/slots**");
+      await page.getByRole("button", { name: /confirm booking/i }).click();
+
+      await expect(
+        page.getByText(/you're booked in/i).or(page.getByText(/slot may have just been taken/i))
+      ).toBeVisible({ timeout: 10_000 });
+    } finally {
+      if (createdBookingId) await deleteBooking(request, createdBookingId);
+    }
   });
 
-  test("book another slot button resets form", async ({ page }) => {
+  test("book another slot button resets form", async ({ page, request }) => {
     await mockAllSlotsAvailable(page);
     await page.goto("/book");
     await selectDate(page, 1);
@@ -168,20 +222,30 @@ test.describe("Book page — successful booking", () => {
     await page.getByPlaceholder("Your full name").fill("E2E User 2");
     const phone = "9" + String(Date.now()).slice(-9);
     await page.getByPlaceholder("10-digit mobile or email").fill(phone);
-    await page.unroute("**/api/v1/slots**");
-    await page.getByRole("button", { name: /confirm booking/i }).click();
 
-    // Either booking succeeds or fails — test is about the "book another" reset
-    await expect(
-      page.getByText(/you're booked in/i).or(page.getByText(/slot may have just been taken/i))
-    ).toBeVisible({ timeout: 10_000 });
+    let createdBookingId: string | null = null;
+    page.on("response", async (res) => {
+      if (res.url().includes("/api/v1/bookings") && res.request().method() === "POST" && res.status() === 201) {
+        try { const b = await res.json(); createdBookingId = b.id; } catch { /* ignore */ }
+      }
+    });
 
-    // Only test the reset if booking succeeded
-    const succeeded = await page.getByText(/you're booked in/i).isVisible();
-    if (succeeded) {
-      await page.getByRole("button", { name: /book another/i }).click();
-      await expect(page.locator(".booking-form-wrap")).not.toBeVisible();
-      await expect(page.locator(".slot-grid")).toBeVisible();
+    try {
+      await page.unroute("**/api/v1/slots**");
+      await page.getByRole("button", { name: /confirm booking/i }).click();
+
+      await expect(
+        page.getByText(/you're booked in/i).or(page.getByText(/slot may have just been taken/i))
+      ).toBeVisible({ timeout: 10_000 });
+
+      const succeeded = await page.getByText(/you're booked in/i).isVisible();
+      if (succeeded) {
+        await page.getByRole("button", { name: /book another/i }).click();
+        await expect(page.locator(".booking-form-wrap")).not.toBeVisible();
+        await expect(page.locator(".slot-grid")).toBeVisible();
+      }
+    } finally {
+      if (createdBookingId) await deleteBooking(request, createdBookingId);
     }
   });
 });

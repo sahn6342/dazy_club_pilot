@@ -1,12 +1,101 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { galleryItems, launchSports, testimonials } from "@dazy/shared";
+import { getGallery, resolveImg, type GalleryItem } from "../lib/api";
 
 const AVATAR: Record<string, string> = {
   "testimonial-1": "priya",
   "testimonial-2": "arjun",
 };
 
+function usePerView(desktop: number): number {
+  const calc = () => {
+    if (typeof window === "undefined") return desktop;
+    if (window.innerWidth < 720) return 1;
+    if (window.innerWidth < 1024) return Math.min(2, desktop);
+    return desktop;
+  };
+  const [pv, setPv] = useState(calc);
+  useEffect(() => {
+    const h = () => setPv(calc());
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+  return pv;
+}
+
+function Carousel<T extends object>({
+  items,
+  perView,
+  autoMs = 4200,
+  renderItem,
+  className = "",
+}: {
+  items: T[];
+  perView: number;
+  autoMs?: number;
+  renderItem: (item: T, idx: number) => JSX.Element | null;
+  className?: string;
+}) {
+  const pages = Math.ceil(items.length / perView);
+  const [page, setPage] = useState(0);
+
+  // Reset when perView changes (resize)
+  useEffect(() => { setPage(0); }, [perView]);
+
+  // Auto-advance — simple modulo, no clone needed with crossfade
+  useEffect(() => {
+    if (pages <= 1) return;
+    const t = setInterval(() => setPage((p) => (p + 1) % pages), autoMs);
+    return () => clearInterval(t);
+  }, [pages, autoMs]);
+
+  return (
+    <div className={`carousel ${className}`}>
+      <div className="carousel-track">
+        {Array.from({ length: pages }, (_, pi) => (
+          <div
+            key={pi}
+            className={`carousel-page${pi === page ? " active" : ""}`}
+            style={{ gridTemplateColumns: `repeat(${perView}, 1fr)` }}
+            aria-hidden={pi !== page}
+          >
+            {Array.from({ length: perView }, (_, k) => {
+              const idx = (pi * perView + k) % items.length;
+              return (
+                <div key={k} className="carousel-slide">
+                  {renderItem(items[idx], idx)}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      {pages > 1 && (
+        <div className="carousel-dots">
+          {Array.from({ length: pages }, (_, i) => (
+            <button
+              key={i}
+              className={`carousel-dot${page === i ? " active" : ""}`}
+              onClick={() => setPage(i)}
+              aria-label={`Slide ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Home() {
+  const [gallery, setGallery] = useState<GalleryItem[]>(galleryItems as GalleryItem[]);
+  useEffect(() => {
+    getGallery().then((items) => { if (items.length) setGallery(items); }).catch(() => {});
+  }, []);
+
+  const galleryPerView = usePerView(3);
+  const testimonialPerView = usePerView(2);
+
   return (
     <>
       <section id="home" className="hero">
@@ -131,14 +220,21 @@ export function Home() {
           <h2>Moments at Dazy.club.</h2>
           <p>A glimpse of the energy, atmosphere, and play you can expect on court.</p>
         </div>
-        <div className="gallery-grid">
-          {galleryItems.map((item) => (
-            <figure className="gallery-item" key={item.id}>
-              <img src={`/images/gallery-${item.sportSlug}.jpg`} alt={item.title} loading="lazy" />
-              <figcaption>{item.title}</figcaption>
-            </figure>
-          ))}
-        </div>
+        <Carousel
+          items={gallery}
+          perView={galleryPerView}
+          autoMs={4000}
+          className="gallery-carousel"
+          renderItem={(item) => {
+            const src = resolveImg(item.imageUrl) || `/images/gallery-${item.sportSlug}.jpg`;
+            return (
+              <figure className="gallery-item">
+                <img src={src} alt={item.title} loading="lazy" />
+                <figcaption>{item.title}</figcaption>
+              </figure>
+            );
+          }}
+        />
       </section>
 
       <section className="section">
@@ -146,18 +242,27 @@ export function Home() {
           <p className="eyebrow">Testimonials</p>
           <h2>What players say.</h2>
         </div>
-        <div className="card-grid two testimonials-wrap">
-          {testimonials.map((item) => (
-            <article className="card testimonial-card" key={item.id}>
+        <Carousel
+          items={testimonials}
+          perView={testimonialPerView}
+          autoMs={5500}
+          className="testimonial-carousel"
+          renderItem={(item) => (
+            <article className="card testimonial-card">
               <div className="stars" aria-label="5 out of 5 stars">★★★★★</div>
               <p className="quote">"{item.quote}"</p>
               <div className="testimonial-author">
-                <img className="avatar" src={`/images/avatar-${AVATAR[item.id] ?? "priya"}.jpg`} alt={item.name} loading="lazy" />
+                <img
+                  className="avatar"
+                  src={`/images/avatar-${AVATAR[item.id] ?? "priya"}.jpg`}
+                  alt={item.name}
+                  loading="lazy"
+                />
                 <p className="byline">{item.name} — {item.context}</p>
               </div>
             </article>
-          ))}
-        </div>
+          )}
+        />
       </section>
 
       <section className="section">
