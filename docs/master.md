@@ -1,1 +1,0 @@
-Always read PROJECT_CONTEXT.md and all docs before coding. Never invent requirements. Implement one feature at a time with tests.

@@ -1,1 +1,0 @@
-Local, Dev, QA, Stage, Production environment variables strategy.

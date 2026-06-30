@@ -1,1 +1,0 @@
-Landing pages, sport pages, blogs, tournaments, local SEO, schema markup strategy.

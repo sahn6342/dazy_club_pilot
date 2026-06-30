@@ -1,1 +1,0 @@
-dev, build, test, lint, format, typecheck, db:migrate, seed, preview.

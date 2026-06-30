@@ -1,1 +1,0 @@
-Nightly backups, restore validation, retention policy.

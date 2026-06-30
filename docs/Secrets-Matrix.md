@@ -1,1 +1,0 @@
-JWT, DB, Redis, Payment, SMS, Email, Storage managed via secret store.

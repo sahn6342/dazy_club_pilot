@@ -1,1 +1,0 @@
-React Hook Form + Zod. Server/client validation. Autosave where applicable.

@@ -1,1 +1,0 @@
-main, develop, feature/*, hotfix/*, release/*.

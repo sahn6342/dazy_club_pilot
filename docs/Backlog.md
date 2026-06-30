@@ -1,1 +1,0 @@
-Remaining production assets: Figma files, OpenAPI YAML, SQL dictionary, production code, CI pipelines.

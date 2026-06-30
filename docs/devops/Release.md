@@ -1,1 +1,0 @@
-Blue/Green preferred. Feature flags for risky releases.

@@ -1,1 +1,0 @@
-Daily PostgreSQL backup, media replication, restore drills.

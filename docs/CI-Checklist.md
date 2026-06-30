@@ -1,1 +1,0 @@
-Build, lint, typecheck, unit tests, security scan, Lighthouse, deploy.

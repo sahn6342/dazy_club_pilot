@@ -1,1 +1,0 @@
-Lint -> Typecheck -> Tests -> Build -> Security Scan -> Deploy.

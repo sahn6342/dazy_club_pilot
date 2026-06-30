@@ -1,1 +1,0 @@
-FastAPI (Python 3.12), modular router structure, Pydantic v2, ready for future services. See ADR-011.

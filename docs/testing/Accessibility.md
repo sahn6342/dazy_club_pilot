@@ -1,1 +1,0 @@
-WCAG 2.2 AA, keyboard navigation, screen reader, reduced motion.

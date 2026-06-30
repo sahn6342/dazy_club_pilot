@@ -1,1 +1,0 @@
-Playwright for booking, payment, OTP, admin, CRM, CMS journeys.

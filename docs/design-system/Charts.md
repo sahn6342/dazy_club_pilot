@@ -1,1 +1,0 @@
-Occupancy, Revenue, Booking trends.

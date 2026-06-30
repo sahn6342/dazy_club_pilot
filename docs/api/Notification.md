@@ -1,4 +1,0 @@
-# Notification
-Campaigns
-Templates
-Deliveries

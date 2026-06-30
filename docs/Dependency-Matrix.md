@@ -1,1 +1,0 @@
-Cross-reference between Product -> UX -> API -> DB -> Backend -> Frontend -> Tests.

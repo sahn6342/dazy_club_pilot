@@ -1,1 +1,0 @@
-Generate React 19 + Vite + TypeScript code following feature-first architecture, Tailwind, Motion and shadcn/ui.

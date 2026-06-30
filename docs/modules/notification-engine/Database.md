@@ -1,5 +1,0 @@
-# Tables
-notification
-campaign
-notification_template
-notification_delivery

@@ -1,1 +1,0 @@
-Read docs -> Generate plan -> Implement feature -> Tests -> Self review -> Update docs.

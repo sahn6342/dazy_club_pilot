@@ -1,1 +1,0 @@
-# UX Research & Content Strategy

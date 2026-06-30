@@ -1,1 +1,0 @@
-Defines sitemap, page hierarchy, navigation depth and discoverability rules.

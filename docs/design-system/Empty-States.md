@@ -1,1 +1,0 @@
-No bookings, no gallery, no search results.

@@ -1,1 +1,0 @@
-Buttons, Inputs, Cards, Hero, Booking Timeline, Navbar, Footer, Tables, Charts, Admin widgets.

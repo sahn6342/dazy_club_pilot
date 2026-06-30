@@ -1,1 +1,0 @@
-Requirements approved, UX finalized, API agreed, DB ready, acceptance criteria written.

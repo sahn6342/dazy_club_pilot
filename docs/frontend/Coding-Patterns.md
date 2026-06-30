@@ -1,1 +1,0 @@
-Composition over inheritance. Container/presentation split where useful. Reusable hooks. No business logic in UI.

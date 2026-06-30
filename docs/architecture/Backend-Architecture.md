@@ -1,35 +1,42 @@
 # Backend Architecture
 
 ## Stack
-- FastAPI (Python 3.12) — see ADR-011.
-- Pydantic v2 for validation.
-- uvicorn ASGI server.
-- SQLAlchemy (async) + asyncpg with PostgreSQL (Phase 2).
-- Alembic for migrations (Phase 2).
+- **FastAPI** (Python 3.12) + Pydantic v2 + uvicorn
+- **SQLAlchemy 2.0** (sync) + **Alembic** for migrations
+- **SQLite** (`dazy.db`) — swap to PostgreSQL via `DAZY_DB_URL`
+- **uv** as Python package manager
 
-## Launch Modules
-- Public Content.
-- Sports.
-- Gallery.
-- Testimonials.
-- Notifications.
-- Leads.
-- Corporate Enquiries.
-- Audit foundation.
+## Layer structure
 
-## Deferred Modules
-- Availability.
-- Booking.
-- Pricing.
-- Payment.
-- OTP/Auth.
-- CRM automation.
-- CMS workflows.
+```
+Route handler (thin)
+    ↓
+Service layer (business rules: availability, booking, promo calc)
+    ↓
+Repository (data access only — one class per entity)
+    ↓
+SQLAlchemy session (db.py _session context manager)
+    ↓
+SQLite / PostgreSQL
+```
 
-## Cross-Cutting
-- OpenAPI.
-- Validation pipeline.
-- Central exception handling.
-- Structured logging.
-- CORS for web/admin apps.
-- Environment-based configuration.
+## Key modules
+
+| Module | Location | Responsibility |
+|---|---|---|
+| App bootstrap | `main.py` | Router registration, CORS, GZip, media static mount |
+| Models | `models.py` | All Pydantic DTOs |
+| DB models | `db_models.py` | SQLAlchemy ORM row classes |
+| DB init | `db.py` | Engine, session, `init_db()`, `seed_if_empty()` |
+| Dependencies | `deps.py` | Singleton repo instances wired to routes |
+| Auth | `auth.py` | JWT encode/decode, `get_current_admin` dependency |
+| Availability | `services/availability_service.py` | Slot generation from rules + exceptions |
+| Booking | `services/booking_service.py` | Create booking, concurrency guard (409) |
+
+## Cross-cutting
+- CORS: allows web (:5173) and admin (:5174)
+- GZip middleware on all responses
+- Rate limiter on `/admin/login` (5 attempts per IP)
+- Pydantic auto-validates → 422 on bad input
+- OpenAPI UI at `/docs`, ReDoc at `/redoc`
+- All errors: `{"detail": "message"}` format

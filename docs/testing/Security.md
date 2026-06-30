@@ -1,1 +1,0 @@
-OWASP Top 10, auth, RBAC, rate limiting, IDOR, SQL injection, XSS.

@@ -1,1 +1,0 @@
-Architecture review, UX review, Security review, Performance review, Release review cadence.

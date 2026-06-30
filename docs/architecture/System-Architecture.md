@@ -1,19 +1,35 @@
 # System Architecture
 
-## Launch Architecture
-- `apps/web`: public React/Vite website for browse and enquiry.
-- `apps/api`: FastAPI (Python 3.12) API for public content and enquiry persistence.
-- PostgreSQL: primary database for seeded content and enquiries.
-- `packages/ui`: shared UI components after code implementation begins.
-- `packages/shared`: shared contracts and types.
-- `packages/config`: shared tooling config.
+## Current (pilot)
 
-## Deferred Architecture
-- `apps/admin`: admin shell first, full workflows later.
-- Redis: future slot locks, cache, and realtime support.
-- SignalR: future availability updates.
-- Background jobs: future notifications, CRM tasks, and payment reconciliation.
-- Cloud storage/CDN: future media delivery.
+```
+┌─────────────────────┐   ┌─────────────────────┐
+│  apps/web (:5173)   │   │  apps/admin (:5174)  │
+│  React + Vite       │   │  React + Vite        │
+│  Public booking UI  │   │  Admin portal        │
+└────────┬────────────┘   └──────────┬───────────┘
+         │                           │
+         └─────────┬─────────────────┘
+                   ▼ HTTP REST
+         ┌─────────────────────┐
+         │  apps/api (:8000)   │
+         │  FastAPI + Python   │
+         │  Pydantic v2        │
+         │  SQLAlchemy 2.0     │
+         └────────┬────────────┘
+                  ▼
+         ┌─────────────────────┐
+         │  dazy.db (SQLite)   │
+         │  Alembic migrations │
+         └─────────────────────┘
 
-## External Services
-Payment and OTP providers are deferred. Architecture must expose adapter boundaries and avoid hardcoded provider assumptions.
+packages/shared  →  TypeScript types shared by web + admin
+```
+
+## Future (production)
+
+- SQLite → **PostgreSQL** (change `DAZY_DB_URL`, zero app code changes)
+- Local `/media/` → **S3 / CDN** for gallery images
+- Add **Redis** for slot locking (high concurrency)
+- Add background jobs for booking confirmation emails/SMS
+- Multi-venue: Venue entity already in schema; add venue selector to web

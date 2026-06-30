@@ -1,1 +1,0 @@
-Create premium Gen-Z UI using Motion, Tailwind and shadcn/ui. Preserve accessibility.

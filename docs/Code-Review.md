@@ -1,1 +1,0 @@
-Review architecture, readability, security, performance, accessibility and tests.

@@ -1,1 +1,0 @@
-Use Conventional Commits. Small focused commits only.

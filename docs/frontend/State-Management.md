@@ -1,1 +1,0 @@
-TanStack Query for server state. Zustand for client state. URL for shareable state.

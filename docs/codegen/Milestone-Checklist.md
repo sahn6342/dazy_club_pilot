@@ -1,1 +1,0 @@
-Each milestone requires: Code, Tests, Docs, Review, Lighthouse, Accessibility, Security scan.

@@ -1,1 +1,0 @@
-App Insights, OpenTelemetry, Alerts, Dashboards.

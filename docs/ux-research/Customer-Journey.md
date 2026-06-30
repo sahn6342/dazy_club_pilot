@@ -1,1 +1,0 @@
-Awareness → Visit → Explore → Compare → Book → Play → Share → Return → Refer.

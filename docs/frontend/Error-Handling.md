@@ -1,1 +1,0 @@
-Global error boundary, API error mapping, retry UX, offline handling.

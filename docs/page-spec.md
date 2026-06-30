@@ -1,1 +1,0 @@
-Page specification template.

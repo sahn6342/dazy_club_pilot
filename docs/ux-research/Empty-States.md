@@ -1,1 +1,0 @@
-Empty galleries, no slots, no bookings, no search results, maintenance screens.

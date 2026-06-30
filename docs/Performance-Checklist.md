@@ -1,1 +1,0 @@
-Lighthouse >95, no unnecessary renders, indexed queries.

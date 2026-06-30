@@ -1,1 +1,0 @@
-WCAG 2.2 AA, keyboard support, focus states, reduced motion, screen reader labels.

@@ -1,1 +1,0 @@
-Plan -> Implement -> Test -> Review -> Merge -> Deploy.

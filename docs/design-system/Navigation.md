@@ -1,1 +1,0 @@
-Desktop navbar, mobile bottom nav, breadcrumbs.

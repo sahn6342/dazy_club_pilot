@@ -1,1 +1,0 @@
-Single source of truth. Read PROJECT_CONTEXT.md and all docs before generating code. Never invent requirements.

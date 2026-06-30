@@ -1,1 +1,0 @@
-Generate xUnit, integration and Playwright tests for every feature.

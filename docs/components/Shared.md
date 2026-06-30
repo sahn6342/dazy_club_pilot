@@ -1,1 +1,0 @@
-Button, Input, Select, Modal, Drawer, Toast, Badge, Avatar, Tabs, Accordion.

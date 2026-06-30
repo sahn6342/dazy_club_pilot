@@ -1,1 +1,0 @@
-Implement React/Vite features. Follow design system, accessibility and motion guidelines.

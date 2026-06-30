@@ -1,1 +1,0 @@
-Plan -> Read Docs -> Implement -> Test -> Review -> Update Docs -> Commit.

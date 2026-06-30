@@ -1,1 +1,0 @@
-Organic → Social → Landing → Booking → Loyalty → Referral.

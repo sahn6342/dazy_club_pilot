@@ -1,1 +1,0 @@
-Opening week, tournaments, student nights, corporate leagues, seasonal promotions.

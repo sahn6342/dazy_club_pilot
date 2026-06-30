@@ -1,1 +1,0 @@
-Scope creep, performance, concurrent booking, payment failures, content delays.

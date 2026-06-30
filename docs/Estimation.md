@@ -1,1 +1,0 @@
-XS, S, M, L, XL with story points.

@@ -1,1 +1,0 @@
-Run full regression before every release. Critical flows must remain green.

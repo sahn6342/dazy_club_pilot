@@ -1,1 +1,0 @@
-# AI Coding Agent Playbook

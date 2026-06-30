@@ -1,1 +1,0 @@
-Icons, illustrations, sport imagery, logos, OG images and social assets.

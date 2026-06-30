@@ -1,1 +1,0 @@
-Defines ownership boundaries for Booking, Pricing, CRM, CMS, Admin, Notifications and Shared Platform.

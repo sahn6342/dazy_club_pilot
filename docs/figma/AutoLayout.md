@@ -1,1 +1,0 @@
-Every frame uses Auto Layout. 8pt grid. Responsive constraints.

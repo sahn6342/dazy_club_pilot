@@ -1,1 +1,0 @@
-Lucide base icons + custom sports icons in SVG.

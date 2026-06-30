@@ -1,1 +1,0 @@
-k6 load tests. Measure booking latency, concurrent users, response times.
