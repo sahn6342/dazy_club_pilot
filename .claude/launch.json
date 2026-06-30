@@ -19,7 +19,15 @@
       "runtimeExecutable": "uv",
       "runtimeArgs": ["run", "uvicorn", "main:app", "--reload", "--port", "8000"],
       "cwd": "apps/api",
-      "port": 8000
+      "port": 8000,
+      "autoPort": false
+    },
+    {
+      "name": "kiosk",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@dazy/kiosk", "dev"],
+      "port": 5175,
+      "autoPort": false
     }
   ]
 }

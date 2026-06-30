@@ -311,12 +311,23 @@ class UserRecord(BaseModel):
 
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
-    password: str = Field(min_length=8)
-    role: str = Field(default="manager", pattern="^(manager)$")
+    password: str = Field(min_length=4)
+    role: str = Field(default="manager", pattern="^(manager|cashier|kitchen)$")
+
+    @model_validator(mode="after")
+    def validate_password_strength(self) -> "UserCreate":
+        if self.role == "manager" and len(self.password) < 8:
+            raise ValueError("Manager password must be at least 8 characters.")
+        if self.role in ("cashier", "kitchen"):
+            if not self.password.isdigit() or len(self.password) != 4:
+                raise ValueError("Staff PIN must be exactly 4 digits.")
+        return self
 
 
 class UserUpdate(BaseModel):
-    password: str | None = Field(default=None, min_length=8)
+    password: str | None = Field(default=None, min_length=4)
+    role: str | None = Field(default=None, pattern="^(manager|cashier|kitchen)$")
+    role: str | None = Field(default=None, pattern="^(manager|cashier|kitchen)$")
 
 
 class UserPublic(BaseModel):
@@ -487,3 +498,338 @@ class PromoCodeUpdate(BaseModel):
         if self.valid_from and self.valid_to and self.valid_from > self.valid_to:
             raise ValueError("valid_from must not be after valid_to.")
         return self
+
+
+# ── Café POS (Phase 0) ──
+
+class CafeSettingsDto(BaseModel):
+    id: str
+    legalName: str | None = None
+    gstin: str | None = None
+    fssaiNumber: str | None = None
+    addressLine: str | None = None
+    city: str | None = None
+    stateName: str | None = None
+    stateCode: str | None = None
+    scheme: str = "regular"
+    priceIncludesTax: bool = True
+    defaultTaxRate: float = 5.0
+    invoiceSeriesPrefix: str = "INV"
+    billOfSupplySeriesPrefix: str = "BOS"
+    logoUrl: str | None = None
+    declaration: str | None = None
+    footerNote: str | None = None
+    roundingEnabled: bool = True
+    createdAt: str = ""
+    updatedAt: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class CafeSettingsUpdate(BaseModel):
+    legalName: str | None = None
+    gstin: str | None = None
+    fssaiNumber: str | None = None
+    addressLine: str | None = None
+    city: str | None = None
+    stateName: str | None = None
+    stateCode: str | None = None
+    scheme: str | None = Field(default=None, pattern="^(regular|composition|unregistered)$")
+    priceIncludesTax: bool | None = None
+    defaultTaxRate: float | None = Field(default=None, ge=0, le=100)
+    invoiceSeriesPrefix: str | None = Field(default=None, min_length=1, max_length=20)
+    billOfSupplySeriesPrefix: str | None = Field(default=None, min_length=1, max_length=20)
+    logoUrl: str | None = None
+    declaration: str | None = None
+    footerNote: str | None = None
+    roundingEnabled: bool | None = None
+
+
+class MenuCategoryDto(BaseModel):
+    id: str
+    name: str
+    kind: str
+    vegType: str | None = None
+    sortOrder: int = 0
+    active: bool = True
+    createdAt: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class MenuCategoryCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    kind: str = Field(pattern="^(food|beverage|packaged|combo)$")
+    vegType: str | None = Field(default=None, pattern="^(veg|nonveg|egg|na)$")
+    sortOrder: int = 0
+
+
+class MenuCategoryUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    kind: str | None = Field(default=None, pattern="^(food|beverage|packaged|combo)$")
+    vegType: str | None = Field(default=None, pattern="^(veg|nonveg|egg|na)$")
+    sortOrder: int | None = None
+    active: bool | None = None
+
+
+class MenuItemDto(BaseModel):
+    id: str
+    category_id: str
+    name: str
+    description: str | None = None
+    price: float
+    taxRatePercent: float = 5.0
+    hsnSac: str | None = None
+    vegType: str | None = None
+    isPackaged: bool = False
+    station: str = "kitchen"
+    available: bool = True
+    trackInventory: bool = False
+    currentQty: float | None = None
+    reorderLevel: float | None = None
+    unit: str | None = None
+    purchaseCost: float | None = None
+    barcode: str | None = None
+    imageUrl: str | None = None
+    sortOrder: int = 0
+    createdAt: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class MenuItemCreate(BaseModel):
+    category_id: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    price: float = Field(ge=0)
+    taxRatePercent: float = Field(default=5.0, ge=0, le=100)
+    hsnSac: str | None = Field(default=None, max_length=20)
+    vegType: str | None = Field(default=None, pattern="^(veg|nonveg|egg|na)$")
+    isPackaged: bool = False
+    station: str = Field(default="kitchen", pattern="^(kitchen|bar|none)$")
+    available: bool = True
+    trackInventory: bool = False
+    currentQty: float | None = Field(default=None, ge=0)
+    reorderLevel: float | None = Field(default=None, ge=0)
+    unit: str | None = Field(default=None, max_length=20)
+    purchaseCost: float | None = Field(default=None, ge=0)
+    barcode: str | None = Field(default=None, max_length=60)
+    imageUrl: str | None = None
+    sortOrder: int = 0
+
+
+class MenuItemUpdate(BaseModel):
+    category_id: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = None
+    price: float | None = Field(default=None, ge=0)
+    taxRatePercent: float | None = Field(default=None, ge=0, le=100)
+    hsnSac: str | None = None
+    vegType: str | None = Field(default=None, pattern="^(veg|nonveg|egg|na)$")
+    isPackaged: bool | None = None
+    station: str | None = Field(default=None, pattern="^(kitchen|bar|none)$")
+    available: bool | None = None
+    trackInventory: bool | None = None
+    currentQty: float | None = Field(default=None, ge=0)
+    reorderLevel: float | None = Field(default=None, ge=0)
+    unit: str | None = None
+    purchaseCost: float | None = Field(default=None, ge=0)
+    barcode: str | None = None
+    imageUrl: str | None = None
+    sortOrder: int | None = None
+
+
+class CafeTableDto(BaseModel):
+    id: str
+    label: str
+    area: str | None = None
+    capacity: int = 4
+    status: str = "free"
+    active: bool = True
+    sortOrder: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class CafeTableCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=40)
+    area: str | None = Field(default=None, max_length=60)
+    capacity: int = Field(default=4, ge=1, le=50)
+    sortOrder: int = 0
+
+
+class CafeTableUpdate(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=40)
+    area: str | None = None
+    capacity: int | None = Field(default=None, ge=1, le=50)
+    status: str | None = Field(default=None, pattern="^(free|occupied|reserved)$")
+    active: bool | None = None
+    sortOrder: int | None = None
+
+
+class CafePinLoginRequest(BaseModel):
+    username: str = Field(min_length=1)
+    pin: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+
+
+class MenuResponse(BaseModel):
+    categories: list[MenuCategoryDto]
+    items: list[MenuItemDto]
+
+
+# ── Café POS Phase 1 ──
+
+class OrderItemCreate(BaseModel):
+    menu_item_id: str
+    qty: float = Field(default=1, gt=0)
+
+
+class OrderCreate(BaseModel):
+    orderType: str = Field(default="quick", pattern="^(quick|dine_in|takeaway)$")
+    table_id: str | None = None
+    items: list[OrderItemCreate] = []
+    notes: str | None = None
+
+
+class OrderItemDto(BaseModel):
+    id: str
+    order_id: str
+    menu_item_id: str
+    kot_id: str | None = None
+    nameSnapshot: str
+    qty: float
+    unitPrice: float
+    taxRatePercent: float
+    hsnSacSnapshot: str | None = None
+    lineSubtotal: float
+    lineTax: float
+    lineTotal: float
+    kotStatus: str | None = None
+    voided: bool
+    voidReason: str | None = None
+    createdAt: str
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentCreate(BaseModel):
+    mode: str = Field(pattern="^(cash|card|upi|wallet|other)$")
+    amount: float = Field(gt=0)
+    reference: str | None = None
+
+
+class PaymentDto(BaseModel):
+    id: str
+    order_id: str
+    invoice_id: str | None = None
+    mode: str
+    amount: float
+    reference: str | None = None
+    createdBy: str
+    createdAt: str
+
+    model_config = {"from_attributes": True}
+
+
+class OrderDto(BaseModel):
+    id: str
+    orderNo: str
+    orderType: str
+    table_id: str | None = None
+    customer_id: str | None = None
+    status: str
+    subtotal: float
+    discountAmount: float
+    taxAmount: float
+    roundOff: float
+    total: float
+    notes: str | None = None
+    createdBy: str
+    createdAt: str
+    updatedAt: str
+    items: list[OrderItemDto] = []
+    payments: list[PaymentDto] = []
+
+    model_config = {"from_attributes": True}
+
+
+class OrderUpdate(BaseModel):
+    status: str | None = Field(default=None, pattern="^(open|in_kitchen|served|billed|paid|cancelled|void)$")
+    notes: str | None = None
+    table_id: str | None = None
+
+
+class VoidItemRequest(BaseModel):
+    reason: str = Field(min_length=1)
+
+
+class KotItemDto(BaseModel):
+    id: str
+    menu_item_id: str
+    nameSnapshot: str
+    qty: float
+
+    model_config = {"from_attributes": True}
+
+
+class KotDto(BaseModel):
+    id: str
+    kotNo: str
+    order_id: str
+    orderNo: str = ""
+    station: str
+    status: str
+    printedAt: str | None = None
+    createdAt: str
+    items: list[KotItemDto] = []
+
+    model_config = {"from_attributes": True}
+
+
+class KotStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(preparing|ready|served)$")
+
+
+class InvoiceLineDto(BaseModel):
+    id: str
+    invoice_id: str
+    description: str
+    hsnSac: str | None = None
+    qty: float
+    unit: str | None = None
+    rate: float
+    taxableValue: float
+    gstRatePercent: float
+    cgst: float
+    sgst: float
+    lineTotal: float
+
+    model_config = {"from_attributes": True}
+
+
+class InvoiceDto(BaseModel):
+    id: str
+    invoiceNo: str
+    invoiceType: str
+    series: str
+    financialYear: str
+    order_id: str
+    customerName: str | None = None
+    customerGstin: str | None = None
+    taxableValue: float
+    cgst: float
+    sgst: float
+    roundOff: float
+    total: float
+    amountInWords: str
+    status: str
+    issuedBy: str
+    issuedAt: str
+    lines: list[InvoiceLineDto] = []
+
+    model_config = {"from_attributes": True}
+
+
+class IssueInvoiceRequest(BaseModel):
+    customerName: str | None = None
+    customerGstin: str | None = None

@@ -13,6 +13,14 @@ from repositories.court_repo import SqliteCourtRepository
 from repositories.schedule_repo import SqliteScheduleRepository
 from repositories.customer_repo import SqliteCustomerRepository
 from repositories.promo_repo import SqlitePromoRepository
+from repositories.cafe_settings_repo import SqliteCafeSettingsRepository
+from repositories.menu_category_repo import SqliteMenuCategoryRepository
+from repositories.menu_item_repo import SqliteMenuItemRepository
+from repositories.cafe_table_repo import SqliteCafeTableRepository
+from repositories.order_repo import SqliteOrderRepository
+from repositories.kot_repo import SqliteKotRepository
+from repositories.payment_repo import SqlitePaymentRepository
+from repositories.invoice_repo import SqliteInvoiceRepository
 
 booking_repo = SqliteBookingRepository()
 enquiry_repo = SqliteEnquiryRepository()
@@ -24,3 +32,11 @@ court_repo = SqliteCourtRepository()
 schedule_repo = SqliteScheduleRepository()
 customer_repo = SqliteCustomerRepository()
 promo_repo = SqlitePromoRepository()
+cafe_settings_repo = SqliteCafeSettingsRepository()
+menu_category_repo = SqliteMenuCategoryRepository()
+menu_item_repo = SqliteMenuItemRepository()
+cafe_table_repo = SqliteCafeTableRepository()
+order_repo = SqliteOrderRepository()
+kot_repo = SqliteKotRepository()
+payment_repo = SqlitePaymentRepository()
+invoice_repo = SqliteInvoiceRepository()

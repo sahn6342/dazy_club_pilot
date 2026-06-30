@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 _SECRET = os.environ.get("JWT_SECRET", "dazy-dev-secret-change-in-production")
 _ALGORITHM = "HS256"
 _EXPIRES_HOURS = 8
+_CASHIER_EXPIRES_HOURS = 2
 
 _bearer = HTTPBearer()
 
@@ -33,6 +34,16 @@ def create_access_token(username: str, role: str = "admin") -> str:
         "sub": username,
         "role": role,
         "exp": datetime.now(timezone.utc) + timedelta(hours=_EXPIRES_HOURS),
+    }
+    return jwt.encode(payload, _SECRET, algorithm=_ALGORITHM)
+
+
+def create_cashier_token(username: str, role: str = "cashier") -> str:
+    """Short-lived token (2h) for kiosk staff."""
+    payload = {
+        "sub": username,
+        "role": role,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=_CASHIER_EXPIRES_HOURS),
     }
     return jwt.encode(payload, _SECRET, algorithm=_ALGORITHM)
 
@@ -74,3 +85,18 @@ def require_superadmin(
     if payload.get("role", "admin") != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin only.")
     return {"sub": payload["sub"], "role": "admin"}
+
+
+def get_current_cashier(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> dict:
+    """Accepts cashier, kitchen, manager, or admin roles."""
+    payload = _decode_token(credentials.credentials)
+    role = payload.get("role", "admin")
+    if role not in ("admin", "manager", "cashier", "kitchen"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Kiosk access required.")
+    if role in ("manager", "cashier", "kitchen"):
+        from repositories.user_repo import SqliteUserRepository
+        if not SqliteUserRepository().get_by_username(payload["sub"]):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists.")
+    return {"sub": payload["sub"], "role": role}

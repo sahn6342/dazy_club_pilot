@@ -12,7 +12,15 @@ const NAV = [
   { to: "/cms", label: "CMS", icon: "✏️" },
   { to: "/courts", label: "Courts", icon: "🏟" },
   { to: "/contact-details", label: "Contact Details", icon: "📍" },
-  { to: "/users", label: "Managers", icon: "👤" },
+  { to: "/users", label: "Manage Users", icon: "👥" },
+];
+
+const CAFE_NAV = [
+  { to: "/cafe/categories", label: "Categories", icon: "🍽" },
+  { to: "/cafe/items", label: "Menu Items", icon: "🥗" },
+  { to: "/cafe/tables", label: "Tables", icon: "🪑" },
+  { to: "/cafe/settings", label: "Café Settings", icon: "☕" },
+  { to: "/cafe/orders", label: "Orders", icon: "🧾" },
 ];
 
 export function Sidebar() {
@@ -27,6 +35,17 @@ export function Sidebar() {
             key={item.to}
             to={item.to}
             end={item.to === "/"}
+            className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
+          >
+            <span className="nav-icon">{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
+        <div className="sidebar-section-label">Café POS</div>
+        {CAFE_NAV.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
             className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
           >
             <span className="nav-icon">{item.icon}</span>

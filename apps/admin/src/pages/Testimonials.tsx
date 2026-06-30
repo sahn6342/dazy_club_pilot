@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { StatusBadge } from "../components/StatusBadge";
+import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 
@@ -11,6 +12,7 @@ const EMPTY = { name: "", context: "", quote: "" };
 const inputStyle = { padding: "0.5rem 0.65rem", borderRadius: "8px", fontFamily: "inherit", width: "100%" };
 
 export function Testimonials() {
+  const confirm = useConfirm();
   const toast = useToast();
   const [items, setItems] = useState<Testimonial[]>([]);
   const [form, setForm] = useState({ ...EMPTY });
@@ -69,7 +71,7 @@ export function Testimonials() {
     }
   }
   async function deleteItem(id: string) {
-    if (!window.confirm("Delete this testimonial?")) return;
+    if (!await confirm({ message: "Delete this testimonial?", confirmLabel: "Delete", danger: true })) return;
     await api.delete(`/admin/testimonials/${id}`);
     load();
     toast.success("Testimonial deleted");

@@ -42,6 +42,8 @@ def update_user(user_id: str, body: UserUpdate, _admin=Depends(require_superadmi
     updates = {}
     if body.password is not None:
         updates["hashed_password"] = hash_password(body.password)
+    if body.role is not None:
+        updates["role"] = body.role
     if updates:
         user_repo.update(user_id, updates)
     return _public(user_repo.get_by_id(user_id))

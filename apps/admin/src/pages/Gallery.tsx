@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { StatusBadge } from "../components/StatusBadge";
+import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api, resolveImg } from "../lib/api";
 
@@ -17,6 +18,7 @@ function Thumb({ url, alt }: { url: string | null; alt: string }) {
 }
 
 export function Gallery() {
+  const confirm = useConfirm();
   const toast = useToast();
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [form, setForm] = useState({ ...EMPTY });
@@ -37,7 +39,7 @@ export function Gallery() {
     toast.success(approved ? "Item approved" : "Item rejected");
   }
   async function deleteItem(id: string) {
-    if (!window.confirm("Delete this gallery item?")) return;
+    if (!await confirm({ message: "Delete this gallery item?", confirmLabel: "Delete", danger: true })) return;
     await api.delete(`/admin/gallery/${id}`);
     load();
     toast.success("Item deleted");

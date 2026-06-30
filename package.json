@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "concurrently -n api,web,admin -c blue,green,magenta \"pnpm dev:api\" \"pnpm dev:web\" \"pnpm dev:admin\"",
+    "dev:kiosk": "pnpm --filter @dazy/kiosk dev",
     "dev:api": "cd apps/api && python -m uv run uvicorn main:app --reload --port 8000",
     "dev:web": "pnpm --filter @dazy/web dev",
     "dev:admin": "pnpm --filter @dazy/admin dev",

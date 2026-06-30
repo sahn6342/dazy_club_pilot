@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./styles.css";
 
 import { AuthGuard } from "./components/AuthGuard";
+import { ConfirmProvider } from "./components/ConfirmDialog";
 import { ToastProvider } from "./components/Toast";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
@@ -17,9 +18,15 @@ import { Schedule } from "./pages/Schedule";
 import { Promos } from "./pages/Promos";
 import { ContactDetails } from "./pages/ContactDetails";
 import { Courts } from "./pages/Courts";
+import { CafeCategories } from "./pages/CafeCategories";
+import { CafeItems } from "./pages/CafeItems";
+import { CafeTables } from "./pages/CafeTables";
+import { CafeSettings } from "./pages/CafeSettings";
+import { CafeOrders } from "./pages/CafeOrders";
 
 function App() {
   return (
+    <ConfirmProvider>
     <ToastProvider>
     <BrowserRouter>
       <Routes>
@@ -35,10 +42,16 @@ function App() {
         <Route path="/courts" element={<AuthGuard><Courts /></AuthGuard>} />
         <Route path="/contact-details" element={<AuthGuard><ContactDetails /></AuthGuard>} />
         <Route path="/users" element={<AuthGuard><Users /></AuthGuard>} />
+        <Route path="/cafe/categories" element={<AuthGuard><CafeCategories /></AuthGuard>} />
+        <Route path="/cafe/items" element={<AuthGuard><CafeItems /></AuthGuard>} />
+        <Route path="/cafe/tables" element={<AuthGuard><CafeTables /></AuthGuard>} />
+        <Route path="/cafe/settings" element={<AuthGuard><CafeSettings /></AuthGuard>} />
+        <Route path="/cafe/orders" element={<AuthGuard><CafeOrders /></AuthGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
     </ToastProvider>
+    </ConfirmProvider>
   );
 }
 

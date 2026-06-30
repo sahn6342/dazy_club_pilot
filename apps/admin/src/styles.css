@@ -185,6 +185,21 @@ body { margin: 0; }
 
 .action-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
+/* ── Role badges ── */
+.role-badge { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge-manager { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
+.badge-cashier  { background: rgba(216, 180, 86, 0.15); color: #d8b456; }
+.badge-kitchen  { background: rgba(52, 211, 153, 0.15); color: #6ee7b7; }
+
+/* ── Role selector ── */
+.role-selector { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.role-option { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 0.85rem; font-weight: 500; padding: 0.4rem 0.85rem; cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s; }
+.role-option.active { border-color: var(--gold); color: var(--gold); background: rgba(216,180,86,0.08); }
+.role-option:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+
+/* ── Selected card highlight ── */
+.selected-card { border-color: var(--gold) !important; }
+
 /* ── Dashboard stats ─────────────────────────────────── */
 .stats-grid {
   display: grid;
@@ -547,3 +562,73 @@ td code {
 }
 .advanced-toggle:hover { text-decoration: underline; }
 .schedule-hint { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0 1rem; }
+
+/* ── Sidebar section label ── */
+.sidebar-section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 1rem 0.5rem 0.25rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Café kind / veg badges ── */
+.cafe-kind-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(99,102,241,0.12);
+  color: #a5b4fc;
+}
+.cafe-veg-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(52,211,153,0.12);
+  color: #6ee7b7;
+}
+
+/* ── Confirm Dialog ── */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.confirm-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem 1.75rem;
+  width: 360px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.confirm-message {
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.5;
+  margin: 0;
+}
+.confirm-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}

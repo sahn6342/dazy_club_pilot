@@ -68,10 +68,10 @@ def _cms_seed():
         CmsEntry(key="hero_copy", label="Hero body copy", value="Dazy.club brings together Cricket, Badminton, and Pickleball in one premium venue. Whether it's a casual weekend game or a corporate event, we've got your court."),
         CmsEntry(key="footer_tagline", label="Footer tagline", value="Premium sports experience. Cricket, Badminton & Pickleball."),
         CmsEntry(key="venue_name", label="Venue name", value="Dazy.club"),
-        CmsEntry(key="venue_address", label="Venue address", value="123 Sports Complex, Main Street, Hyderabad 500001"),
+        CmsEntry(key="venue_address", label="Venue address", value="123 Sports Complex, Bengaluru, Karnataka 560001"),
         CmsEntry(key="venue_phone", label="Venue phone", value="+91 98765 43210"),
         CmsEntry(key="venue_email", label="Venue email", value="hello@dazy.club"),
-        CmsEntry(key="venue_hours", label="Venue hours", value="Mon–Sun: 6:00 AM – 9:00 PM"),
+        CmsEntry(key="venue_hours", label="Venue hours", value="Mon–Sun: 6:00 AM – 10:00 PM"),
         CmsEntry(key="social_instagram", label="Instagram handle / URL", value=""),
         CmsEntry(key="social_facebook", label="Facebook page URL", value=""),
     ]

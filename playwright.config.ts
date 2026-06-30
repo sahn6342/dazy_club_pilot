@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const WEB_URL = "http://localhost:5173";
 const ADMIN_URL = "http://localhost:5174";
+const KIOSK_URL = "http://localhost:5175";
 const API_URL = "http://localhost:8000";
 
 export default defineConfig({
@@ -26,6 +27,11 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], baseURL: ADMIN_URL },
       testMatch: "admin/**/*.spec.ts",
     },
+    {
+      name: "kiosk",
+      use: { ...devices["Desktop Chrome"], baseURL: KIOSK_URL },
+      testMatch: "kiosk/**/*.spec.ts",
+    },
   ],
   webServer: [
     {
@@ -46,6 +52,12 @@ export default defineConfig({
       command:
         "cd apps/api && .venv/Scripts/python -m uvicorn main:app --port 8000",
       url: `${API_URL}/api/v1/health`,
+      reuseExistingServer: true,
+      timeout: 30_000,
+    },
+    {
+      command: "pnpm dev:kiosk",
+      url: KIOSK_URL,
       reuseExistingServer: true,
       timeout: 30_000,
     },

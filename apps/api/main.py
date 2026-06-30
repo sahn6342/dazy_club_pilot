@@ -28,6 +28,16 @@ from routes.admin.schedule import router as admin_schedule_router
 from routes.admin.customers import router as admin_customers_router
 from routes.admin.promos import router as admin_promos_router
 from routes.admin.courts import router as admin_courts_router
+from routes.cafe.auth import router as cafe_auth_router
+from routes.cafe.menu import router as cafe_menu_router
+from routes.cafe.tables import router as cafe_tables_router
+from routes.cafe.orders import router as cafe_orders_router
+from routes.cafe.kots import router as cafe_kots_router
+from routes.cafe.invoices import router as cafe_invoices_router
+from routes.admin.cafe.settings import router as admin_cafe_settings_router
+from routes.admin.cafe.categories import router as admin_cafe_categories_router
+from routes.admin.cafe.items import router as admin_cafe_items_router
+from routes.admin.cafe.tables import router as admin_cafe_tables_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,7 +56,7 @@ app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["*"],
 )
@@ -77,6 +87,20 @@ app.include_router(admin_schedule_router, prefix=prefix)
 app.include_router(admin_customers_router, prefix=prefix)
 app.include_router(admin_promos_router, prefix=prefix)
 app.include_router(admin_courts_router, prefix=prefix)
+
+# Kiosk (cashier) routes
+app.include_router(cafe_auth_router, prefix=prefix)
+app.include_router(cafe_menu_router, prefix=prefix)
+app.include_router(cafe_tables_router, prefix=prefix)
+app.include_router(cafe_orders_router, prefix=prefix)
+app.include_router(cafe_kots_router, prefix=prefix)
+app.include_router(cafe_invoices_router, prefix=prefix)
+
+# Admin café back-office routes
+app.include_router(admin_cafe_settings_router, prefix=prefix)
+app.include_router(admin_cafe_categories_router, prefix=prefix)
+app.include_router(admin_cafe_items_router, prefix=prefix)
+app.include_router(admin_cafe_tables_router, prefix=prefix)
 
 
 @app.get("/")

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
+import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 
@@ -14,6 +15,7 @@ const inputStyle = { padding: "0.55rem 0.75rem", borderRadius: "8px", fontFamily
 const emptyForm = { code: "", kind: "percent", value: "", valid_from: "", valid_to: "", max_uses: "", sport_slug: "", active: true };
 
 export function Promos() {
+  const confirm = useConfirm();
   const toast = useToast();
   const [promos, setPromos] = useState<Promo[]>([]);
   const [form, setForm] = useState({ ...emptyForm });
@@ -77,7 +79,7 @@ export function Promos() {
   }
 
   async function remove(p: Promo) {
-    if (!window.confirm(`Delete promo "${p.code}"?`)) return;
+    if (!await confirm({ message: "Remove this promo code?", confirmLabel: "Remove", danger: true })) return;
     await api.delete(`/admin/promos/${p.id}`);
     load();
     toast.success("Promo deleted");

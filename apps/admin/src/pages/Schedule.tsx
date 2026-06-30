@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
+import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 
@@ -172,6 +173,7 @@ function WeeklyEditor({ courtId, rules, onSaved }: { courtId: string; rules: Rul
 // ── Per-day advanced rows ───────────────────────────────────────────────────────
 
 function BlockRow({ rule, siblings, onSaved, onDeleted }: { rule: Rule; siblings: Rule[]; onSaved: () => void; onDeleted: () => void }) {
+  const confirm = useConfirm();
   const toast = useToast();
   const [draft, setDraft] = useState({
     open_time: rule.open_time, close_time: rule.close_time,
@@ -200,7 +202,7 @@ function BlockRow({ rule, siblings, onSaved, onDeleted }: { rule: Rule; siblings
   }
 
   async function del() {
-    if (!window.confirm("Delete this block?")) return;
+    if (!await confirm({ message: "Delete this time block?", confirmLabel: "Delete", danger: true })) return;
     await api.delete(`/admin/schedule/rules/${rule.id}`);
     onDeleted();
     toast.success("Block deleted");
@@ -254,6 +256,7 @@ function AddBlock({ courtId, weekday, existing, onAdded }: { courtId: string; we
 // ── Page ────────────────────────────────────────────────────────────────────────
 
 export function Schedule() {
+  const confirm = useConfirm();
   const toast = useToast();
   const [courts, setCourts] = useState<Court[]>([]);
   const [courtId, setCourtId] = useState("");
@@ -261,6 +264,7 @@ export function Schedule() {
   const [exceptions, setExceptions] = useState<Exc[]>([]);
   const [excForm, setExcForm] = useState({ day: "", closed: true, open_time: "", close_time: "", allCourts: true });
   const [error, setError] = useState("");
+  const [excError, setExcError] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const courtName = (cid: string | null) =>
@@ -290,7 +294,7 @@ export function Schedule() {
   }
 
   async function closeDay(weekday: number) {
-    if (!window.confirm(`Close ${WEEKDAYS[weekday]}? All blocks for that day are removed.`)) return;
+    if (!await confirm({ message: "Close this entire day? All bookings on this day will be blocked.", confirmLabel: "Close Day", danger: true })) return;
     for (const r of rules.filter((r) => r.weekday === weekday)) await api.delete(`/admin/schedule/rules/${r.id}`);
     loadSchedule();
     toast.success(`${WEEKDAYS[weekday]} closed`);
@@ -299,7 +303,7 @@ export function Schedule() {
   async function copyToAllDays(weekday: number) {
     const source = rules.filter((r) => r.weekday === weekday);
     if (!source.length) return;
-    if (!window.confirm(`Copy ${WEEKDAYS[weekday]} hours + prices to all 7 days?`)) return;
+    if (!await confirm({ message: "Copy this day's schedule to all days of the week?", confirmLabel: "Copy", danger: false })) return;
     for (let wd = 0; wd < 7; wd++) {
       if (wd === weekday) continue;
       for (const r of rules.filter((r) => r.weekday === wd)) await api.delete(`/admin/schedule/rules/${r.id}`);
@@ -317,6 +321,11 @@ export function Schedule() {
   async function addException(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setExcError("");
+    if (!excForm.day.trim()) {
+      setExcError("Date is required.");
+      return;
+    }
     if (!excForm.closed) {
       if (!excForm.open_time || !excForm.close_time) { setError("Open and close times required for special hours."); return; }
       if (excForm.open_time >= excForm.close_time) { setError("Open time must be before close time."); return; }
@@ -328,6 +337,7 @@ export function Schedule() {
         close_time: excForm.closed ? null : excForm.close_time,
       });
       setExcForm({ day: "", closed: true, open_time: "", close_time: "", allCourts: true });
+      setExcError("");
       loadSchedule();
       toast.success("Exception added");
     } catch (err: any) {
@@ -433,7 +443,17 @@ export function Schedule() {
             <label className="muted" data-testid="exception-all-courts-label">
               <input type="checkbox" data-testid="exception-all-courts" checked={excForm.allCourts} onChange={(e) => setExcForm((f) => ({ ...f, allCourts: e.target.checked }))} /> Apply to all courts (holiday)
             </label>
-            <input className="cms-textarea" style={inputStyle} type="date" value={excForm.day} onChange={(e) => setExcForm((f) => ({ ...f, day: e.target.value }))} required />
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+              <input
+                className="cms-textarea"
+                style={inputStyle}
+                type="date"
+                value={excForm.day}
+                onChange={(e) => { setExcError(""); setExcForm((f) => ({ ...f, day: e.target.value })); }}
+                data-testid="exception-date"
+              />
+              {excError && <span className="error-msg" style={{ fontSize: "0.8rem", marginTop: 0 }}>{excError}</span>}
+            </div>
             <label className="muted">
               <input type="checkbox" checked={excForm.closed} onChange={(e) => setExcForm((f) => ({ ...f, closed: e.target.checked }))} /> Closed
             </label>

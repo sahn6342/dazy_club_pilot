@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
+import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 
@@ -9,6 +10,7 @@ type CmsEntry = { key: string; label: string; value: string };
 const inputStyle = { padding: "0.5rem 0.65rem", borderRadius: "8px", fontFamily: "inherit", width: "100%" };
 
 export function CMS() {
+  const confirm = useConfirm();
   const toast = useToast();
   const [entries, setEntries] = useState<CmsEntry[]>([]);
   const [editVal, setEditVal] = useState<Record<string, string>>({});
@@ -40,7 +42,7 @@ export function CMS() {
   }
 
   async function remove(key: string) {
-    if (!window.confirm(`Delete CMS entry "${key}"? Public pages reading this key may lose content.`)) return;
+    if (!await confirm({ message: "Delete this CMS entry?", confirmLabel: "Delete", danger: true })) return;
     try {
       await api.delete(`/admin/cms/${key}`);
       load();
