@@ -1,6 +1,6 @@
 # Dazy.club API
 
-FastAPI backend for the Dazy.club pilot. Serves seeded content for the browse + enquiry experience.
+FastAPI backend powering all three Dazy.club frontends — the public booking website, the staff admin back-office, and the cafe POS/KDS kiosk. SQLAlchemy 2.0 over SQLite (swappable to PostgreSQL via `DAZY_DB_URL`), Alembic migrations, JWT auth.
 
 ## Dev
 
@@ -12,19 +12,16 @@ uv run uvicorn main:app --reload --port 8000
 
 Or from repo root: `pnpm api:dev`
 
-Auto OpenAPI docs at `http://localhost:8000/docs`.
+The server auto-migrates to the Alembic head and seeds demo data into empty tables on first boot. Auto OpenAPI docs at `http://localhost:8000/docs`.
 
-## Launch Endpoints
-- `GET /api/v1/health`
-- `GET /api/v1/sports`
-- `GET /api/v1/gallery`
-- `GET /api/v1/testimonials`
-- `GET /api/v1/notifications`
-- `POST /api/v1/contact-enquiries`
-- `POST /api/v1/corporate-enquiries`
+## Endpoints
+~70 routes across public, admin, and cafe/POS surfaces — full reference (with auth, data model, migrations, and business logic) in [docs/API-Reference.md](../../docs/API-Reference.md). Highlights: public booking + enquiries + availability slots, admin CRUD for bookings/schedule/courts/promos/CMS/gallery/testimonials/users, and cafe POS orders/KOTs/payments/GST invoices.
 
-## Deferred
-Booking, payment, OTP, and full admin APIs remain future scope.
+## Tests
+
+```bash
+.venv/Scripts/python -m pytest tests -q   # or: uv run pytest tests -q
+```
 
 ## Docker
 

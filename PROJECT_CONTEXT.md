@@ -1,30 +1,32 @@
 # Dazy.club Project Context
 
 ## Product
-Dazy.club is a premium sports experience platform. The first launch is a public website that lets visitors understand the venue, browse sports, view gallery/testimonial proof, and submit contact or corporate-event enquiries.
+Dazy.club is a premium sports-venue platform for **Cricket, Badminton, and Pickleball**. It has grown beyond its original "public website only" launch into a full venue operating system spanning four apps:
 
-## Launch Scope
-- Public browse and enquiry experience only.
-- Sports: Cricket, Badminton, Pickleball.
-- Screens: Home, Sports, Sport Detail, Gallery, Testimonials, About, Contact, Corporate Events, FAQ.
-- Enquiry capture for general visitors and corporate/event organizers.
-- Seeded demo content is allowed until final brand copy, media, and testimonials are supplied.
+- **Web** — public booking website + enquiry capture.
+- **Admin** — staff back-office: bookings, scheduling, content, cafe menu/orders, users.
+- **Kiosk** — cafe POS with GST billing + a Kitchen Display System (KDS).
+- **API** — FastAPI backend powering all of the above.
 
-## Deferred Scope
-- Live booking checkout.
-- OTP/SMS authentication.
-- Payment gateway integration.
-- Full admin CMS workflows.
-- CRM automation.
-- Wallet, membership, cafe, and mobile apps.
+## Current Scope (shipped)
+- **Public booking** — sport → date → live availability slots → multi-slot booking with party size, price, and promo codes.
+- **Enquiries** — general + corporate/event.
+- **Admin back-office** — booking management, data-driven scheduling (weekly rules + venue-wide/per-court holiday exceptions), courts, promos, CMS, gallery (with upload), testimonials, users/roles, enquiry triage.
+- **Cafe POS** — cashier PIN login, menu + cart, cash/UPI/card payments, **GST invoices** (CGST/SGST, financial-year numbering, amount-in-words, 80mm thermal print), order history, table status.
+- **Kitchen Display System** — station-routed KOTs (kitchen/bar) with live polling and prepare/ready flow.
 
-## Architecture Defaults
-- Design first in Figma, then implement.
-- Monorepo: apps/web, apps/admin, apps/api, packages/ui, packages/shared, packages/config, infra, assets, docs.
-- Frontend: React, Vite, TypeScript, Tailwind, shadcn-style components, motion.
-- Backend: FastAPI (Python 3.12) — see ADR-011.
-- Database: PostgreSQL.
-- Payment and OTP must be designed behind provider adapters even while deferred.
+> The original "deferred" list (live booking, payment, full admin CMS, cafe) is now **built**. OTP/SMS auth and a public payment gateway remain out of scope for this pilot.
+
+## Architecture
+- **Monorepo** (pnpm): `apps/web`, `apps/admin`, `apps/kiosk`, `apps/api`, `packages/ui`, `packages/shared`, `packages/config`, `infra`, `docs`.
+- **Frontends**: React 18, Vite, TypeScript, React Router, plain CSS (dark gold-accent theme). Three separate SPAs (web/admin/kiosk).
+- **Backend**: FastAPI (Python 3.12), Pydantic v2, SQLAlchemy 2.0 (sync), Alembic — see [ADR-011](docs/adr/ADR-011-Backend-FastAPI.md). **Not .NET.**
+- **Database**: SQLite by default, swappable to PostgreSQL via `DAZY_DB_URL` with zero repo changes.
+- **Auth**: JWT — admin password login + cashier 4-digit PIN. Roles: admin / manager / cashier / kitchen.
+- **Testing**: pytest (backend) + Playwright E2E (web / admin / kiosk).
+
+## Roadmap
+Planned enhancements (POS completeness, business intelligence, booking growth, foundation & security) with the full gap analysis live in [docs/Roadmap.md](docs/Roadmap.md) — planned, not yet built.
 
 ## Working Rule
-Read this file, docs/Master-Index.md, docs/Documentation-Map.md, docs/product/PRD.md, and docs/Decision-Log.md before design or code work. Do not invent requirements that conflict with these docs.
+Read this file, [README.md](README.md), [docs/Features.md](docs/Features.md), [docs/API-Reference.md](docs/API-Reference.md), [docs/Roadmap.md](docs/Roadmap.md), and [docs/Decision-Log.md](docs/Decision-Log.md) before design or code work. Do not invent requirements that conflict with these docs.

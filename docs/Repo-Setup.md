@@ -18,9 +18,10 @@ uv sync
 ## Run
 
 ```bash
-# All three (separate terminals)
-pnpm dev:web          # http://localhost:5173
-pnpm dev:admin        # http://localhost:5174
+# Four apps (separate terminals)
+pnpm dev:web          # http://localhost:5173  (customer booking site)
+pnpm dev:admin        # http://localhost:5174  (staff back-office)
+pnpm dev:kiosk        # http://localhost:5175  (cafe POS + KDS)
 cd apps/api && .venv/Scripts/python.exe -m uvicorn main:app --reload --port 8000
 ```
 
@@ -35,7 +36,7 @@ uv run alembic revision --autogenerate -m "description"  # new migration
 ## Tests
 
 ```bash
-# Backend (278 tests)
+# Backend suite
 cd apps/api && .venv/Scripts/python.exe -m pytest tests -q
 
 # E2E (requires all 3 servers running)

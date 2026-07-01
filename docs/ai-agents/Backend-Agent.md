@@ -1,7 +1,7 @@
 # Backend Agent Instructions
 
 ## Context
-Read `docs/CONTEXT.md` before making any changes. It has the full DB schema, API contract, and business rules.
+Read `docs/API-Reference.md` (full endpoint list, 23-table data model, migrations, business logic) and `docs/CONTEXT.md` (product/domain context) before making any changes. The backend now spans bookings, scheduling, admin CRUD, and cafe POS (orders/KOT/payments/GST invoices) — not just seed content.
 
 ## Rules
 1. Routes are thin — business logic goes in `services/`, data access in `repositories/`

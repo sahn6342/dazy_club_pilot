@@ -327,3 +327,16 @@ class InvoiceSequenceRow(Base):
     series: Mapped[str] = mapped_column(String, nullable=False)
     financialYear: Mapped[str] = mapped_column(String, nullable=False)
     lastNumber: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class AuditLogRow(Base):
+    __tablename__ = "audit_log"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    at: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    actor: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    actorRole: Mapped[str | None] = mapped_column(String, nullable=True)
+    action: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    entityType: Mapped[str | None] = mapped_column(String, nullable=True)
+    entityId: Mapped[str | None] = mapped_column(String, nullable=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(String, nullable=True)

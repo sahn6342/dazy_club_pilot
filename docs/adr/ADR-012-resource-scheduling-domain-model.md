@@ -1,10 +1,9 @@
 # ADR-012 — Resource-Scheduling Domain Model
 
-- **Status:** Proposed
+- **Status:** Accepted — implemented (venues, courts, schedule_rules, schedule_exceptions, customers, capacity-aware unique index, multi-slot booking all shipped)
 - **Date:** 2026-06-29
 - **Relates to:** ADR-011 (FastAPI backend); builds on the SQLite + repository-pattern persistence decision.
 - **Supersedes:** the implicit in-memory slot model (3 hardcoded sports × 12 generated slots/day). No prior ADR covered the domain model itself.
-- **Adjust the number** to fit your sequence if 012 is taken.
 
 ---
 

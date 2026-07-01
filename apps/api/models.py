@@ -327,7 +327,6 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=4)
     role: str | None = Field(default=None, pattern="^(manager|cashier|kitchen)$")
-    role: str | None = Field(default=None, pattern="^(manager|cashier|kitchen)$")
 
 
 class UserPublic(BaseModel):
@@ -336,6 +335,31 @@ class UserPublic(BaseModel):
     role: str
     createdAt: str
     createdBy: str
+
+
+class PasswordResetRequest(BaseModel):
+    password: str = Field(min_length=4)
+
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+# ── Audit log ──
+
+class AuditLogDto(BaseModel):
+    id: str
+    at: str
+    actor: str
+    actorRole: str | None = None
+    action: str
+    entityType: str | None = None
+    entityId: str | None = None
+    detail: str | None = None
+    ip: str | None = None
+
+    model_config = {"from_attributes": True}
 
 
 # ── Schedule (admin) ──

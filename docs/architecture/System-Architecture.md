@@ -3,27 +3,28 @@
 ## Current (pilot)
 
 ```
-┌─────────────────────┐   ┌─────────────────────┐
-│  apps/web (:5173)   │   │  apps/admin (:5174)  │
-│  React + Vite       │   │  React + Vite        │
-│  Public booking UI  │   │  Admin portal        │
-└────────┬────────────┘   └──────────┬───────────┘
-         │                           │
-         └─────────┬─────────────────┘
-                   ▼ HTTP REST
-         ┌─────────────────────┐
-         │  apps/api (:8000)   │
-         │  FastAPI + Python   │
-         │  Pydantic v2        │
-         │  SQLAlchemy 2.0     │
-         └────────┬────────────┘
+┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
+│  apps/web (:5173)  │  │ apps/admin (:5174) │  │ apps/kiosk (:5175) │
+│  React + Vite      │  │  React + Vite      │  │  React + Vite      │
+│  Public booking UI │  │  Staff back-office │  │  Cafe POS + KDS    │
+└────────┬───────────┘  └─────────┬──────────┘  └─────────┬──────────┘
+         │                        │                       │
+         └────────────┬───────────┴───────────────────────┘
+                      ▼ HTTP REST
+         ┌──────────────────────────────┐
+         │  apps/api (:8000)            │
+         │  FastAPI + Pydantic v2       │
+         │  SQLAlchemy 2.0 + Alembic    │
+         │  bookings · scheduling ·     │
+         │  admin CRUD · cafe POS/GST   │
+         └────────┬─────────────────────┘
                   ▼
          ┌─────────────────────┐
          │  dazy.db (SQLite)   │
          │  Alembic migrations │
          └─────────────────────┘
 
-packages/shared  →  TypeScript types shared by web + admin
+packages/shared  →  TypeScript types shared by web + admin + kiosk
 ```
 
 ## Future (production)

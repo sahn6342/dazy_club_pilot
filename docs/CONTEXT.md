@@ -1,13 +1,19 @@
 # Dazy.club — Master AI Context
 
 > Single source of truth. Feed this file to any AI assistant for full project context.
-> Last updated: 2026-06-30
+> Last updated: 2026-07-01
+> Feature detail + screenshots: [Features.md](Features.md) · REST/data reference: [API-Reference.md](API-Reference.md) · planned work: [Roadmap.md](Roadmap.md)
 
 ---
 
 ## What is Dazy.club?
 
-A premium multi-sport venue booking platform for a single pilot venue offering **Cricket, Badminton, and Pickleball**. Users browse available time slots, select one or more consecutive slots, and confirm a booking. Admins manage courts, schedules, bookings, content (gallery, testimonials, CMS), and promo codes through a separate admin portal.
+A premium multi-sport venue platform for a single pilot venue offering **Cricket, Badminton, and Pickleball**, plus an on-site **cafe**. It is now four apps:
+
+- **web** (:5173) — public booking site: browse slots, select consecutive slots, confirm a booking; general + corporate enquiries.
+- **admin** (:5174) — staff back-office: courts, schedules, bookings, content (gallery/testimonials/CMS), promos, users, enquiries, and cafe menu/tables/orders/settings.
+- **kiosk** (:5175) — cafe POS + Kitchen Display System: cashier PIN login, menu/cart, payments (cash/UPI/card), GST invoices, order history, tables, KDS.
+- **api** (:8000) — FastAPI backend serving all three (~70 endpoints, 23 tables).
 
 ---
 
@@ -17,12 +23,14 @@ A premium multi-sport venue booking platform for a single pilot venue offering *
 dazy_club_pilot/
 ├── apps/
 │   ├── web/          React 18 + Vite + TypeScript — public booking site (:5173)
-│   ├── admin/        React 18 + Vite + TypeScript — admin portal (:5174)
+│   ├── admin/        React 18 + Vite + TypeScript — staff back-office (:5174)
+│   ├── kiosk/        React 18 + Vite + TypeScript — cafe POS + KDS (:5175)
 │   └── api/          FastAPI + Python 3.12 — REST API (:8000)
 ├── packages/
-│   └── shared/       TypeScript types shared between web and admin
+│   ├── shared/       TypeScript types shared across frontends
+│   └── ui/           Shared UI primitives
 ├── docs/             This folder
-├── e2e/              Playwright E2E tests (web/ and admin/ suites)
+├── e2e/              Playwright E2E tests (web/, admin/, kiosk/ suites)
 └── playwright.config.ts
 ```
 
@@ -35,12 +43,12 @@ dazy_club_pilot/
 
 | Layer | Tech |
 |---|---|
-| Web / Admin frontend | React 18, TypeScript, Vite, react-router-dom v7, CSS (no Tailwind) |
+| Frontends (web / admin / kiosk) | React 18, TypeScript, Vite, react-router-dom v7, CSS (no Tailwind) |
 | API | FastAPI (Python 3.12), Pydantic v2, uvicorn, SQLAlchemy 2.0 (sync), Alembic |
 | Database | SQLite (`apps/api/dazy.db`), Alembic migrations |
-| Auth | JWT HS256 (pyjwt), 8h expiry, admin/manager roles, bcrypt passwords |
-| Testing (backend) | pytest + starlette TestClient — 278 tests |
-| Testing (E2E) | Playwright — web and admin suites |
+| Auth | JWT HS256 (pyjwt). Admin/manager via password (8h token); cashier/kitchen via 4-digit PIN (2h token). bcrypt hashes |
+| Testing (backend) | pytest + starlette TestClient |
+| Testing (E2E) | Playwright — web, admin, kiosk suites |
 | Python env | uv (lockfile: `apps/api/uv.lock`) |
 
 > **SQLite → PostgreSQL:** Swap `DAZY_DB_URL` env var. Repository pattern means zero route changes.
@@ -111,7 +119,7 @@ id TEXT PK, name TEXT, context TEXT, quote TEXT, approved BOOL
 ```
 key TEXT PK, label TEXT, value TEXT
 ```
-Seeded keys: `hero_tagline`, `hero_copy`, `faq_advance_booking`, `faq_group_size`, `faq_cancellation`, `contact_phone`, `contact_address`.
+Seeded keys: `hero_tagline`, `hero_copy`, `footer_tagline`, `faq_booking`, `faq_sports`, `faq_corporate`, `faq_group_size`, `venue_name`, `venue_address`, `venue_phone`, `venue_email`, `venue_hours`, `social_instagram`, `social_facebook`.
 
 **promo_codes**
 ```
@@ -120,18 +128,32 @@ active BOOL, valid_from TEXT, valid_to TEXT, max_uses INT, used_count INT,
 sport_slug TEXT (NULL=all sports), createdAt TEXT
 ```
 
-**admin_users**
+**users**
 ```
-id TEXT PK, username TEXT UNIQUE, password_hash TEXT,
-role TEXT (admin|manager), active BOOL
+id TEXT PK, username TEXT UNIQUE, hashed_password TEXT,
+role TEXT (manager|cashier|kitchen), active BOOL, createdAt TEXT, createdBy TEXT
 ```
-Superadmin from env vars (`ADMIN_USERNAME`, `ADMIN_PASSWORD`). Managers stored here.
+Superadmin (`admin`) from env vars (`ADMIN_USERNAME`, `ADMIN_PASSWORD`) — not a DB row. Managers/cashiers/kitchen stored here; cashier/kitchen use a 4-digit PIN as their password for kiosk login.
 
 **enquiries**
 ```
 id TEXT PK, name TEXT, contact TEXT, message TEXT, sport TEXT,
 handled BOOL, createdAt TEXT
 ```
+
+### Cafe POS tables (kiosk + admin cafe)
+
+**cafe_settings** — GST/business config (legal name, GSTIN, FSSAI, address, state code, GST scheme, default tax rate, price-includes-tax, invoice series/prefix, rounding, declaration/footer).
+**menu_categories** — `name, kind (food|beverage), vegType, sortOrder, active`.
+**menu_items** — `category_id, name, description, price, taxRatePercent, vegType, station (kitchen|bar), isPackaged, available, imageUrl, sortOrder` + inventory fields `trackInventory, currentQty, reorderLevel, unit, purchaseCost`.
+**cafe_tables** — `label, area, capacity, status (free|occupied|reserved), sortOrder, active`.
+**orders** — `orderNo, orderType (quick|dine_in|takeaway), table_id, status (open|in_kitchen|served|billed|paid|cancelled|void), subtotal, taxAmount, discountAmount, total, notes, createdBy, createdAt, updatedAt`.
+**order_items** — `order_id, menu_item_id, nameSnapshot, qty, unitPrice, taxRatePercent, lineSubtotal, lineTax, lineTotal, kot_id, kotStatus, voided, voidReason`.
+**kots** — kitchen order tickets: `kotNo, order_id, station, status (sent|preparing|ready|served), printedAt`.
+**payments** — `order_id, mode (cash|card|upi|wallet|other), amount, reference, createdAt`.
+**invoices** — GST invoices: `invoiceNo, order_id, type (tax_invoice|bill_of_supply), totals + CGST/SGST, financialYear, issuedAt, issuedBy, status`.
+**invoice_lines** — per-line taxable value + CGST/SGST split.
+**invoice_sequences** — atomic per-series/financial-year invoice counter (gap-free numbering).
 
 ---
 
@@ -157,14 +179,20 @@ All prefixed `/api/v1`. API runs on `:8000`. OpenAPI at `http://localhost:8000/d
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | `{"status":"ok"}` |
+| GET | `/sports` | Sports list + metadata. |
+| GET | `/venue` | Venue details (name/contact/hours from CMS). |
 | GET | `/slots?sport=&date=` | Available slots for sport + date. Returns `SlotDto[]`. |
 | POST | `/bookings` | Create booking. Body: `BookingCreate`. Returns `BookingResponse`. |
 | GET | `/promos/validate?code=&sport=&amount=` | Validate promo code. Returns discount info. |
-| GET | `/gallery` | Approved gallery items. |
+| GET | `/gallery` | Approved gallery items (DB-driven). |
 | GET | `/testimonials` | Approved testimonials. |
 | GET | `/cms` | All CMS key-value entries. |
-| POST | `/enquiries` | Submit general enquiry. |
-| POST | `/admin/login` | Returns JWT. Body: `{username, password}`. |
+| GET | `/notifications` | Public announcements/notifications. |
+| POST | `/contact-enquiries` | Submit general enquiry. |
+| POST | `/corporate-enquiries` | Submit corporate/event enquiry. |
+| GET | `/cafe/invoices/{id}/print` | Public 80mm thermal invoice HTML (unguessable UUID; auto-prints). |
+| POST | `/admin/login` | Admin/manager JWT. Body: `{username, password}`. |
+| POST | `/cafe/login` | Cashier JWT. Body: `{username, pin}` (4-digit PIN). |
 
 ### Admin (Bearer JWT required)
 
@@ -191,8 +219,15 @@ All prefixed `/api/v1`. API runs on `:8000`. OpenAPI at `http://localhost:8000/d
 | Method | Path | Description |
 |---|---|---|
 | GET | `/admin/bookings?sport=&date=&status=` | List bookings with filters. |
-| PATCH | `/admin/bookings/{id}/status` | Update status. Body: `{status}`. |
+| PATCH | `/admin/bookings/{id}` | Update status. Body: `{status}`. |
 | DELETE | `/admin/bookings/{id}` | Hard delete booking. |
+
+**Enquiries & customers**
+| Method | Path | Description |
+|---|---|---|
+| GET | `/admin/enquiries` | List enquiries (general + corporate). |
+| PATCH | `/admin/enquiries/{id}` | Update handled status. |
+| GET | `/admin/customers` | Customer records. |
 
 **Content**
 | Method | Path | Description |
@@ -202,8 +237,8 @@ All prefixed `/api/v1`. API runs on `:8000`. OpenAPI at `http://localhost:8000/d
 | POST | `/admin/gallery/upload` | Upload image file → returns `{imageUrl}`. |
 | GET/POST | `/admin/testimonials` | List / create testimonial. |
 | PATCH/DELETE | `/admin/testimonials/{id}` | Update / delete testimonial. |
-| GET | `/admin/cms` | List all CMS entries. |
-| PUT | `/admin/cms/{key}` | Update CMS value. |
+| GET/POST | `/admin/cms` | List / create CMS entry (409 on duplicate key). |
+| PUT/DELETE | `/admin/cms/{key}` | Update value+label / delete entry. |
 
 **Promos**
 | Method | Path | Description |
@@ -214,8 +249,34 @@ All prefixed `/api/v1`. API runs on `:8000`. OpenAPI at `http://localhost:8000/d
 **Users (superadmin only)**
 | Method | Path | Description |
 |---|---|---|
-| GET/POST | `/admin/users` | List / create manager accounts. |
-| PATCH/DELETE | `/admin/users/{id}` | Update / delete manager. |
+| GET/POST | `/admin/users` | List / create manager/cashier/kitchen accounts. |
+| PATCH/DELETE | `/admin/users/{id}` | Update / delete user. |
+
+**Cafe admin**
+| Method | Path | Description |
+|---|---|---|
+| GET/POST/PATCH/DELETE | `/admin/cafe/categories` (`/{id}`) | Menu category CRUD. |
+| GET/POST/PATCH/DELETE | `/admin/cafe/items` (`/{id}`) | Menu item CRUD (price, tax %, station, veg, inventory fields). |
+| GET/POST/PATCH/DELETE | `/admin/cafe/tables` (`/{id}`) | Table CRUD (label/area/capacity/status). |
+| GET/PUT | `/admin/cafe/settings` | GST/business config. |
+| GET | `/cafe/invoices` | All invoices (admin). |
+
+### Cafe / POS (Bearer cashier — cashier/kitchen/manager/admin)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/cafe/menu` | Menu (categories + items). |
+| GET | `/cafe/tables` | Dine-in tables. |
+| POST/GET | `/cafe/orders` | Create / list orders. |
+| GET/PATCH | `/cafe/orders/{id}` | Get / update order. |
+| POST | `/cafe/orders/{id}/items` | Add line item. |
+| DELETE | `/cafe/orders/{id}/items/{iid}` | Void item (reason required). |
+| POST | `/cafe/orders/{id}/kot` | Fire KOT(s) — one per station. |
+| POST | `/cafe/orders/{id}/payments` | Record payment (auto-marks paid). |
+| POST | `/cafe/orders/{id}/invoice` | Issue GST invoice. |
+| GET | `/cafe/kots?station=&status=` | KOTs for a station. |
+| PATCH | `/cafe/kots/{id}/status` | Advance KOT (sent→preparing→ready). |
+| GET | `/cafe/invoices/{id}` | Invoice detail. |
 
 ---
 
@@ -286,21 +347,46 @@ type Slot = {
 **Pages:**
 | Route | Page | Description |
 |---|---|---|
-| `/` | Login | Username + password → JWT |
+| `/login` | Login | Username + password → JWT |
+| `/` | Dashboard | KPI cards + quick links |
 | `/bookings` | Bookings | Table + filter (sport, date, status). Confirm/cancel/complete/no-show actions. |
 | `/schedule` | Schedule | Court selector, weekly block editor, per-day accordion, date exceptions |
 | `/courts` | Courts | Add/edit/deactivate courts grouped by sport |
+| `/promos` | Promos | Promo code CRUD with kind/value/sport/dates |
+| `/enquiries` | Enquiries | Triage general + corporate enquiries |
 | `/gallery` | Gallery | Image grid with add (URL or file upload) / edit / delete / approve/reject |
 | `/testimonials` | Testimonials | List with add / edit / delete / approve/reject |
-| `/cms` | CMS | Edit key-value content entries inline |
-| `/promos` | Promos | Promo code CRUD with kind/value/sport/dates |
-| `/users` | Users | Manager account CRUD (superadmin only) |
+| `/cms` | CMS | Create / edit / delete key-value content entries |
+| `/contact-details` | ContactDetails | Edit venue contact block (address/phone/email/hours/socials) |
+| `/users` | Users | Manager/cashier/kitchen account CRUD (superadmin only) |
+| `/cafe/categories` | Cafe Categories | Menu category CRUD |
+| `/cafe/items` | Cafe Items | Menu item CRUD |
+| `/cafe/tables` | Cafe Tables | Table CRUD (incl. status) |
+| `/cafe/orders` | Cafe Orders | Read-only orders view (filter + expand) |
+| `/cafe/settings` | Cafe Settings | GST/business configuration |
 
 **Schedule page detail:**
 - Court dropdown to select which court to configure
 - Weekly editor: table of Mon–Sun with open/close/price per block; "Make continuous", "Copy to all days"
 - Advanced section (collapsible): per-day override rows — add/remove time blocks
 - Date exceptions panel: add closed dates or special-hours overrides; "Apply to all courts" toggle (default on = venue-wide holiday)
+
+---
+
+## Frontend — Kiosk (Cafe POS + KDS) (`:5175`)
+
+**Auth:** cashier logs in with staff name + 4-digit PIN (`/cafe/login`); JWT in `localStorage` key `dazy_kiosk_token`. `AuthGuard` bounces unauthenticated access to `/login`.
+
+**Pages:**
+| Route | Page | Description |
+|---|---|---|
+| `/login` | Login | Staff name + 4-digit PIN pad (keyboard entry supported) |
+| `/menu` | Menu | Category rail + item grid + cart; Place Order → Payment modal |
+| `/orders` | Orders | Open / History tabs; Pay action on open orders; auto-refresh 15s |
+| `/tables` | Tables | Floor view with status; auto-refresh 30s |
+| `/kds` | KDS | Pending KOTs for a station; Mark Preparing / Ready; poll 10s |
+
+**Order → payment flow:** build cart → `POST /cafe/orders` → PaymentModal (Cash/UPI/Card + optional reference; round-off disclosed) → `POST …/payments` (auto-marks paid) → `POST …/invoice` → **Print Receipt** opens the public 80mm thermal invoice HTML.
 
 ---
 
@@ -317,10 +403,13 @@ type Slot = {
 | Promo codes | `percent` (e.g. 10% off) or `flat` (e.g. ₹100 off). Can be sport-specific. Applied at booking. |
 | Cancelled bookings | Do NOT block slot. Availability re-derived excluding `cancelled`/`no_show`. |
 | Double-booking guard | Unique constraint on `(court_id, date, start_time)` where status not cancelled/no_show → 409 on race. |
-| Auth roles | `admin` (env-var superadmin) = full access. `manager` (DB) = all except user management. |
-| JWT | HS256, 8h expiry, `JWT_SECRET` env var. Login rate-limited (5 attempts). |
+| Auth roles | `admin` (env-var superadmin) = full access. `manager` (DB) = all except user management. `cashier`/`kitchen` (DB, 4-digit PIN) = kiosk POS / KDS only. |
+| JWT | HS256, `JWT_SECRET` env var. Admin/manager 8h, cashier 2h. Admin login rate-limited (per-IP). |
+| GST invoicing | On invoice issue, total splits into CGST + SGST per cafe settings; invoice numbers allocated **per financial year** (e.g. `2526`) from an atomic sequence (gap-free); amount rendered in words (Indian numbering); printable as 80mm thermal HTML. |
+| KOT routing | Firing a KOT groups an order's pending items by menu-item **station** (kitchen/bar) → one KOT per station; items marked `sent`. KDS advances `sent→preparing→ready`. |
+| Payments | Modes cash/UPI/card (+wallet/other); multiple payments per order; order auto-marked `paid` when total paid ≥ order total. |
 | Media | Images as URL strings or local `/media/gallery/` files. Served via FastAPI StaticFiles at `/media`. |
-| Seeded data | 3 courts, 63 schedule rules (3 blocks × 7 days × 3 courts), gallery, testimonials, CMS entries, 2 promos (WELCOME10, FLAT100) |
+| Seeded data | 1 venue, 3 courts, 63 schedule rules (3 blocks × 7 days × 3 courts), gallery, testimonials, CMS entries, 2 promos (WELCOME10, FLAT100). Cafe menu/tables are created via admin, not seeded. |
 
 ---
 
@@ -348,13 +437,16 @@ pnpm dev:web       # http://localhost:5173
 
 # Admin
 pnpm dev:admin     # http://localhost:5174
+
+# Kiosk (cafe POS + KDS)
+pnpm dev:kiosk     # http://localhost:5175
 ```
 
 **Run tests:**
 ```bash
 cd apps/api
 .venv/Scripts/python.exe -m pytest tests -q
-# 278 tests, all pass
+# full backend suite passes
 ```
 
 **Run E2E:**
@@ -396,6 +488,8 @@ apps/api/
   services/
     availability_service.py  Slot generation from rules + exceptions
     booking_service.py       Booking creation + concurrency guard
+    pricing_service.py       Promo validation + Decimal money math
+    pos_service.py           Order creation, KOT station routing, payments, GST invoice orchestration
   repositories/
     court_repo.py            Court CRUD + clear()
     schedule_repo.py         Rules + exceptions CRUD + clear()
@@ -405,14 +499,28 @@ apps/api/
     cms_repo.py              CMS CRUD
     promo_repo.py            Promo CRUD + validation
     customer_repo.py         Customer upsert-by-contact
-    user_repo.py             Manager account CRUD
+    user_repo.py             Manager/cashier/kitchen account CRUD
+    menu_item_repo.py        Menu item CRUD (+ inventory fields)
+    menu_category_repo.py    Menu category CRUD
+    cafe_table_repo.py       Cafe table CRUD
+    order_repo.py            Orders + items + total recalc
+    kot_repo.py              KOT CRUD + status
+    payment_repo.py          Payments
+    invoice_repo.py          GST invoice + lines + sequence (CGST/SGST, amount-in-words)
   routes/
     slots.py                 GET /slots
     bookings.py              POST /bookings, GET /promos/validate
     gallery.py               GET /gallery (public, approved only, DB-driven)
     testimonials.py          GET /testimonials (approved only)
     cms.py                   GET /cms
-    enquiries.py             POST /enquiries
+    enquiries.py             POST /contact-enquiries, /corporate-enquiries
+    sports.py, venue.py, notifications.py   Public metadata
+    cafe/
+      auth.py                POST /cafe/login (cashier PIN)
+      menu.py, tables.py     GET /cafe/menu, /cafe/tables
+      orders.py              Order lifecycle: create/items/kot/payments/invoice
+      kots.py                KOT list + status (KDS)
+      invoices.py            Invoice detail + public /print
     admin/
       auth.py                POST /admin/login, rate limiter
       courts.py              Courts CRUD
@@ -422,7 +530,10 @@ apps/api/
       testimonials.py        Testimonial CRUD
       cms.py                 CMS update
       promos.py              Promo CRUD + validate
-      users.py               Manager CRUD
+      users.py               Manager/cashier/kitchen CRUD
+      enquiries.py           Enquiry triage
+      customers.py           Customer records
+      cafe/                  categories.py, items.py, tables.py, settings.py
   alembic/
     versions/                Migration scripts (chained)
   tests/
@@ -449,11 +560,26 @@ apps/admin/src/
   pages/Testimonials.tsx     Testimonial CRUD
   pages/CMS.tsx              Inline CMS editor
   pages/Promos.tsx           Promo code CRUD
-  pages/Users.tsx            Manager account CRUD
+  pages/Users.tsx            Manager/cashier/kitchen account CRUD
+  pages/Dashboard.tsx        KPI cards
+  pages/Enquiries.tsx        Enquiry triage
+  pages/ContactDetails.tsx   Venue contact editor
+  pages/Cafe*.tsx            CafeCategories/Items/Tables/Orders/Settings
   components/Sidebar.tsx     Nav with all page links
-  lib/api.ts                 Admin API client (get/post/patch/delete/upload)
+  components/ConfirmDialog.tsx  In-app confirm (useConfirm) — replaces window.confirm
+  lib/api.ts                 Admin API client (get/post/patch/put/delete/upload)
+
+apps/kiosk/src/
+  pages/Login.tsx            Cashier PIN login
+  pages/Menu.tsx             Category rail + item grid + cart → Payment
+  pages/Orders.tsx           Open / History tabs
+  pages/Tables.tsx           Floor view
+  pages/KDS.tsx              Kitchen Display — pending KOTs
+  components/PaymentModal.tsx  Cash/UPI/card + GST invoice + print
+  lib/api.ts, lib/auth.ts    Kiosk API client + token (dazy_kiosk_token)
 
 packages/shared/src/index.ts  Slot, BookingRequest types + SPORT_LABELS
+packages/ui/                   Shared UI primitives
 
 e2e/
   web/booking.spec.ts        Web booking flow E2E
@@ -462,4 +588,6 @@ e2e/
   admin/schedule.spec.ts     Schedule management E2E
   admin/courts.spec.ts       Courts admin E2E
   admin/gallery.spec.ts      Gallery admin E2E
+  kiosk/login.spec.ts        Kiosk cashier login E2E
+  {web,admin,kiosk}/zz-screenshots.spec.ts  Doc-screenshot generation
 ```

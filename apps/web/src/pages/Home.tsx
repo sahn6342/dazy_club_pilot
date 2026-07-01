@@ -128,6 +128,7 @@ export function Home() {
         <div className="stats-inner">
           {[
             { value: "3", label: "Sports" },
+            { value: "16h", label: "Open daily" },
             { value: "7", label: "Days ahead" },
             { value: "11", label: "Max players" },
           ].map((s) => (

@@ -9,7 +9,7 @@
 | Database | SQLite (pilot) | SQLAlchemy 2.0 sync, Alembic migrations |
 | Auth | JWT HS256 (pyjwt) | 8h expiry, bcrypt passwords |
 | Monorepo | pnpm workspaces | shared `@dazy/shared` types package |
-| Testing | pytest + Playwright | 278 backend tests, E2E web + admin |
+| Testing | pytest + Playwright | pytest backend suite, E2E web + admin + kiosk |
 | Styling | Plain CSS + CSS variables | Dark theme, gold accent `#d8b456` |
 
 ## Deferred

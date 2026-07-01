@@ -1,6 +1,6 @@
 # ADR-011: Replace ASP.NET Core 9 with FastAPI
 
-**Status:** Accepted  
+**Status:** Accepted — implemented  
 **Date:** 2026-06-28  
 **Supersedes:** ADR-004 (Backend .NET 9)
 

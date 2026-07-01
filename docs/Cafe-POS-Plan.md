@@ -2,7 +2,9 @@
 
 > Build plan for adding a café (food & beverage) operation alongside the existing turf-booking platform.
 > Designed to slot into the current FastAPI + SQLAlchemy + React monorepo with the same patterns.
-> Status: draft for review. GST mode is intentionally configurable (see §3) and not blocking.
+>
+> **Status: Phases 0–1 IMPLEMENTED** (Alembic `d0e1f2a3b4c5` foundations + `e1f2a3b4c5d6` POS). Shipped: the `apps/kiosk` POS app, menu categories/items, tables, orders, KOT station routing, payments (cash/UPI/card), and GST invoices (CGST/SGST, financial-year numbering, amount-in-words, 80mm thermal print), plus admin cafe screens. See [Features.md](Features.md) (Kiosk POS & KDS) and [API-Reference.md](API-Reference.md).
+> Phases 2–4 remain future work (inventory logic, discounts/comps, dine-in table loop, credit notes, e-invoicing, offline) — tracked in [Roadmap.md](Roadmap.md). GST mode is configurable (see §3).
 
 ---
 
