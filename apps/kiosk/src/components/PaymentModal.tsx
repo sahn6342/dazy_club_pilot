@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, Order, Payment, Invoice } from "../lib/api";
+import { api, API_ORIGIN, Order, Payment, Invoice } from "../lib/api";
 
 type PayMode = "cash" | "upi" | "card";
 
@@ -53,7 +53,7 @@ export function PaymentModal({ order, onClose, onComplete }: PaymentModalProps) 
   }
 
   function handlePrint() {
-    window.open(`http://localhost:8000/api/v1/cafe/invoices/${invoiceId}/print`, "_blank");
+    window.open(`${API_ORIGIN}/api/v1/cafe/invoices/${invoiceId}/print`, "_blank");
   }
 
   function handleDone() {

@@ -22,23 +22,27 @@
 | DEC-018 | In-app ConfirmDialog (`useConfirm`) replaces `window.confirm` in admin | Accepted — implemented |
 | DEC-019 | Multi-slot booking + capacity-aware unique index (race-safe) | Accepted — implemented |
 | DEC-020 | Gallery images via `imageUrl` (URL or `/media` upload); DB-driven public gallery | Accepted — implemented |
+| DEC-028 | Production deploy: single Docker Compose stack — Caddy edge (auto-HTTPS) + api + 3 static Vite frontends + one `/data` volume (SQLite + media) | Accepted — implemented; see [Docker-Deployment.md](Docker-Deployment.md) |
+| DEC-029 | Cashier PIN login rate-limited (shared `SlidingWindowLimiter`, extracted from the admin-login limiter) | Accepted — implemented |
+| DEC-030 | Frontend API base URL (admin/kiosk) and backend CORS origins made env-configurable at build/deploy time | Accepted — implemented (previously hardcoded to `localhost:8000`/`:5173-5175` — a launch-blocking bug) |
+| DEC-031 | Password-strength rule (manager 8+ chars / staff 4-digit PIN) enforced on user *update*, not just create | Accepted — implemented (fixed a bypass) |
 
-### Planned (enhancement roadmap — see [Roadmap.md](Roadmap.md), not yet built)
+### Launch sequencing (see [Detailed-Roadmap.md](Detailed-Roadmap.md) — supersedes the ordering below, not the content)
 
 | ID | Decision | Status |
 |---|---|---|
 | DEC-021 | Cancellation window stored as CMS key (`booking_cancel_window_hours`), not a new table | Planned |
 | DEC-022 | Public reschedule is request-only in v1 (admin actions it); full self-service deferred | Planned |
-| DEC-023 | Maintenance block = booking row + `holdType` (excluded from CRM/revenue), not sub-day exceptions | Planned |
-| DEC-024 | Reporting via dedicated `reporting_repo` + `analytics_service`; CSV export server-side (stdlib) | Planned |
-| DEC-025 | UnitOfWork = optional injected `session=None`; `with _session()` stays default (backward-compatible) | Planned — resolves service-layer/UoW task |
-| DEC-026 | Payment + notifications behind provider adapters with dev no-op/console impls (extends DEC-007/008) | Planned |
-| DEC-027 | Booking payment status (unpaid/deposit/paid/refunded) tracked; pay-at-venue stays default | Planned |
+| DEC-023 | Maintenance block = booking row + `holdType` (excluded from CRM/revenue), not sub-day exceptions | Planned — post-launch (dine-in is out of scope for a counter/takeaway-only launch) |
+| DEC-024 | Reporting via dedicated `reporting_repo` + `analytics_service`; CSV export server-side (stdlib) | Planned — dashboard + Z-report slice pulled forward to launch-important (Detailed-Roadmap Phase 4); full report suite + CSV stays growth-track |
+| DEC-025 | UnitOfWork = optional injected `session=None`; `with _session()` stays default (backward-compatible) | Planned — a **targeted** version (invoice issuance only) is a launch-blocker (Detailed-Roadmap Phase 2); the full order→items→KOT→invoice refactor stays growth-track |
+| DEC-026 | Payment + notifications behind provider adapters with dev no-op/console impls (extends DEC-007/008) | Planned — payment adapter (Razorpay) is now a launch-blocker (Detailed-Roadmap Phase 3), not growth-track |
+| DEC-027 | Booking payment status (unpaid/deposit/paid/refunded) tracked; pay-at-venue stays default | Superseded — bookings take **online prepay from day one** (Detailed-Roadmap Phase 3), not pay-at-venue |
 
 ## Open
-- Production hosting / deployment provider
+- Production hosting / deployment provider (VPS choice) — Docker/Caddy stack ready, VPS not yet provisioned
 - PostgreSQL migration timeline
-- Payment provider selection (Razorpay vs alternatives)
-- SMS/OTP + email provider selection (Twilio/MSG91/SMTP)
-- Enhancement roadmap phase sequencing / go-live scope (see Roadmap.md)
+- Razorpay KYC (external — gates Detailed-Roadmap Phase 3)
+- CA decisions: café GST scheme, whether turf bookings need a GST invoice
+- SMS/OTP + email provider selection (Twilio/MSG91/SMTP) — gates Phase 5 (customer confirmation)
 - Final brand assets (logo, copy, photos)

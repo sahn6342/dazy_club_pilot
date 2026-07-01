@@ -22,6 +22,7 @@ import deps
 from db import init_db, seed_if_empty
 from main import app
 from routes.admin.auth import clear_login_attempts
+from rate_limit import cashier_login_limiter
 
 # Create schema once before any test runs.
 init_db()
@@ -39,7 +40,8 @@ def _reset_repos():
     deps.customer_repo.clear()
     deps.promo_repo.clear()  # clear promos; seed re-adds WELCOME10 + FLAT100
     seed_if_empty()  # re-insert gallery/testimonials/cms + venue/courts/rules idempotently
-    clear_login_attempts()  # reset rate-limit counters so test fixture logins never hit the cap
+    clear_login_attempts()  # reset admin rate-limit counters so test fixture logins never hit the cap
+    cashier_login_limiter.clear()  # same for cashier PIN login
 
 
 @pytest.fixture(autouse=True)

@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -53,10 +54,15 @@ app = FastAPI(title="Dazy.club API", version="0.1.0", lifespan=lifespan)
 ensure_media_dirs()
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 
+_DEFAULT_CORS_ORIGINS = "http://localhost:5173,http://localhost:5174,http://localhost:5175"
+_cors_origins = [
+    o.strip() for o in os.environ.get("DAZY_CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",") if o.strip()
+]
+
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+    allow_origins=_cors_origins,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["*"],
 )

@@ -111,7 +111,9 @@ Regenerate documentation screenshots any time via the `zz-screenshots.spec.ts` s
 
 - **[docs/Features.md](docs/Features.md)** — every feature of every app, with screenshots.
 - **[docs/API-Reference.md](docs/API-Reference.md)** — all REST endpoints, data model, migrations, business logic.
-- **[docs/Roadmap.md](docs/Roadmap.md)** — gap analysis + planned enhancements (POS, BI, booking, security). Not yet built.
+- **[docs/Detailed-Roadmap.md](docs/Detailed-Roadmap.md)** — launch-sequenced build plan (production hardening → café GST → online prepay → owner visibility → confirmations → 🚀 go-live → growth). Start here for "what's next."
+- **[docs/Roadmap.md](docs/Roadmap.md)** — the fuller gap analysis behind it (POS, BI, booking, security).
+- **[docs/Docker-Deployment.md](docs/Docker-Deployment.md)** — production Docker Compose + Caddy deploy, backups, smoke test.
 - **[docs/architecture/](docs/architecture/)** — system, backend, deployment architecture.
 - **[docs/adr/](docs/adr/)** — accepted architecture decisions.
 - **[docs/Cafe-POS-Plan.md](docs/Cafe-POS-Plan.md)** — POS phased build plan.

@@ -1,0 +1,30 @@
+# Builds one of the three Vite SPAs (web / admin / kiosk) and serves the
+# static output with Caddy. Build with --build-arg APP=web|admin|kiosk
+# and --build-arg VITE_API_BASE_URL=https://api.example.com/api/v1.
+#
+#   docker build -f Dockerfile.frontend --build-arg APP=admin \
+#     --build-arg VITE_API_BASE_URL=https://api.example.com/api/v1 -t dazy-admin .
+
+FROM node:20-alpine AS build
+ARG APP
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+RUN npm install -g pnpm@11.5.3
+WORKDIR /repo
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages ./packages
+COPY apps/${APP}/package.json apps/${APP}/package.json
+RUN pnpm install --frozen-lockfile
+# pnpm's build-script allowlist (onlyBuiltDependencies in pnpm-workspace.yaml)
+# is not always honored on a from-scratch install; make sure esbuild's native
+# binary is actually linked before vite (which shells out to it) runs.
+RUN pnpm rebuild --pending
+COPY apps/${APP} apps/${APP}
+RUN pnpm --filter "./apps/${APP}" build
+
+FROM caddy:2-alpine
+ARG APP
+# Bake APP into a fixed path so the final COPY --from=build path is a literal
+# (Docker COPY doesn't expand ARGs the same way on every buildkit version).
+COPY --from=build /repo/apps/${APP}/dist /srv
+COPY Caddyfile.spa /etc/caddy/Caddyfile

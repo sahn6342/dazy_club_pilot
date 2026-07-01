@@ -26,7 +26,7 @@ Dazy.club is a premium sports-venue platform for **Cricket, Badminton, and Pickl
 - **Testing**: pytest (backend) + Playwright E2E (web / admin / kiosk).
 
 ## Roadmap
-Planned enhancements (POS completeness, business intelligence, booking growth, foundation & security) with the full gap analysis live in [docs/Roadmap.md](docs/Roadmap.md) — planned, not yet built.
+**[docs/Detailed-Roadmap.md](docs/Detailed-Roadmap.md)** is the authoritative, launch-sequenced build plan — production hardening and Docker deploy first, then café GST correctness, then online prepay (Razorpay), then owner visibility and customer confirmation, then 🚀 go-live, then a growth track. It re-sequences [docs/Roadmap.md](docs/Roadmap.md) (the fuller gap analysis) for the real launch context: counter/takeaway-only café, prepay-from-day-one bookings, weeks-not-months MVP.
 
 ## Working Rule
-Read this file, [README.md](README.md), [docs/Features.md](docs/Features.md), [docs/API-Reference.md](docs/API-Reference.md), [docs/Roadmap.md](docs/Roadmap.md), and [docs/Decision-Log.md](docs/Decision-Log.md) before design or code work. Do not invent requirements that conflict with these docs.
+Read this file, [README.md](README.md), [docs/Features.md](docs/Features.md), [docs/API-Reference.md](docs/API-Reference.md), [docs/Detailed-Roadmap.md](docs/Detailed-Roadmap.md), and [docs/Decision-Log.md](docs/Decision-Log.md) before design or code work. Do not invent requirements that conflict with these docs.

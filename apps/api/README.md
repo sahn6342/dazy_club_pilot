@@ -25,7 +25,11 @@ The server auto-migrates to the Alembic head and seeds demo data into empty tabl
 
 ## Docker
 
+Standalone image (for local testing — `uv.lock` must be in the build context):
+
 ```bash
 docker build -t dazy-api .
-docker run -p 8000:8000 dazy-api
+docker run -p 8000:8000 -e JWT_SECRET=dev-secret dazy-api
 ```
+
+Full production stack (this API + all three frontends + Caddy HTTPS): see [docs/Docker-Deployment.md](../../docs/Docker-Deployment.md).

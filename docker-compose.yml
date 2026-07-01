@@ -1,19 +1,82 @@
-services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: dazy_club
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+# Production deployment: one API container, three static-frontend containers,
+# and a Caddy edge for automatic HTTPS. See docs/Docker-Deployment.md.
+#
+#   cp .env.example .env   # fill in real values, then:
+#   docker compose up -d --build
 
-  redis:
-    image: redis:7-alpine
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      DAZY_CORS_ORIGINS: https://${WEB_DOMAIN},https://${ADMIN_DOMAIN},https://${KIOSK_DOMAIN}
+      # DAZY_DB_PATH / DAZY_MEDIA_DIR default to /data/... inside the image (see apps/api/Dockerfile).
+      # Point DAZY_DB_URL at Postgres here instead, with zero code changes, if/when you outgrow SQLite.
+    volumes:
+      - api_data:/data
+    expose:
+      - "8000"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        APP: web
+        VITE_API_BASE_URL: https://${API_DOMAIN}/api/v1
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        APP: admin
+        VITE_API_BASE_URL: https://${API_DOMAIN}/api/v1
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  kiosk:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        APP: kiosk
+        VITE_API_BASE_URL: https://${API_DOMAIN}/api/v1
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "80:80"
+      - "443:443"
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+      KIOSK_DOMAIN: ${KIOSK_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+      - admin
+      - kiosk
 
 volumes:
-  postgres_data:
+  api_data:      # dazy.db + uploaded media — back this up regularly
+  caddy_data:    # TLS certificates
+  caddy_config:

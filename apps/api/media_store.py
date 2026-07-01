@@ -6,7 +6,8 @@ model only needs the served prefix to change.
 import os
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MEDIA_DIR = os.path.join(_BASE_DIR, "media")
+_DEFAULT_MEDIA_DIR = os.path.join(_BASE_DIR, "media")
+MEDIA_DIR = os.environ.get("DAZY_MEDIA_DIR", _DEFAULT_MEDIA_DIR)
 MEDIA_GALLERY_DIR = os.path.join(MEDIA_DIR, "gallery")
 
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}

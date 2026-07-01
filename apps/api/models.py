@@ -309,6 +309,16 @@ class UserRecord(BaseModel):
     model_config = {"frozen": False}
 
 
+def validate_password_for_role(password: str, role: str) -> None:
+    """Shared by UserCreate and the admin update route (which knows the
+    target's current/effective role, unlike a UserUpdate model validator)."""
+    if role == "manager" and len(password) < 8:
+        raise ValueError("Manager password must be at least 8 characters.")
+    if role in ("cashier", "kitchen"):
+        if not password.isdigit() or len(password) != 4:
+            raise ValueError("Staff PIN must be exactly 4 digits.")
+
+
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
     password: str = Field(min_length=4)
@@ -316,11 +326,7 @@ class UserCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_password_strength(self) -> "UserCreate":
-        if self.role == "manager" and len(self.password) < 8:
-            raise ValueError("Manager password must be at least 8 characters.")
-        if self.role in ("cashier", "kitchen"):
-            if not self.password.isdigit() or len(self.password) != 4:
-                raise ValueError("Staff PIN must be exactly 4 digits.")
+        validate_password_for_role(self.password, self.role)
         return self
 
 

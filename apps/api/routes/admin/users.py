@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status, Depends
-from models import UserCreate, UserUpdate, UserPublic, UserRecord
+from models import UserCreate, UserUpdate, UserPublic, UserRecord, validate_password_for_role
 from auth import require_superadmin, hash_password
 from deps import user_repo
 
@@ -41,6 +41,11 @@ def update_user(user_id: str, body: UserUpdate, _admin=Depends(require_superadmi
         raise HTTPException(status_code=404, detail="User not found.")
     updates = {}
     if body.password is not None:
+        effective_role = body.role or user.role
+        try:
+            validate_password_for_role(body.password, effective_role)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
         updates["hashed_password"] = hash_password(body.password)
     if body.role is not None:
         updates["role"] = body.role
