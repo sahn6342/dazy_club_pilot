@@ -30,8 +30,8 @@ The pilot outgrew its "public website only" scope into four apps (web / admin / 
 - Service layer sparse, **no UnitOfWork** — multi-repo flows (order→items→KOT→invoice) aren't atomic.
 
 **Latent bugs found**
-- Invoice-number sequence can gap on a crash (`next_number` commits independently of the invoice insert).
-- Admin dashboard computes "today" via `new Date().toISOString()` (UTC), not venue tz (Asia/Kolkata IST) — so "bookings today" is wrong for the 00:00–05:29 IST window.
+- ~~Invoice-number sequence can gap on a crash (`next_number` commits independently of the invoice insert).~~ **Fixed** in Detailed-Roadmap Phase 2 — see DEC-032.
+- Admin dashboard computes "today" via `new Date().toISOString()` (UTC), not venue tz (Asia/Kolkata IST) — so "bookings today" is wrong for the 00:00–05:29 IST window. Still open (Detailed-Roadmap Phase 4).
 
 ## Planned phases
 

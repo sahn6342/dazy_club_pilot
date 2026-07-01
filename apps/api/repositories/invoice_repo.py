@@ -80,23 +80,33 @@ def _financial_year() -> str:
 
 
 class SqliteInvoiceRepository:
-    def next_number(self, series: str, financial_year: str) -> int:
-        """Atomically increment and return the next invoice sequence number."""
+    def next_number(self, series: str, financial_year: str, session=None) -> int:
+        """Atomically increment and return the next invoice sequence number.
+
+        Pass `session` to run within a caller's already-open transaction
+        (e.g. `create()` below) so the bump and the invoice/lines insert
+        commit or roll back together — a crash between them can no longer
+        burn a number that was never actually issued."""
+        if session is not None:
+            return self._bump(session, series, financial_year)
         with _session() as s:
-            seq_id = f"{series}-{financial_year}"
-            row = s.get(InvoiceSequenceRow, seq_id)
-            if not row:
-                row = InvoiceSequenceRow(
-                    id=seq_id,
-                    series=series,
-                    financialYear=financial_year,
-                    lastNumber=0,
-                )
-                s.add(row)
-                s.flush()
-            row.lastNumber += 1
+            return self._bump(s, series, financial_year)
+
+    def _bump(self, s, series: str, financial_year: str) -> int:
+        seq_id = f"{series}-{financial_year}"
+        row = s.get(InvoiceSequenceRow, seq_id)
+        if not row:
+            row = InvoiceSequenceRow(
+                id=seq_id,
+                series=series,
+                financialYear=financial_year,
+                lastNumber=0,
+            )
+            s.add(row)
             s.flush()
-            return row.lastNumber
+        row.lastNumber += 1
+        s.flush()
+        return row.lastNumber
 
     def create(
         self,
@@ -122,7 +132,7 @@ class SqliteInvoiceRepository:
                 series = getattr(settings, "invoiceSeriesPrefix", "INV")
 
             fy = _financial_year()
-            num = self.next_number(series, fy)
+            num = self.next_number(series, fy, session=s)
             invoice_no = f"{series}/{fy}/{num:04d}"
             now = datetime.now(timezone.utc).isoformat()
 

@@ -26,6 +26,7 @@
 | DEC-029 | Cashier PIN login rate-limited (shared `SlidingWindowLimiter`, extracted from the admin-login limiter) | Accepted — implemented |
 | DEC-030 | Frontend API base URL (admin/kiosk) and backend CORS origins made env-configurable at build/deploy time | Accepted — implemented (previously hardcoded to `localhost:8000`/`:5173-5175` — a launch-blocking bug) |
 | DEC-031 | Password-strength rule (manager 8+ chars / staff 4-digit PIN) enforced on user *update*, not just create | Accepted — implemented (fixed a bypass) |
+| DEC-032 | Invoice numbering made atomic: `next_number()` runs inside `invoice_repo.create()`'s own session (optional injected `session=`, DEC-025's pattern) instead of a separate commit | Accepted — implemented (Detailed-Roadmap Phase 2; closes the gap-on-crash bug noted in [Roadmap.md](Roadmap.md)) |
 
 ### Launch sequencing (see [Detailed-Roadmap.md](Detailed-Roadmap.md) — supersedes the ordering below, not the content)
 
