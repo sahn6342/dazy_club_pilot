@@ -16,8 +16,8 @@
     },
     {
       "name": "api",
-      "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "uvicorn", "main:app", "--reload", "--port", "8000"],
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--reload", "--port", "8000"],
       "cwd": "apps/api",
       "port": 8000,
       "autoPort": false

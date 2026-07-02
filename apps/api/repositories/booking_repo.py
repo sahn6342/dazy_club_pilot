@@ -28,6 +28,8 @@ def _to_model(row: BookingRow) -> BookingRecord:
         status=row.status,
         createdAt=row.createdAt,
         is_primary=row.is_primary,
+        paymentStatus=row.paymentStatus,
+        depositAmount=float(row.depositAmount) if row.depositAmount is not None else None,
     )
 
 
@@ -71,6 +73,44 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
                 .where(BookingRow.bookingRef == booking_ref)
                 .values(status="cancelled")
             )
+
+    def get_by_ref(self, booking_ref: str) -> list[BookingRecord]:
+        with _session() as s:
+            rows = s.scalars(select(BookingRow).where(BookingRow.bookingRef == booking_ref)).all()
+            return [_to_model(r) for r in rows]
+
+    def confirm_payment_by_ref(self, booking_ref: str) -> None:
+        """Payment verified — confirm all rows sharing this ref."""
+        with _session() as s:
+            s.execute(
+                sa_update(BookingRow)
+                .where(BookingRow.bookingRef == booking_ref)
+                .values(status="confirmed", paymentStatus="paid")
+            )
+
+    def refund_by_ref(self, booking_ref: str) -> None:
+        """Refund issued — mark refunded and cancel (frees the slot)."""
+        with _session() as s:
+            s.execute(
+                sa_update(BookingRow)
+                .where(BookingRow.bookingRef == booking_ref)
+                .values(status="cancelled", paymentStatus="refunded")
+            )
+
+    def expire_stale_pending(self, before_iso: str) -> int:
+        """Cancel pending+unpaid bookings created before `before_iso` (the
+        payment-timeout sweep) — frees their slots. Returns rows affected."""
+        with _session() as s:
+            result = s.execute(
+                sa_update(BookingRow)
+                .where(
+                    BookingRow.status == "pending",
+                    BookingRow.paymentStatus == "unpaid",
+                    BookingRow.createdAt < before_iso,
+                )
+                .values(status="cancelled")
+            )
+            return result.rowcount or 0
 
     def delete(self, id: str) -> bool:
         with _session() as s:

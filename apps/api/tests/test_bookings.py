@@ -32,12 +32,16 @@ def _book(client, slot, overrides=None):
 
 
 def test_create_booking_success(client):
+    """A priced sport (cricket) requires payment — Phase 3: online prepay —
+    so creation reserves the slot as 'pending', not immediately 'confirmed'."""
     slot = _get_available_slot(client)
     assert slot, "No available slots for test"
     r = _book(client, slot)
     assert r.status_code in (200, 201)
     body = r.json()
-    assert body["status"] == "confirmed"
+    assert body["status"] == "pending"
+    assert body["paymentRequired"] is True
+    assert "checkout" in body
     assert "bookingRef" in body
 
 

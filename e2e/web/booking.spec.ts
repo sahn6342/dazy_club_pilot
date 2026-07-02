@@ -70,19 +70,22 @@ async function selectDate(
 }
 
 /**
- * Real-API only: click upcoming date pills (1..6) until one renders slot chips.
- * Robust against machine-clock drift where "tomorrow" may land on a date the server
- * has no slots for (today is past-filtered; horizon is 7 days). Returns the pill index.
+ * Real-API only: click upcoming date pills (1..6) until one renders an
+ * AVAILABLE (non-disabled) slot chip. Robust against machine-clock drift
+ * where "tomorrow" may land on a date the server has no slots for (today is
+ * past-filtered; horizon is 7 days), and against real bookings from prior
+ * test/manual runs occupying the very first chip in DOM order. Returns the
+ * pill index; caller should click `.slot-chip:not(.unavailable)` to match.
  */
 async function selectFirstDateWithSlots(page: import("@playwright/test").Page): Promise<number> {
   for (let i = 1; i <= 6; i++) {
     await page.locator(".date-pill").nth(i).click();
     try {
-      await expect(page.locator(".slot-chip").first()).toBeVisible({ timeout: 3_000 });
+      await expect(page.locator(".slot-chip:not(.unavailable)").first()).toBeVisible({ timeout: 3_000 });
       return i;
     } catch { /* try next pill */ }
   }
-  throw new Error("No date with slots found in the next 6 days (real API).");
+  throw new Error("No date with an available slot found in the next 6 days (real API).");
 }
 
 // ── Slot selection tests ────────────────────────────────────────────────────
@@ -205,7 +208,7 @@ test.describe("Book page — successful booking", () => {
       await page.getByRole("button", { name: /confirm booking/i }).click();
 
       await expect(
-        page.getByText(/you're booked in/i).or(page.getByText(/slot may have just been taken/i))
+        page.getByText(/you're booked in/i).or(page.getByText(/slots may have just been taken/i))
       ).toBeVisible({ timeout: 10_000 });
     } finally {
       if (createdBookingId) await deleteBooking(request, createdBookingId);
@@ -235,7 +238,7 @@ test.describe("Book page — successful booking", () => {
       await page.getByRole("button", { name: /confirm booking/i }).click();
 
       await expect(
-        page.getByText(/you're booked in/i).or(page.getByText(/slot may have just been taken/i))
+        page.getByText(/you're booked in/i).or(page.getByText(/slots may have just been taken/i))
       ).toBeVisible({ timeout: 10_000 });
 
       const succeeded = await page.getByText(/you're booked in/i).isVisible();
@@ -246,6 +249,89 @@ test.describe("Book page — successful booking", () => {
       }
     } finally {
       if (createdBookingId) await deleteBooking(request, createdBookingId);
+    }
+  });
+});
+
+// ── Online prepay (Phase 3): pending -> payment panel -> confirm ──────────
+
+test.describe("Book page — online prepay", () => {
+  test("priced booking shows the payment panel, dev-simulate confirms it", async ({ page, request }) => {
+    await page.goto("/book");
+    await selectFirstDateWithSlots(page); // real slots — cricket is priced (₹1200 seeded)
+
+    await page.locator(".slot-chip:not(.unavailable)").first().click();
+    await expect(page.locator(".booking-form-wrap")).toBeVisible();
+
+    await page.getByPlaceholder("Your full name").fill("Prepay E2E User");
+    const phone = "9" + String(Date.now()).slice(-9);
+    await page.getByPlaceholder("10-digit mobile or email").fill(phone);
+
+    let ref: string | null = null;
+    page.on("response", async (res) => {
+      if (res.url().endsWith("/api/v1/bookings") && res.request().method() === "POST" && res.status() === 201) {
+        try { ref = (await res.json()).bookingRef; } catch { /* ignore */ }
+      }
+    });
+
+    try {
+      const create = page.waitForResponse((r) => r.url().endsWith("/api/v1/bookings") && r.request().method() === "POST");
+      await page.getByRole("button", { name: /confirm booking/i }).click();
+      const createBody = await (await create).json();
+      expect(createBody.status).toBe("pending");
+      expect(createBody.paymentRequired).toBe(true);
+
+      await expect(page.locator(".payment-panel")).toBeVisible();
+      await expect(page.getByTestId("payment-amount")).toContainText("Amount due");
+      await expect(page.getByTestId("payment-dev-panel")).toBeVisible(); // noop provider in dev
+
+      const verify = page.waitForResponse((r) => r.url().includes("/payment/verify") && r.request().method() === "POST");
+      await page.getByTestId("simulate-payment-success").click();
+      expect((await verify).status()).toBe(200);
+
+      await expect(page.getByText(/you're booked in/i)).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("confirmed-amount")).toContainText("Amount paid");
+    } finally {
+      if (ref) {
+        const tok = await token(request);
+        const list = await (await request.get(`${API}/admin/bookings`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+        const booking = list.find((b: any) => b.bookingRef === ref);
+        if (booking) await deleteBooking(request, booking.id);
+      }
+    }
+  });
+
+  test("simulated failed payment shows retry state, slot still held", async ({ page, request }) => {
+    await page.goto("/book");
+    await selectFirstDateWithSlots(page);
+
+    await page.locator(".slot-chip:not(.unavailable)").first().click();
+    await expect(page.locator(".booking-form-wrap")).toBeVisible();
+    await page.getByPlaceholder("Your full name").fill("Prepay Fail E2E");
+    const phone = "9" + String(Date.now()).slice(-9);
+    await page.getByPlaceholder("10-digit mobile or email").fill(phone);
+
+    let ref: string | null = null;
+    page.on("response", async (res) => {
+      if (res.url().endsWith("/api/v1/bookings") && res.request().method() === "POST" && res.status() === 201) {
+        try { ref = (await res.json()).bookingRef; } catch { /* ignore */ }
+      }
+    });
+
+    try {
+      await page.getByRole("button", { name: /confirm booking/i }).click();
+      await expect(page.locator(".payment-panel")).toBeVisible();
+
+      await page.getByTestId("simulate-payment-failure").click();
+      await expect(page.getByTestId("payment-dev-panel")).toBeVisible(); // still on the payment step, can retry
+      await expect(page.getByText(/you're booked in/i)).not.toBeVisible();
+    } finally {
+      if (ref) {
+        const tok = await token(request);
+        const list = await (await request.get(`${API}/admin/bookings`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+        const booking = list.find((b: any) => b.bookingRef === ref);
+        if (booking) await deleteBooking(request, booking.id);
+      }
     }
   });
 });

@@ -79,6 +79,33 @@ class BookingRow(Base):
     status: Mapped[str] = mapped_column(String, default="pending", nullable=False)
     createdAt: Mapped[str] = mapped_column(String, nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    paymentStatus: Mapped[str] = mapped_column(String, nullable=False, default="unpaid")
+    depositAmount: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+
+
+class BookingPaymentRow(Base):
+    __tablename__ = "booking_payments"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    bookingRef: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    provider: Mapped[str] = mapped_column(String, nullable=False)
+    providerOrderId: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    providerPaymentId: Mapped[str | None] = mapped_column(String, nullable=True)
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="created")
+    signature: Mapped[str | None] = mapped_column(String, nullable=True)
+    createdAt: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class NotificationMessageRow(Base):
+    __tablename__ = "notification_messages"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    refType: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    refId: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    channel: Mapped[str] = mapped_column(String, nullable=False)
+    recipient: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    errorMessage: Mapped[str | None] = mapped_column(String, nullable=True)
+    createdAt: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class EnquiryRow(Base):

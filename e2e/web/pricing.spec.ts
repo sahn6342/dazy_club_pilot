@@ -223,9 +223,13 @@ test.describe("Web — live promo validation", () => {
     await done;
     await expect(page.locator('[data-testid="promo-valid"]')).toBeVisible({ timeout: 3_000 });
 
+    // Slot 0 is selected above; clicking slot 1 would be contiguous with it (same court,
+    // back-to-back time) and correctly *extends* the range-select instead of replacing it —
+    // promo stays valid there by design. Click the last chip instead: with 3+ synthetic slots
+    // it's never adjacent to slot 0, so it starts a fresh single-slot selection and must reset the promo.
     const chips = page.locator(".slot-chip:not(.unavailable)");
-    if (await chips.count() > 1) {
-      await chips.nth(1).click();
+    if (await chips.count() > 2) {
+      await chips.last().click();
       await expect(page.locator('[data-testid="promo-input"]')).toHaveValue("");
       await expect(page.locator('[data-testid="promo-valid"]')).not.toBeVisible();
     }
@@ -283,8 +287,13 @@ test.describe("Web — promo at booking", () => {
       await page.getByRole("button", { name: /confirm booking/i }).click();
 
       const confirmed = page.locator('[data-testid="confirmed-amount"]');
-      const taken = page.getByText(/slot may have just been taken/i);
-      await expect(confirmed.or(taken)).toBeVisible({ timeout: 10_000 });
+      const payment = page.locator('[data-testid="payment-amount"]');
+      const taken = page.getByText(/slots may have just been taken/i);
+      await expect(confirmed.or(payment).or(taken)).toBeVisible({ timeout: 10_000 });
+      if (await payment.isVisible()) {
+        await page.locator('[data-testid="simulate-payment-success"]').click();
+        await expect(confirmed).toBeVisible({ timeout: 5_000 });
+      }
       if (await confirmed.isVisible()) {
         await expect(confirmed).toContainText("WELCOME10");
       }

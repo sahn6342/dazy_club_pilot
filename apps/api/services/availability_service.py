@@ -2,7 +2,7 @@
 Slot generation + availability, derived from schedule data (ScheduleRule/Exception)
 against bookings. Slots are value objects, never stored.
 """
-from datetime import date as date_cls, datetime, timedelta
+from datetime import date as date_cls, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, func, or_
@@ -16,6 +16,20 @@ from services.pricing_service import slot_price
 # (max concurrent parties per slot), which Phase 2 uses for availability.
 _MAX_PLAYERS = {"cricket": 11, "badminton": 4, "pickleball": 6}
 _DEFAULT_DAYS = 7
+
+# Phase 3: online-prepay timeout. A booking left "pending" (slot reserved, not
+# yet paid) longer than this is released so the slot becomes bookable again.
+_PENDING_TIMEOUT_MINUTES = 15
+
+
+def _sweep_stale_pending() -> None:
+    """Cancel payment-timeout pending bookings. Runs on every availability
+    read (cheap — one indexed UPDATE) rather than needing a background
+    scheduler; lazy-imports booking_repo to match this codebase's existing
+    convention for avoiding startup-order/circular-import coupling."""
+    from deps import booking_repo
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=_PENDING_TIMEOUT_MINUTES)).isoformat()
+    booking_repo.expire_stale_pending(cutoff)
 
 
 def _hhmm_to_min(t: str) -> int:
@@ -80,6 +94,7 @@ def _occupied_by_slot(court_id: str, d: str, s) -> dict[str, int]:
 def generate_slots(sport: str | None = None, date: str | None = None, drop_past: bool = True) -> list[SlotDto]:
     """Generate slots for active courts (optionally one sport / one date).
     drop_past=True omits elapsed slots (display); False keeps them flagged unavailable (booking lookup)."""
+    _sweep_stale_pending()
     out: list[SlotDto] = []
     with _session() as s:
         cstmt = select(CourtRow).where(CourtRow.active.is_(True))

@@ -127,11 +127,14 @@ def test_slots_independent_per_sport(client):
 # ── Bookings — positive paths ─────────────────────────────────────────────────
 
 def test_booking_response_fields(client):
-    """POST /bookings returns all expected confirmation fields."""
+    """POST /bookings returns all expected fields. Cricket is priced, so
+    Phase 3 (online prepay) reserves the slot as 'pending' pending payment,
+    not 'confirmed' immediately."""
     result, slot = _book(client)
-    for key in ("status", "bookingRef", "name", "sport", "date", "time"):
+    for key in ("status", "bookingRef", "name", "sport", "date", "time", "paymentRequired"):
         assert key in result, f"Missing key: {key}"
-    assert result["status"] == "confirmed"
+    assert result["status"] == "pending"
+    assert result["paymentRequired"] is True
     assert result["sport"] == "cricket"
     assert result["name"] == "Happy User"
 

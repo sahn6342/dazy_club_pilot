@@ -27,6 +27,8 @@
 | DEC-030 | Frontend API base URL (admin/kiosk) and backend CORS origins made env-configurable at build/deploy time | Accepted — implemented (previously hardcoded to `localhost:8000`/`:5173-5175` — a launch-blocking bug) |
 | DEC-031 | Password-strength rule (manager 8+ chars / staff 4-digit PIN) enforced on user *update*, not just create | Accepted — implemented (fixed a bypass) |
 | DEC-032 | Invoice numbering made atomic: `next_number()` runs inside `invoice_repo.create()`'s own session (optional injected `session=`, DEC-025's pattern) instead of a separate commit | Accepted — implemented (Detailed-Roadmap Phase 2; closes the gap-on-crash bug noted in [Roadmap.md](Roadmap.md)) |
+| DEC-033 | Dashboard + Z-report day boundaries resolved in the venue's IANA timezone (`services/venue_tz.py`), not browser/server local | Accepted — implemented (Detailed-Roadmap Phase 4; closes the "today" timezone bug noted in [Roadmap.md](Roadmap.md); full report suite + CSV export stay growth-track per DEC-024) |
+| DEC-034 | Notification provider = console (dev default) or SMTP email (stdlib `smtplib`, zero new deps, mirrors the Razorpay adapter's stdlib-only approach); SMS documented as a not-yet-built alternative channel | Accepted — implemented (Detailed-Roadmap Phase 5); every send attempt (sent/skipped/failed) logged to `notification_messages` via `notification_service.send_and_log`, never fatal to the booking flow that triggered it |
 
 ### Launch sequencing (see [Detailed-Roadmap.md](Detailed-Roadmap.md) — supersedes the ordering below, not the content)
 
@@ -35,9 +37,9 @@
 | DEC-021 | Cancellation window stored as CMS key (`booking_cancel_window_hours`), not a new table | Planned |
 | DEC-022 | Public reschedule is request-only in v1 (admin actions it); full self-service deferred | Planned |
 | DEC-023 | Maintenance block = booking row + `holdType` (excluded from CRM/revenue), not sub-day exceptions | Planned — post-launch (dine-in is out of scope for a counter/takeaway-only launch) |
-| DEC-024 | Reporting via dedicated `reporting_repo` + `analytics_service`; CSV export server-side (stdlib) | Planned — dashboard + Z-report slice pulled forward to launch-important (Detailed-Roadmap Phase 4); full report suite + CSV stays growth-track |
+| DEC-024 | Reporting via dedicated `reporting_repo` + `analytics_service`; CSV export server-side (stdlib) | Partially implemented — dashboard + Z-report slice shipped (Detailed-Roadmap Phase 4, see DEC-033); full report suite + CSV export stays growth-track (Phase 9) |
 | DEC-025 | UnitOfWork = optional injected `session=None`; `with _session()` stays default (backward-compatible) | Planned — a **targeted** version (invoice issuance only) is a launch-blocker (Detailed-Roadmap Phase 2); the full order→items→KOT→invoice refactor stays growth-track |
-| DEC-026 | Payment + notifications behind provider adapters with dev no-op/console impls (extends DEC-007/008) | Planned — payment adapter (Razorpay) is now a launch-blocker (Detailed-Roadmap Phase 3), not growth-track |
+| DEC-026 | Payment + notifications behind provider adapters with dev no-op/console impls (extends DEC-007/008) | Accepted — implemented (payment adapter: Detailed-Roadmap Phase 3; notification adapter — console default, SMTP email real provider: Phase 5, see DEC-034) |
 | DEC-027 | Booking payment status (unpaid/deposit/paid/refunded) tracked; pay-at-venue stays default | Superseded — bookings take **online prepay from day one** (Detailed-Roadmap Phase 3), not pay-at-venue |
 
 ## Open

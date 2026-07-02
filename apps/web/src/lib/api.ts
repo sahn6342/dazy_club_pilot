@@ -43,8 +43,18 @@ export interface BookingPayload {
   message?: string;
 }
 
+export interface CheckoutConfig {
+  provider: string;         // "noop" | "razorpay"
+  providerOrderId: string;
+  amount: number;
+  currency: string;
+  // razorpay-only:
+  key?: string;
+  order_id?: string;
+}
+
 export interface BookingResult {
-  status: string;
+  status: string;           // "pending" (payment required) | "confirmed" (free booking)
   bookingRef: string;
   name: string;
   sport: string;
@@ -57,6 +67,14 @@ export interface BookingResult {
   basePrice?: number | null;
   discountPercent?: number | null;
   promoCode?: string | null;
+  paymentRequired: boolean;
+  checkout?: CheckoutConfig;
+}
+
+export interface PaymentVerifyPayload {
+  providerOrderId: string;
+  providerPaymentId: string;
+  signature?: string | null;
 }
 
 export interface PromoValidationResult {
@@ -90,6 +108,22 @@ export async function createBooking(payload: BookingPayload): Promise<BookingRes
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: "Booking failed" }));
     throw new Error(err.detail ?? "Booking failed");
+  }
+  return r.json();
+}
+
+export async function verifyBookingPayment(
+  bookingRef: string,
+  payload: PaymentVerifyPayload
+): Promise<{ status: string; paymentStatus: string }> {
+  const r = await fetch(`${API}/bookings/${bookingRef}/payment/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: "Payment verification failed" }));
+    throw new Error(err.detail ?? "Payment verification failed");
   }
   return r.json();
 }

@@ -276,6 +276,24 @@ def test_contact_enquiry_all_fields(client):
     assert r.status_code in (200, 201)
 
 
+def test_contact_enquiry_empty_sport_means_any(client):
+    """The web form's "Any / not sure" option submits interestedSport: ""
+    (not omitted/null) — that must be accepted as "no preference", not
+    rejected as an invalid sport."""
+    r = client.post("/api/v1/contact-enquiries", json={
+        "name": "No Preference", "contact": "9800000003", "interestedSport": "",
+    })
+    assert r.status_code in (200, 201), r.text
+
+
+def test_corporate_enquiry_empty_sport_means_any(client):
+    r = client.post("/api/v1/corporate-enquiries", json={
+        "contactName": "Corp Person", "company": "Acme Ltd", "contact": "9800000004",
+        "estimatedGroupSize": 5, "preferredSport": "",
+    })
+    assert r.status_code in (200, 201), r.text
+
+
 def test_corporate_group_size_one(client):
     """Minimum valid group size is 1 (gt=0)."""
     r = client.post("/api/v1/corporate-enquiries", json={

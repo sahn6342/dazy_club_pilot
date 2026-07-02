@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Slot } from "@dazy/shared";
-import { createBooking, getNext7Days, getSlots, SPORT_LABELS, validatePromo, type PromoValidationResult } from "../lib/api";
+import { createBooking, getNext7Days, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PromoValidationResult } from "../lib/api";
 import { validateName, validateContact, validatePlayers } from "../lib/validate";
+import { PaymentPanel } from "../components/PaymentPanel";
 
-type FormStatus = "idle" | "success" | "error";
+type FormStatus = "idle" | "payment" | "success" | "error";
 
 interface BookingFields {
   name: string;
@@ -64,6 +65,7 @@ export function Book() {
   const [bookedStartTime, setBookedStartTime] = useState("");
   const [bookedEndTime, setBookedEndTime] = useState("");
   const [bookedSlotCount, setBookedSlotCount] = useState(1);
+  const [pendingCheckout, setPendingCheckout] = useState<CheckoutConfig | null>(null);
 
   const [fields, setFields] = useState<BookingFields>({ name: "", contact: "", players: "1", message: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -81,6 +83,7 @@ export function Book() {
     setSelectedSlots([]);
     setBookingStatus("idle");
     setSelectedCourtId("all");
+    setPendingCheckout(null);
     loadSlots();
   }, [loadSlots]);
 
@@ -210,8 +213,13 @@ export function Book() {
       setBookedStartTime(result.startTime ?? firstSlot.startTime);
       setBookedEndTime(result.endTime ?? lastSlot!.endTime);
       setBookedSlotCount(result.slotCount ?? selectedSlots.length);
-      setBookingStatus("success");
-      loadSlots();
+      if (result.paymentRequired && result.checkout) {
+        setPendingCheckout(result.checkout);
+        setBookingStatus("payment");
+      } else {
+        setBookingStatus("success");
+        loadSlots();
+      }
     } catch (err: any) {
       const msg = err?.message ?? "Booking failed.";
       if (/promo/i.test(msg)) {
@@ -374,7 +382,7 @@ export function Book() {
         )}
       </div>
 
-      {selectedSlots.length > 0 && bookingStatus !== "success" && (
+      {selectedSlots.length > 0 && bookingStatus !== "success" && bookingStatus !== "payment" && (
         <div className="booking-form-wrap">
           <div className="booking-summary">
             <span className="eyebrow">Selected slot{selectedSlots.length > 1 ? "s" : ""}</span>
@@ -487,6 +495,17 @@ export function Book() {
         </div>
       )}
 
+      {bookingStatus === "payment" && pendingCheckout && (
+        <PaymentPanel
+          bookingRef={bookingRef}
+          checkout={pendingCheckout}
+          amount={bookedPrice ?? 0}
+          customerName={fields.name.trim()}
+          customerContact={fields.contact.trim()}
+          onSuccess={() => { setBookingStatus("success"); loadSlots(); }}
+        />
+      )}
+
       {bookingStatus === "success" && (
         <div className="booking-confirmed">
           <p className="eyebrow">Booking confirmed</p>
@@ -514,6 +533,7 @@ export function Book() {
               setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
               setBookedPrice(null); setBookedPromo(null);
               setBookedStartTime(""); setBookedEndTime(""); setBookedSlotCount(1);
+              setPendingCheckout(null);
               setTouched({ name: false, contact: false, players: false });
             }}
           >

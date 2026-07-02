@@ -3,10 +3,11 @@ from datetime import datetime, timezone, date as date_cls
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from models import BookingRequest, BookingRecord
-from deps import booking_repo, court_repo, customer_repo, promo_repo
+from models import BookingRequest, BookingRecord, BookingPaymentVerifyRequest
+from deps import booking_repo, court_repo, customer_repo, promo_repo, booking_payment_repo, payment_provider
 from services.availability_service import find_slot
 from services.pricing_service import apply_promo, PromoError
+from services.notification_service import notify_booking_confirmed
 
 router = APIRouter()
 
@@ -86,8 +87,7 @@ def create_booking(request: BookingRequest):
             promo_repo.decrement_use(applied_promo)
         raise HTTPException(status_code=409, detail="One or more slots are unavailable (booking conflict).")
 
-    return {
-        "status": "confirmed",
+    response = {
         "bookingRef": ref,
         "name": request.name,
         "sport": request.sportSlug,
@@ -101,3 +101,42 @@ def create_booking(request: BookingRequest):
         "discountPercent": slots[0].discountPercent,
         "promoCode": applied_promo,
     }
+
+    # A free booking (promo covers it entirely, or the slot has no price) needs
+    # no payment step — confirm immediately. Otherwise the slot is held
+    # "pending" (see the timeout sweep in availability_service) until payment
+    # is verified via /bookings/{ref}/payment/verify or the provider webhook.
+    if not final_price:
+        booking_repo.confirm_payment_by_ref(ref)
+        notify_booking_confirmed(ref)
+        response["status"] = "confirmed"
+        response["paymentRequired"] = False
+        return response
+
+    order = payment_provider.create_order(amount=final_price, ref=ref)
+    booking_payment_repo.create(booking_ref=ref, provider=order.provider, provider_order_id=order.providerOrderId, amount=order.amount)
+    response["status"] = "pending"
+    response["paymentRequired"] = True
+    response["checkout"] = order.checkout
+    return response
+
+
+@router.post("/bookings/{booking_ref}/payment/verify")
+def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest):
+    bookings = booking_repo.get_by_ref(booking_ref)
+    if not bookings:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    primary = next((b for b in bookings if b.is_primary), bookings[0])
+
+    # Idempotent — the client callback and the provider webhook can both land here.
+    if primary.paymentStatus == "paid":
+        return {"status": "confirmed", "paymentStatus": "paid"}
+
+    verification = payment_provider.verify_payment(body.providerOrderId, body.providerPaymentId, body.signature)
+    if not verification.verified:
+        raise HTTPException(status_code=400, detail=verification.reason or "Payment verification failed.")
+
+    booking_payment_repo.mark_verified(body.providerOrderId, verification.providerPaymentId, body.signature)
+    booking_repo.confirm_payment_by_ref(booking_ref)
+    notify_booking_confirmed(booking_ref)
+    return {"status": "confirmed", "paymentStatus": "paid"}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { Link } from "react-router-dom";
 import { galleryItems, launchSports, testimonials } from "@dazy/shared";
 import { getGallery, resolveImg, type GalleryItem } from "../lib/api";

@@ -58,7 +58,9 @@ class ContactEnquiryRequest(BaseModel):
     @field_validator("interestedSport")
     @classmethod
     def validate_sport(cls, v: str | None) -> str | None:
-        if v is not None and v not in _VALID_SPORTS:
+        if not v:  # "" means "Any / not sure" on the web form — same as no preference
+            return None
+        if v not in _VALID_SPORTS:
             raise ValueError(f"interestedSport must be one of {sorted(_VALID_SPORTS)}.")
         return v
 
@@ -81,8 +83,17 @@ class CorporateEnquiryRequest(BaseModel):
     @field_validator("preferredSport")
     @classmethod
     def validate_sport(cls, v: str | None) -> str | None:
-        if v is not None and v not in _VALID_SPORTS:
+        if not v:  # "" means "Any / not sure" on the web form — same as no preference
+            return None
+        if v not in _VALID_SPORTS:
             raise ValueError(f"preferredSport must be one of {sorted(_VALID_SPORTS)}.")
+        return v
+
+    @field_validator("preferredDate", mode="before")
+    @classmethod
+    def blank_date_means_none(cls, v: str | None) -> str | None:
+        if not v:  # "" means "no preference" on the web form — same as unset
+            return None
         return v
 
 
@@ -185,8 +196,70 @@ class BookingRecord(BaseModel):
     status: str = "pending"  # pending | confirmed | cancelled
     createdAt: str
     is_primary: bool = True
+    paymentStatus: str = "unpaid"  # unpaid | paid | refunded
+    depositAmount: float | None = None
 
     model_config = {"frozen": False}
+
+
+class BookingPaymentVerifyRequest(BaseModel):
+    """Client-callback payload after checkout — provider-agnostic field names
+    (the noop provider and Razorpay's razorpay_order_id/razorpay_payment_id/
+    razorpay_signature both map onto these)."""
+    providerOrderId: str = Field(min_length=1)
+    providerPaymentId: str = Field(min_length=1)
+    signature: str | None = None
+
+
+class BookingRefundRequest(BaseModel):
+    reason: str | None = None
+
+
+class BookingPaymentDto(BaseModel):
+    id: str
+    bookingRef: str
+    provider: str
+    providerOrderId: str
+    providerPaymentId: str | None = None
+    amount: float
+    status: str
+    createdAt: str
+
+    model_config = {"from_attributes": True}
+
+
+class DashboardDto(BaseModel):
+    date: str  # venue-local calendar date these figures are computed for
+    bookingsToday: int
+    bookingRevenueToday: float
+    cafeRevenueToday: float
+    occupancyToday: float  # 0..1, booked slots / bookable slots today
+
+
+class PaymentModeTotal(BaseModel):
+    mode: str
+    total: float
+    count: int
+
+
+class DayCloseDto(BaseModel):
+    date: str
+    totalRevenue: float
+    totalTransactions: int
+    byMode: list[PaymentModeTotal]
+
+
+class NotificationMessageDto(BaseModel):
+    id: str
+    refType: str
+    refId: str
+    channel: str
+    recipient: str
+    status: str  # sent | skipped | failed
+    errorMessage: str | None = None
+    createdAt: str
+
+    model_config = {"from_attributes": True}
 
 
 class EnquiryRecord(BaseModel):

@@ -16,6 +16,7 @@ from routes.notifications import router as notifications_router
 from routes.enquiries import router as enquiries_router
 from routes.slots import router as slots_router
 from routes.bookings import router as bookings_router
+from routes.payments import router as payments_router
 from routes.promos import router as promos_router
 from routes.venue import router as venue_router
 from routes.admin.auth import router as admin_auth_router
@@ -29,6 +30,8 @@ from routes.admin.schedule import router as admin_schedule_router
 from routes.admin.customers import router as admin_customers_router
 from routes.admin.promos import router as admin_promos_router
 from routes.admin.courts import router as admin_courts_router
+from routes.admin.reports import router as admin_reports_router
+from routes.admin.notifications import router as admin_notifications_router
 from routes.cafe.auth import router as cafe_auth_router
 from routes.cafe.menu import router as cafe_menu_router
 from routes.cafe.tables import router as cafe_tables_router
@@ -78,6 +81,7 @@ app.include_router(notifications_router, prefix=prefix)
 app.include_router(enquiries_router, prefix=prefix)
 app.include_router(slots_router, prefix=prefix)
 app.include_router(bookings_router, prefix=prefix)
+app.include_router(payments_router, prefix=prefix)
 app.include_router(promos_router, prefix=prefix)
 app.include_router(venue_router, prefix=prefix)
 
@@ -93,6 +97,8 @@ app.include_router(admin_schedule_router, prefix=prefix)
 app.include_router(admin_customers_router, prefix=prefix)
 app.include_router(admin_promos_router, prefix=prefix)
 app.include_router(admin_courts_router, prefix=prefix)
+app.include_router(admin_reports_router, prefix=prefix)
+app.include_router(admin_notifications_router, prefix=prefix)
 
 # Kiosk (cashier) routes
 app.include_router(cafe_auth_router, prefix=prefix)

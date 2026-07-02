@@ -39,6 +39,8 @@ def _reset_repos():
     deps.court_repo.clear()    # clear courts; seed re-adds 3 seeded courts
     deps.customer_repo.clear()
     deps.promo_repo.clear()  # clear promos; seed re-adds WELCOME10 + FLAT100
+    deps.booking_payment_repo.clear()
+    deps.notification_repo.clear()
     seed_if_empty()  # re-insert gallery/testimonials/cms + venue/courts/rules idempotently
     clear_login_attempts()  # reset admin rate-limit counters so test fixture logins never hit the cap
     cashier_login_limiter.clear()  # same for cashier PIN login
