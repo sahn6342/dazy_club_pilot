@@ -30,9 +30,9 @@ test.describe("Admin — promo codes", () => {
     const row = page.locator(`.promo-row[data-code="${code}"]`);
     await expect(row).toBeVisible();
     await expect(row).toContainText("15%");
-    // cleanup
-    page.on("dialog", (d) => d.accept());
+    // cleanup — gated by the in-app ConfirmDialog, not a native window.confirm
     await row.getByRole("button", { name: /remove/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Remove" }).click();
   });
 
   test("duplicate code shows error", async ({ page }) => {
@@ -46,9 +46,9 @@ test.describe("Admin — promo codes", () => {
     await fillPromo(page, code, "percent", "10");
     await page.locator('[data-testid="promo-submit"]').click();
     await expect(page.locator(".error-msg")).toContainText(/already exists/i);
-    // cleanup
-    page.on("dialog", (d) => d.accept());
+    // cleanup — gated by the in-app ConfirmDialog, not a native window.confirm
     await page.locator(`.promo-row[data-code="${code}"]`).getByRole("button", { name: /remove/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Remove" }).click();
   });
 
   test("toggle active then delete", async ({ page }) => {
@@ -63,8 +63,9 @@ test.describe("Admin — promo codes", () => {
     await row.getByRole("button", { name: /^active$/i }).click();
     await expect(row.getByRole("button", { name: /inactive/i })).toBeVisible();
 
-    page.on("dialog", (d) => d.accept());
+    // gated by the in-app ConfirmDialog, not a native window.confirm
     await row.getByRole("button", { name: /remove/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Remove" }).click();
     await expect(page.locator(`.promo-row[data-code="${code}"]`)).toHaveCount(0);
   });
 

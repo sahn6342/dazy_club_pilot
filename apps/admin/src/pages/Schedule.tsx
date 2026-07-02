@@ -347,6 +347,7 @@ export function Schedule() {
   }
 
   async function deleteException(id: string) {
+    if (!await confirm({ message: "Delete this schedule exception?", confirmLabel: "Delete", danger: true })) return;
     await api.delete(`/admin/schedule/exceptions/${id}`);
     loadSchedule();
     toast.success("Exception deleted");

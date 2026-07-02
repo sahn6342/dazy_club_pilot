@@ -175,8 +175,9 @@ test.describe("Admin — schedule management", () => {
       await waitLoaded(page);
       await expandAdvanced(page);
       await expect(section(page).locator(".block-row").first()).toBeVisible();
-      page.on("dialog", (d) => d.accept());
+      // gated by the in-app ConfirmDialog, not a native window.confirm
       await section(page).getByRole("button", { name: /close day/i }).click();
+      await page.locator(".confirm-dialog").getByRole("button", { name: "Close Day" }).click();
       await expect(section(page).getByText(/closed — add hours/i)).toBeVisible({ timeout: 10_000 });
     });
   });
@@ -209,8 +210,9 @@ test.describe("Admin — schedule management", () => {
     const exRow = page.locator("tr", { hasText: day });
     await expect(exRow).toBeVisible();
     // cleanup
-    page.on("dialog", (dlg) => dlg.accept());
+    // gated by the in-app ConfirmDialog, not a native window.confirm
     await exRow.getByRole("button", { name: /delete/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Delete" }).click();
     await expect(page.locator("tr", { hasText: day })).toHaveCount(0);
   });
 
@@ -240,8 +242,9 @@ test.describe("Admin — schedule management", () => {
     }
 
     // cleanup
-    page.on("dialog", (dlg) => dlg.accept());
+    // gated by the in-app ConfirmDialog, not a native window.confirm
     await exRow.getByRole("button", { name: /delete/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Delete" }).click();
     await expect(page.locator("tr", { hasText: day })).toHaveCount(0);
   });
 });

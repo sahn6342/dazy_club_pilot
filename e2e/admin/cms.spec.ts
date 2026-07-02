@@ -33,9 +33,9 @@ test.describe("Admin — CMS CRUD", () => {
     const entry = page.locator(`.cms-entry[data-key="${key}"]`);
     await expect(entry).toBeVisible();
 
-    // delete
-    page.on("dialog", (d) => d.accept());
+    // delete — gated by the in-app ConfirmDialog, not a native window.confirm
     await entry.locator('[data-testid="cms-delete"]').click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Delete" }).click();
     await expect(page.locator(`.cms-entry[data-key="${key}"]`)).toHaveCount(0);
   });
 

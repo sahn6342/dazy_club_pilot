@@ -315,14 +315,18 @@ const before = await section.locator(".block-row").count();
 const before = await section.locator(".block-row").count();
 ```
 
-### Dialog acceptance
+### Confirm dialogs — in-app, not native
 
-Register handler **before** the action that triggers the dialog:
+Admin destructive actions (delete/remove/close-day) go through an in-app `<ConfirmDialog>` (`useConfirm()`), **not** `window.confirm()` — GLOBAL-1 replaced every native confirm across the admin app so headless E2E can actually drive them (a real `window.confirm()` blocks Playwright entirely). Click the trigger, then click the dialog's own confirm button — scope to `.confirm-dialog` since the trigger button often shares the same label text:
 
 ```ts
-page.on("dialog", (d) => d.accept());
-await button.click(); // triggers confirm()
+await button.click();                                             // opens the ConfirmDialog
+await page.locator(".confirm-dialog").getByRole("button", { name: "Delete" }).click();
 ```
+
+The confirm button's label is whatever `confirmLabel` the page passed to `confirm({...})` — usually "Delete", but check the source (e.g. `confirmLabel: "Remove"` in Promos.tsx, `"Close Day"` in Schedule.tsx) rather than assuming.
+
+`page.on("dialog", ...)` is now dead code for admin specs — it will never fire and the click will silently fail to dismiss anything. (Native `window.confirm`/`alert` may still appear elsewhere; if one genuinely does, register the handler before the triggering action as usual.)
 
 ### or() for ambiguous outcomes
 
@@ -373,7 +377,7 @@ d.setDate(d.getDate() + 20); // far enough to avoid collisions with other tests
 | Count wrong on first load | Counted before data rendered | Add `.first().toBeVisible()` guard |
 | 422 on schedule form submit | `courtId` state not populated | Wait for `.block-row.first().toBeVisible()` before submitting |
 | Promo test hits wrong date slot | Sport tab not clicked before `selectDate` | Click tab first |
-| Dialog not handled | Handler registered after trigger | Register `page.on("dialog")` before the click |
+| Confirm click doesn't delete anything | Used `page.on("dialog")` — admin confirms are in-app now, not native | Click `.confirm-dialog`'s own confirm button (see §"Confirm dialogs — in-app, not native") |
 | Debounce test race | Filled slowly, then check before debounce fires | Use `waitForResponse`, not `waitForTimeout` |
 | Schedule test leaves dirty state | No restore on failure | Always use `withRestore` wrapping |
 | `input-valid` class not applied | Validation response returned after assertion | Await `waitForPromoValidate` before asserting class |

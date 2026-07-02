@@ -58,9 +58,9 @@ test.describe("Admin — Users CRUD", () => {
     const card = page.locator(".enquiry-card").filter({ hasText: username });
     await expect(card).toBeVisible();
 
-    // Delete
-    page.on("dialog", (d) => d.accept());
+    // Delete — the in-app ConfirmDialog (not a native window.confirm) gates this.
     await card.getByRole("button", { name: /remove/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Remove" }).click();
     await expect(page.locator(".enquiry-card").filter({ hasText: username })).toHaveCount(0);
   });
 
@@ -87,8 +87,8 @@ test.describe("Admin — Users CRUD", () => {
     const card = page.locator(".enquiry-card").filter({ hasText: username });
     await expect(card).toBeVisible();
 
-    page.on("dialog", (d) => d.accept());
     await card.getByRole("button", { name: /remove/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Remove" }).click();
     await expect(page.locator(".enquiry-card").filter({ hasText: username })).toHaveCount(0);
   });
 

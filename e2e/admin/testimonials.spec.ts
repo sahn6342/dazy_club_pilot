@@ -36,9 +36,9 @@ test.describe("Admin — testimonials CRUD", () => {
     expect((await put).status()).toBe(200);
     await expect(page.locator(".enquiry-card", { hasText: name })).toContainText("Updated quote text.");
 
-    // delete
-    page.on("dialog", (d) => d.accept());
+    // delete — gated by the in-app ConfirmDialog, not a native window.confirm
     await page.locator(".enquiry-card", { hasText: name }).getByRole("button", { name: /delete/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Delete" }).click();
     await expect(page.locator(".enquiry-card", { hasText: name })).toHaveCount(0);
   });
 
@@ -56,8 +56,8 @@ test.describe("Admin — testimonials CRUD", () => {
     await card.getByRole("button", { name: /^reject$/i }).click();
     await expect(card.getByRole("button", { name: /^approve$/i })).toBeEnabled();
 
-    // cleanup
-    page.on("dialog", (d) => d.accept());
+    // cleanup — gated by the in-app ConfirmDialog, not a native window.confirm
     await card.getByRole("button", { name: /delete/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Delete" }).click();
   });
 });

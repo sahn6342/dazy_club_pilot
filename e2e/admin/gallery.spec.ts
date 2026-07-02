@@ -29,9 +29,9 @@ test.describe("Admin — gallery CRUD", () => {
     await expect(card).toBeVisible();
     await expect(card.locator("img.gallery-thumb")).toHaveAttribute("src", url);
 
-    // cleanup
-    page.on("dialog", (d) => d.accept());
+    // cleanup — gated by the in-app ConfirmDialog, not a native window.confirm
     await card.getByRole("button", { name: /delete/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Delete" }).click();
     await expect(page.locator(".gallery-card", { hasText: title })).toHaveCount(0);
   });
 
@@ -57,8 +57,8 @@ test.describe("Admin — gallery CRUD", () => {
     expect((await patch).status()).toBe(200);
     await expect(page.locator(".gallery-card", { hasText: edited })).toBeVisible();
 
-    // cleanup
-    page.on("dialog", (d) => d.accept());
+    // cleanup — gated by the in-app ConfirmDialog, not a native window.confirm
     await page.locator(".gallery-card", { hasText: edited }).getByRole("button", { name: /delete/i }).click();
+    await page.locator(".confirm-dialog").getByRole("button", { name: "Delete" }).click();
   });
 });

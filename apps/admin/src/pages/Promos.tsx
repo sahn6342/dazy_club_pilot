@@ -46,7 +46,17 @@ export function Promos() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setTouched(true);
-    if (codeErr || valueErr || dateErr || maxUsesErr) return;
+    // Recompute validity from `form` directly rather than reading codeErr/valueErr/etc:
+    // those are gated by `touched`, which was just set above but won't reflect in this
+    // closure until the next render — reading them here would let an untouched form's
+    // first submit slip past this guard and hit the server needlessly.
+    const invalid =
+      !form.code.trim() ||
+      !(valueNum > 0) ||
+      (form.kind === "percent" && valueNum > 100) ||
+      Boolean(form.valid_from && form.valid_to && form.valid_from > form.valid_to) ||
+      (form.max_uses !== "" && (maxUsesNum === null || !Number.isInteger(maxUsesNum) || maxUsesNum < 1));
+    if (invalid) return;
     setServerError("");
     setCreating(true);
     try {
