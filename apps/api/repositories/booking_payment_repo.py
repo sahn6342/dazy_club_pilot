@@ -13,17 +13,21 @@ def _to_model(row: BookingPaymentRow) -> BookingPaymentDto:
     return BookingPaymentDto(
         id=row.id, bookingRef=row.bookingRef, provider=row.provider,
         providerOrderId=row.providerOrderId, providerPaymentId=row.providerPaymentId,
-        amount=float(row.amount), status=row.status, createdAt=row.createdAt,
+        amount=float(row.amount), status=row.status, checkoutJson=row.checkoutJson,
+        createdAt=row.createdAt,
     )
 
 
 class SqliteBookingPaymentRepository:
-    def create(self, booking_ref: str, provider: str, provider_order_id: str, amount: float) -> BookingPaymentDto:
+    def create(
+        self, booking_ref: str, provider: str, provider_order_id: str, amount: float,
+        checkout_json: str | None = None,
+    ) -> BookingPaymentDto:
         with _session() as s:
             row = BookingPaymentRow(
                 id=str(uuid.uuid4()), bookingRef=booking_ref, provider=provider,
                 providerOrderId=provider_order_id, providerPaymentId=None,
-                amount=amount, status="created",
+                amount=amount, status="created", checkoutJson=checkout_json,
                 createdAt=datetime.now(timezone.utc).isoformat(),
             )
             s.add(row)

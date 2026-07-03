@@ -223,9 +223,27 @@ class BookingPaymentDto(BaseModel):
     providerPaymentId: str | None = None
     amount: float
     status: str
+    checkoutJson: str | None = None
     createdAt: str
 
     model_config = {"from_attributes": True}
+
+
+class BookingLookupResult(BaseModel):
+    """Self-service booking lookup (Detailed-Roadmap growth track, F2-style
+    self-service). No login — identity is the ref + matching contact, same
+    trust model as the café pre-order endpoint."""
+    bookingRef: str
+    name: str
+    status: str
+    sport: str
+    date: str
+    startTime: str
+    endTime: str
+    slotCount: int
+    price: float | None = None
+    paymentRequired: bool
+    checkout: dict | None = None
 
 
 class DashboardDto(BaseModel):
@@ -780,11 +798,55 @@ class MenuResponse(BaseModel):
     items: list[MenuItemDto]
 
 
+class PublicMenuItemDto(BaseModel):
+    """Customer-facing menu item — omits inventory/cost internals (currentQty,
+    reorderLevel, trackInventory, hsnSac) that MenuItemDto exposes to staff."""
+    id: str
+    category_id: str
+    name: str
+    description: str | None = None
+    price: float
+    vegType: str | None = None
+    available: bool = True
+
+    model_config = {"from_attributes": True}
+
+
+class PublicMenuResponse(BaseModel):
+    categories: list[MenuCategoryDto]
+    items: list[PublicMenuItemDto]
+
+
 # ── Café POS Phase 1 ──
 
 class OrderItemCreate(BaseModel):
     menu_item_id: str
     qty: float = Field(default=1, gt=0)
+
+
+class PreOrderRequest(BaseModel):
+    """Customer pre-order attached to a booking (Detailed-Roadmap Phase 7).
+    `contact` must match the booking's contact — same lightweight identity
+    check used elsewhere (no login), scoped only to this one booking ref."""
+    contact: str = Field(min_length=1)
+    items: list[OrderItemCreate] = Field(min_length=1)
+
+    @field_validator("contact")
+    @classmethod
+    def validate_contact(cls, v: str) -> str:
+        return _validate_contact(v)
+
+
+class PreOrderLineDto(BaseModel):
+    name: str
+    qty: float
+    lineTotal: float
+
+
+class PreOrderResult(BaseModel):
+    orderNo: str
+    total: float
+    items: list[PreOrderLineDto]
 
 
 class OrderCreate(BaseModel):
@@ -840,6 +902,7 @@ class OrderDto(BaseModel):
     orderType: str
     table_id: str | None = None
     customer_id: str | None = None
+    booking_id: str | None = None
     status: str
     subtotal: float
     discountAmount: float

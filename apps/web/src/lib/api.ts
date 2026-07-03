@@ -10,6 +10,16 @@ export function resolveImg(url: string | null | undefined): string {
   return /^https?:\/\//.test(url) ? url : `${API_ORIGIN}${url}`;
 }
 
+// FastAPI's `detail` is a string for app-raised HTTPExceptions, but a list of
+// {loc, msg, type} objects for Pydantic 422 validation errors — stringifying
+// that list directly renders "[object Object]". Always reduce to one string.
+function errorMessage(body: any, fallback: string): string {
+  const detail = body?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) return detail.map((d) => d?.msg ?? JSON.stringify(d)).join("; ") || fallback;
+  return fallback;
+}
+
 export interface GalleryItem {
   id: string;
   title: string;
@@ -107,7 +117,7 @@ export async function createBooking(payload: BookingPayload): Promise<BookingRes
   });
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: "Booking failed" }));
-    throw new Error(err.detail ?? "Booking failed");
+    throw new Error(errorMessage(err, "Booking failed"));
   }
   return r.json();
 }
@@ -123,7 +133,31 @@ export async function verifyBookingPayment(
   });
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: "Payment verification failed" }));
-    throw new Error(err.detail ?? "Payment verification failed");
+    throw new Error(errorMessage(err, "Payment verification failed"));
+  }
+  return r.json();
+}
+
+export interface BookingLookupResult {
+  bookingRef: string;
+  name: string;
+  status: string;
+  sport: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  slotCount: number;
+  price: number | null;
+  paymentRequired: boolean;
+  checkout: CheckoutConfig | null;
+}
+
+export async function lookupBooking(ref: string, contact: string): Promise<BookingLookupResult> {
+  const params = new URLSearchParams({ ref, contact });
+  const r = await fetch(`${API}/bookings/lookup?${params}`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: "Booking not found." }));
+    throw new Error(errorMessage(err, "Booking not found."));
   }
   return r.json();
 }
@@ -163,6 +197,65 @@ export async function submitCorporateEnquiry(payload: CorporatePayload) {
     body: JSON.stringify(payload),
   });
   if (!r.ok) throw new Error("Enquiry failed");
+  return r.json();
+}
+
+export interface PublicMenuCategory {
+  id: string;
+  name: string;
+  kind: string;
+  vegType?: string | null;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface PublicMenuItem {
+  id: string;
+  category_id: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  vegType?: string | null;
+  available: boolean;
+}
+
+export interface PublicMenu {
+  categories: PublicMenuCategory[];
+  items: PublicMenuItem[];
+}
+
+export async function getPublicMenu(): Promise<PublicMenu> {
+  const r = await fetch(`${API}/menu`);
+  if (!r.ok) throw new Error("Failed to load menu");
+  return r.json();
+}
+
+export interface PreOrderLine {
+  name: string;
+  qty: number;
+  lineTotal: number;
+}
+
+export interface PreOrderResult {
+  orderNo: string;
+  total: number;
+  items: PreOrderLine[];
+}
+
+export async function createPreorder(
+  bookingRef: string,
+  contact: string,
+  items: { menu_item_id: string; qty: number }[]
+): Promise<PreOrderResult> {
+  const r = await fetch(`${API}/bookings/${bookingRef}/preorder`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contact, items }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: "Pre-order failed" }));
+    throw new Error(errorMessage(err, "Pre-order failed"));
+  }
   return r.json();
 }
 

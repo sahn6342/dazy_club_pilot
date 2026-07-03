@@ -11,14 +11,11 @@ class SlidingWindowLimiter:
         self._window = window_seconds
         self._attempts: dict[str, list[float]] = defaultdict(list)
 
-    def check(self, key: str) -> None:
+    def check(self, key: str, message: str = "Too many login attempts. Try again later.") -> None:
         now = time.time()
         window = [t for t in self._attempts[key] if now - t < self._window]
         if len(window) >= self._limit:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many login attempts. Try again later.",
-            )
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=message)
         window.append(now)
         self._attempts[key] = window
 
@@ -28,3 +25,4 @@ class SlidingWindowLimiter:
 
 admin_login_limiter = SlidingWindowLimiter(limit=10, window_seconds=60)
 cashier_login_limiter = SlidingWindowLimiter(limit=10, window_seconds=60)
+booking_lookup_limiter = SlidingWindowLimiter(limit=10, window_seconds=60)

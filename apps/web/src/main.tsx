@@ -5,6 +5,7 @@ import { Layout } from "./components/Layout";
 import { Home } from "./pages/Home";
 import { Book } from "./pages/Book";
 import { Contact } from "./pages/Contact";
+import { MyBookings } from "./pages/MyBookings";
 import "./styles.css";
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
           <Route path="/book" element={<Book />} />
+          <Route path="/my-bookings" element={<MyBookings />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

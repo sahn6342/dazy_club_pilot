@@ -15,6 +15,12 @@ _tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _tmp.close()
 os.environ["DAZY_DB_URL"] = f"sqlite:///{_tmp.name}"
 
+# Force the dev-safe defaults regardless of a developer's apps/api/.env (e.g. real
+# Razorpay test credentials for manual verification) — db.py's load_dotenv() does
+# not override already-set vars, so setting these here keeps the suite isolated.
+os.environ["DAZY_PAYMENT_PROVIDER"] = "noop"
+os.environ["DAZY_NOTIFY_PROVIDER"] = "console"
+
 import pytest
 from starlette.testclient import TestClient
 
@@ -22,7 +28,7 @@ import deps
 from db import init_db, seed_if_empty
 from main import app
 from routes.admin.auth import clear_login_attempts
-from rate_limit import cashier_login_limiter
+from rate_limit import cashier_login_limiter, booking_lookup_limiter
 
 # Create schema once before any test runs.
 init_db()
@@ -44,6 +50,7 @@ def _reset_repos():
     seed_if_empty()  # re-insert gallery/testimonials/cms + venue/courts/rules idempotently
     clear_login_attempts()  # reset admin rate-limit counters so test fixture logins never hit the cap
     cashier_login_limiter.clear()  # same for cashier PIN login
+    booking_lookup_limiter.clear()  # same for booking self-service lookup
 
 
 @pytest.fixture(autouse=True)

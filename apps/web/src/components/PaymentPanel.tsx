@@ -37,11 +37,11 @@ export function PaymentPanel({ bookingRef, checkout, amount, customerName, custo
   const [status, setStatus] = useState<"idle" | "processing" | "dismissed" | "error">("idle");
   const [error, setError] = useState("");
 
-  async function completeVerification(providerPaymentId: string, signature?: string) {
+  async function completeVerification(providerOrderId: string, providerPaymentId: string, signature?: string) {
     setStatus("processing");
     setError("");
     try {
-      await verifyBookingPayment(bookingRef, { providerOrderId: checkout.providerOrderId, providerPaymentId, signature });
+      await verifyBookingPayment(bookingRef, { providerOrderId, providerPaymentId, signature });
       onSuccess();
     } catch (err: any) {
       setStatus("error");
@@ -64,7 +64,7 @@ export function PaymentPanel({ bookingRef, checkout, amount, customerName, custo
         prefill: { name: customerName, contact: customerContact },
         theme: { color: "#d8b456" },
         handler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
-          completeVerification(response.razorpay_payment_id, response.razorpay_signature);
+          completeVerification(response.razorpay_order_id, response.razorpay_payment_id, response.razorpay_signature);
         },
         modal: {
           ondismiss: () => setStatus("dismissed"),
@@ -85,6 +85,7 @@ export function PaymentPanel({ bookingRef, checkout, amount, customerName, custo
       <h3>Complete payment to confirm your booking</h3>
       <p className="summary-total" data-testid="payment-amount">Amount due: ₹{amount.toFixed(2)}</p>
       <p className="muted">Ref: {bookingRef} — your slot is held for 15 minutes while you pay.</p>
+      <p className="muted">Closed this tab? Resume anytime from <a href="/my-bookings">My Bookings</a> with this ref.</p>
 
       {error && <p className="form-message error" data-testid="payment-error">{error}</p>}
 
@@ -97,7 +98,7 @@ export function PaymentPanel({ bookingRef, checkout, amount, customerName, custo
               className="button primary"
               disabled={status === "processing"}
               data-testid="simulate-payment-success"
-              onClick={() => completeVerification(`noop_pay_${Date.now()}`)}
+              onClick={() => completeVerification(checkout.providerOrderId, `noop_pay_${Date.now()}`)}
             >
               {status === "processing" ? "Confirming…" : "Simulate successful payment"}
             </button>

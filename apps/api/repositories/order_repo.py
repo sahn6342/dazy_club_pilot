@@ -15,6 +15,7 @@ class SqliteOrderRepository:
         created_by: str,
         table_id: Optional[str] = None,
         notes: Optional[str] = None,
+        booking_id: Optional[str] = None,
     ) -> OrderRow:
         with _session() as s:
             ts_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -26,6 +27,7 @@ class SqliteOrderRepository:
                 orderType=order_type,
                 table_id=table_id,
                 customer_id=None,
+                booking_id=booking_id,
                 status="open",
                 subtotal=0.0,
                 discountAmount=0.0,

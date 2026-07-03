@@ -9,6 +9,7 @@ export function Layout() {
         <nav aria-label="Primary navigation">
           <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>Home</NavLink>
           <NavLink to="/book" className={({ isActive }) => (isActive ? "active" : "")}>Book</NavLink>
+          <NavLink to="/my-bookings" className={({ isActive }) => (isActive ? "active" : "")}>My Bookings</NavLink>
           <NavLink to="/contact" className={({ isActive }) => (isActive ? "active" : "")}>Contact</NavLink>
         </nav>
       </header>

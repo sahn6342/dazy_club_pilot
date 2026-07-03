@@ -141,6 +141,15 @@ export function Orders() {
                     <span style={{ fontSize: "0.78rem", color: "var(--muted)", textTransform: "capitalize" }}>
                       {order.orderType.replace("_", " ")}
                     </span>
+                    {order.booking_id && (
+                      <span style={{
+                        fontSize: "0.72rem", fontWeight: 700, padding: "0.15rem 0.5rem",
+                        borderRadius: "5px", border: "1px solid var(--gold)",
+                        color: "var(--gold)", background: "var(--gold-dim)",
+                      }}>
+                        🎫 Pre-order
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
                     {order.items.length} item{order.items.length !== 1 ? "s" : ""} · {fmt(order.createdAt)}

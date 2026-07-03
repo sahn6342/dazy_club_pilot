@@ -101,18 +101,18 @@ def test_free_booking_auto_confirm_sends_one_notification(fake_provider):
     assert logged[0].refType == "booking"
 
 
-def test_payment_verify_sends_one_notification(fake_provider):
+def test_payment_verify_sends_one_confirmation_notification(fake_provider):
     slot = _first_available_slot("cricket")
     booking = _book(slot)
     assert booking["paymentRequired"] is True
-    assert len(fake_provider.calls) == 0  # not confirmed yet — no notification
+    assert len(fake_provider.calls) == 1  # payment-pending reminder fires at creation
 
     r = client.post(
         f"/api/v1/bookings/{booking['bookingRef']}/payment/verify",
         json={"providerOrderId": booking["checkout"]["providerOrderId"], "providerPaymentId": "pay_1"},
     )
     assert r.status_code == 200
-    assert len(fake_provider.calls) == 1
+    assert len(fake_provider.calls) == 2  # + one confirmation notification
 
 
 def test_payment_verify_idempotent_does_not_double_notify(fake_provider):
@@ -124,7 +124,7 @@ def test_payment_verify_idempotent_does_not_double_notify(fake_provider):
     r2 = client.post(f"/api/v1/bookings/{booking['bookingRef']}/payment/verify", json={"providerOrderId": order_id, "providerPaymentId": "pay_1"})
     assert r2.status_code == 200
 
-    assert len(fake_provider.calls) == 1  # second (idempotent) call must not re-notify
+    assert len(fake_provider.calls) == 2  # pending reminder + one confirmation — second verify call must not re-notify
 
 
 def test_webhook_confirmation_sends_one_notification(fake_provider):
@@ -136,7 +136,7 @@ def test_webhook_confirmation_sends_one_notification(fake_provider):
     body = json.dumps({"providerOrderId": order_id, "providerPaymentId": "pay_webhook_1"}).encode()
     r = client.post("/api/v1/payments/razorpay/webhook", content=body)
     assert r.status_code == 200
-    assert len(fake_provider.calls) == 1
+    assert len(fake_provider.calls) == 2  # pending reminder (at creation) + confirmation (via webhook)
 
 
 # ── Content ───────────────────────────────────────────────────────────────

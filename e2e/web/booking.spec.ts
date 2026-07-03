@@ -335,3 +335,63 @@ test.describe("Book page — online prepay", () => {
     }
   });
 });
+
+// ── Café pre-order attached to a confirmed booking (Phase 7, sub-step 1) ──
+
+test.describe("Book page — café pre-order", () => {
+  test("customer can add a pre-order after their booking is confirmed", async ({ page, request }) => {
+    const tok = await token(request);
+    const cat = await (await request.post(`${API}/admin/cafe/categories`, {
+      headers: { Authorization: `Bearer ${tok}` },
+      data: { name: "E2E Preorder Cat " + Date.now(), kind: "food" },
+    })).json();
+    const itemName = "E2E Preorder Samosa " + Date.now();
+    const item = await (await request.post(`${API}/admin/cafe/items`, {
+      headers: { Authorization: `Bearer ${tok}` },
+      data: { category_id: cat.id, name: itemName, price: 40, taxRatePercent: 5 },
+    })).json();
+
+    await page.goto("/book");
+    await selectFirstDateWithSlots(page);
+    await page.locator(".slot-chip:not(.unavailable)").first().click();
+    await expect(page.locator(".booking-form-wrap")).toBeVisible();
+    await page.getByPlaceholder("Your full name").fill("Preorder E2E User");
+    const phone = "9" + String(Date.now()).slice(-9);
+    await page.getByPlaceholder("10-digit mobile or email").fill(phone);
+
+    let ref: string | null = null;
+    page.on("response", async (res) => {
+      if (res.url().endsWith("/api/v1/bookings") && res.request().method() === "POST" && res.status() === 201) {
+        try { ref = (await res.json()).bookingRef; } catch { /* ignore */ }
+      }
+    });
+
+    try {
+      await page.getByRole("button", { name: /confirm booking/i }).click();
+      await expect(page.locator(".payment-panel")).toBeVisible();
+      await page.getByTestId("simulate-payment-success").click();
+      await expect(page.getByText(/you're booked in/i)).toBeVisible({ timeout: 10_000 });
+
+      await page.getByRole("button", { name: /add food & drinks/i }).click();
+      const qty = page.locator(`[data-testid="qty-${item.id}"]`);
+      await expect(qty).toBeVisible();
+      const preorderItem = page.locator(".preorder-item", { hasText: itemName });
+      await preorderItem.getByRole("button", { name: "+" }).click();
+      await preorderItem.getByRole("button", { name: "+" }).click();
+      await expect(qty).toHaveText("2");
+      await expect(page.getByTestId("preorder-total")).toContainText("₹80.00");
+
+      const placed = page.waitForResponse((r) => r.url().includes("/preorder") && r.request().method() === "POST");
+      await page.getByRole("button", { name: /place pre-order/i }).click();
+      const res = await placed;
+      expect(res.status()).toBe(201);
+      await expect(page.getByTestId("preorder-done")).toContainText("₹84.00"); // 80 + 5% tax
+    } finally {
+      if (ref) {
+        const list = await (await request.get(`${API}/admin/bookings`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+        const booking = list.find((b: any) => b.bookingRef === ref);
+        if (booking) await deleteBooking(request, booking.id);
+      }
+    }
+  });
+});

@@ -4,6 +4,7 @@ import type { Slot } from "@dazy/shared";
 import { createBooking, getNext7Days, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PromoValidationResult } from "../lib/api";
 import { validateName, validateContact, validatePlayers } from "../lib/validate";
 import { PaymentPanel } from "../components/PaymentPanel";
+import { PreOrderPanel } from "../components/PreOrderPanel";
 
 type FormStatus = "idle" | "payment" | "success" | "error";
 
@@ -149,6 +150,10 @@ export function Book() {
 
   function handleSlotClick(slot: Slot) {
     if (!slot.available) return;
+    // A pending payment or a just-confirmed booking must not be silently
+    // abandoned by an accidental tap on another slot — only "Book another
+    // slot" (which explicitly resets everything) should exit these states.
+    if (bookingStatus === "payment" || bookingStatus === "success") return;
 
     setBookingStatus("idle");
 
@@ -269,6 +274,7 @@ export function Book() {
             key={slug}
             role="tab"
             className={`tab-btn${bookSport === slug ? " active" : ""}`}
+            disabled={bookingStatus === "payment" || bookingStatus === "success"}
             onClick={() => setBookSport(slug)}
           >
             {label}
@@ -281,6 +287,7 @@ export function Book() {
           <button
             key={d.iso}
             className={`date-pill${bookDate === d.iso ? " active" : ""}`}
+            disabled={bookingStatus === "payment" || bookingStatus === "success"}
             onClick={() => setBookDate(d.iso)}
           >
             {d.short}
@@ -522,6 +529,7 @@ export function Book() {
             </p>
           )}
           <p>We'll reach out to confirm details. Save your reference number.</p>
+          <PreOrderPanel bookingRef={bookingRef} contact={fields.contact} />
           <button
             className="button secondary"
             onClick={() => {

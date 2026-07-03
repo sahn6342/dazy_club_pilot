@@ -93,6 +93,7 @@ class BookingPaymentRow(Base):
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="created")
     signature: Mapped[str | None] = mapped_column(String, nullable=True)
+    checkoutJson: Mapped[str | None] = mapped_column(Text, nullable=True)
     createdAt: Mapped[str] = mapped_column(String, nullable=False)
 
 
@@ -256,6 +257,7 @@ class OrderRow(Base):
     orderType: Mapped[str] = mapped_column(String, nullable=False)
     table_id: Mapped[str | None] = mapped_column(String, ForeignKey("cafe_tables.id"), nullable=True)
     customer_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    booking_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)  # soft FK to bookings.id (pre-order)
     status: Mapped[str] = mapped_column(String, nullable=False, default="open")
     subtotal: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     discountAmount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)

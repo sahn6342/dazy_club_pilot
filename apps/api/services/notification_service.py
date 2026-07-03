@@ -33,3 +33,18 @@ def notify_booking_confirmed(booking_ref: str) -> None:
         send_and_log("booking", primary.id, primary.contact, subject, body)
     except Exception:
         pass
+
+
+def notify_booking_payment_pending(booking_ref: str) -> None:
+    """Fires once, right after a priced booking is created — gives the
+    customer a way to resume payment (via /bookings/lookup) if they close the
+    tab, since there's no login/profile system to fall back on."""
+    try:
+        bookings = booking_repo.get_by_ref(booking_ref)
+        if not bookings:
+            return
+        primary = next((b for b in bookings if b.is_primary), bookings[0])
+        subject, body = notification_templates.booking_payment_pending(primary)
+        send_and_log("booking", primary.id, primary.contact, subject, body)
+    except Exception:
+        pass

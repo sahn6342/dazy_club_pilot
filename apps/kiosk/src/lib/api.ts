@@ -53,7 +53,7 @@ export type OrderItem = {
 };
 export type Order = {
   id: string; orderNo: string; orderType: string;
-  table_id: string | null; status: string;
+  table_id: string | null; booking_id: string | null; status: string;
   subtotal: number; taxAmount: number; total: number;
   notes: string | null; createdAt: string; updatedAt: string;
   items: OrderItem[];

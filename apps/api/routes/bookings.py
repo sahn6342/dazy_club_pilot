@@ -1,13 +1,15 @@
+import json
 import uuid
 from datetime import datetime, timezone, date as date_cls
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
 
-from models import BookingRequest, BookingRecord, BookingPaymentVerifyRequest
+from models import BookingRequest, BookingRecord, BookingPaymentVerifyRequest, BookingLookupResult
 from deps import booking_repo, court_repo, customer_repo, promo_repo, booking_payment_repo, payment_provider
+from rate_limit import booking_lookup_limiter
 from services.availability_service import find_slot
 from services.pricing_service import apply_promo, PromoError
-from services.notification_service import notify_booking_confirmed
+from services.notification_service import notify_booking_confirmed, notify_booking_payment_pending
 
 router = APIRouter()
 
@@ -114,7 +116,11 @@ def create_booking(request: BookingRequest):
         return response
 
     order = payment_provider.create_order(amount=final_price, ref=ref)
-    booking_payment_repo.create(booking_ref=ref, provider=order.provider, provider_order_id=order.providerOrderId, amount=order.amount)
+    booking_payment_repo.create(
+        booking_ref=ref, provider=order.provider, provider_order_id=order.providerOrderId,
+        amount=order.amount, checkout_json=json.dumps(order.checkout),
+    )
+    notify_booking_payment_pending(ref)
     response["status"] = "pending"
     response["paymentRequired"] = True
     response["checkout"] = order.checkout
@@ -140,3 +146,40 @@ def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest):
     booking_repo.confirm_payment_by_ref(booking_ref)
     notify_booking_confirmed(booking_ref)
     return {"status": "confirmed", "paymentStatus": "paid"}
+
+
+@router.get("/bookings/lookup", response_model=BookingLookupResult)
+def lookup_booking(ref: str, contact: str, req: Request):
+    """Self-service resume/lookup — no login. Identity is the ref + matching
+    contact (same trust model as the café pre-order endpoint). Reuses the
+    payment order created at booking time so a customer resuming payment
+    never gets handed a second, orphaned Razorpay order."""
+    client_ip = req.client.host if req.client else "unknown"
+    booking_lookup_limiter.check(client_ip, message="Too many lookup attempts. Try again later.")
+
+    bookings = booking_repo.get_by_ref(ref)
+    if not bookings:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    primary = next((b for b in bookings if b.is_primary), bookings[0])
+
+    if primary.contact.strip().lower() != contact.strip().lower():
+        raise HTTPException(status_code=404, detail="Booking not found.")
+
+    last = bookings[-1] if len(bookings) > 1 else primary
+    result = BookingLookupResult(
+        bookingRef=primary.bookingRef,
+        name=primary.name,
+        status=primary.status,
+        sport=primary.sportSlug,
+        date=primary.date,
+        startTime=primary.startTime,
+        endTime=last.endTime,
+        slotCount=len(bookings),
+        price=primary.price,
+        paymentRequired=primary.status == "pending" and primary.paymentStatus != "paid",
+    )
+    if result.paymentRequired:
+        payment = booking_payment_repo.get_by_ref(ref)
+        if payment and payment.checkoutJson:
+            result.checkout = json.loads(payment.checkoutJson)
+    return result

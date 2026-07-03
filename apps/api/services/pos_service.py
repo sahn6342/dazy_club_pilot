@@ -13,6 +13,7 @@ def create_order(
     items: list,  # list of OrderItemCreate
     table_id: Optional[str],
     notes: Optional[str],
+    booking_id: Optional[str] = None,
 ) -> OrderRow:
     """
     Create an order and add all requested items in one go.
@@ -25,6 +26,7 @@ def create_order(
         created_by=created_by,
         table_id=table_id,
         notes=notes,
+        booking_id=booking_id,
     )
     for item_req in items:
         menu_item = menu_item_repo.get_by_id(item_req.menu_item_id)

@@ -5,8 +5,14 @@ To swap to PostgreSQL: change DAZY_DB_URL env var (and add a driver). Zero repo 
 import os
 from contextlib import contextmanager
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
+
+# Loaded here (earliest config-reading module) so DAZY_*/RAZORPAY_*/SMTP_* env
+# vars from apps/api/.env are visible before any other module's `os.environ.get`
+# runs at import time (e.g. deps.py's payment/notification provider factories).
+load_dotenv()
 
 _DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "dazy.db")
 DB_PATH = os.environ.get("DAZY_DB_PATH", _DEFAULT_PATH)
