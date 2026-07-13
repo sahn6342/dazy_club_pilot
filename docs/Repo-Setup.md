@@ -43,14 +43,31 @@ cd apps/api && .venv/Scripts/python.exe -m pytest tests -q
 pnpm e2e
 ```
 
-## Env vars (`.env` at repo root or `apps/api/.env`)
+## Env vars (`apps/api/.env`, loaded via python-dotenv — gitignored, never committed)
 
 ```
 DAZY_DB_URL=sqlite:///./dazy.db
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin
 JWT_SECRET=changeme
+
+# Payment (dev default noop — no real gateway needed to exercise the flow)
+DAZY_PAYMENT_PROVIDER=noop             # or razorpay
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+RAZORPAY_WEBHOOK_SECRET=
+
+# Notifications (dev default console — prints to stdout)
+DAZY_NOTIFY_PROVIDER=console           # or email
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+
+DAZY_WEB_BASE_URL=http://localhost:5173  # used in notification links (e.g. /my-bookings resume)
 ```
+
+> pytest force-pins `DAZY_PAYMENT_PROVIDER=noop` / `DAZY_NOTIFY_PROVIDER=console` in `conftest.py` regardless of `.env` — the automated suite never makes real Razorpay/SMTP calls.
 
 ## Seeded data
 

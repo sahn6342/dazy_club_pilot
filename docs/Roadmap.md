@@ -15,19 +15,18 @@ The pilot outgrew its "public website only" scope into four apps (web / admin / 
 - KDS is single hardcoded station, no per-item status, no prep timers, no bump/recall, no new-order sound.
 
 **Business intelligence**
-- Dashboard shows placeholder counts only — no revenue, occupancy, or cafe sales. No aggregation endpoints.
-- No CSV/PDF export, no date-range reports, no GST period summary (statutory need), no POS daily-close/Z-report.
+- ~~Dashboard shows placeholder counts only — no revenue, occupancy, or cafe sales. No aggregation endpoints.~~ **Closed** in Detailed-Roadmap Phase 4 — real KPIs (`reporting_repo`, `analytics_service`) + day-close (Z-report by payment mode). Still open: 7-day trend, CSV/PDF export, date-range reports, GST period summary — growth-track Phase 9.
 
 **Bookings**
-- Payment-decoupled (honor system) — no payment status, deposit, or refund tracking.
-- Dead-ends after booking — no customer lookup / "my bookings", no email/SMS confirmation, no cancel/reschedule.
+- ~~Payment-decoupled (honor system) — no payment status, deposit, or refund tracking.~~ **Closed** in Detailed-Roadmap Phase 3 — Razorpay/noop adapter, `paymentStatus`, admin refund endpoint.
+- Dead-ends after booking — ~~no customer lookup / "my bookings", no email/SMS confirmation~~ **closed** (self-service `/bookings/lookup` + `/my-bookings` page; email/console notifications on confirm + payment-pending). Still open: cancel/reschedule request.
 - Admin can't create a manual/phone booking, reschedule, or block 1–2h for maintenance (only whole-day close).
-- No CRM (customers table is a phone→name index), no comms (email/SMS/announcements).
+- No CRM (customers table is a phone→name index), no comms beyond booking-lifecycle notifications (no enquiry-reply, no announcements).
 
 **Security / foundation**
-- **Cashier PIN login has no rate limiting** (admin login does) — brute-force hole.
-- No token refresh, no password reset, no login/audit log, role checks are all-or-nothing.
-- Service layer sparse, **no UnitOfWork** — multi-repo flows (order→items→KOT→invoice) aren't atomic.
+- ~~Cashier PIN login has no rate limiting~~ (admin login does) — brute-force hole. **Closed** — see DEC-029 (shared `SlidingWindowLimiter`).
+- No token refresh, no password reset, no login/audit log (table scaffolded, unwired), role checks are all-or-nothing.
+- Service layer sparse, **no UnitOfWork** — multi-repo flows (order→items→KOT→invoice) aren't atomic (the invoice-issuance slice was made atomic — DEC-032 — the rest is still open).
 
 **Latent bugs found**
 - ~~Invoice-number sequence can gap on a crash (`next_number` commits independently of the invoice insert).~~ **Fixed** in Detailed-Roadmap Phase 2 — see DEC-032.
@@ -37,14 +36,16 @@ The pilot outgrew its "public website only" scope into four apps (web / admin / 
 
 Single linear Alembic chain after current head `e1f2a3b4c5d6`: m1 audit_log → m2 stock_movements → m3 order discount/comp → m4 booking payment → m5 booking holdType → m6 notifications_log → m7 customer CRM.
 
+> This 6-phase sequencing was superseded by [Detailed-Roadmap.md](Detailed-Roadmap.md) before most of it was built — actual delivery order and phase numbers differ. Status noted per row below; unmarked items are still open.
+
 | Phase | Theme | Highlights |
 |-------|-------|-----------|
-| **1** | Security + quick wins | Cashier PIN rate-limit, audit log + hooks, token refresh, password reset; inventory admin UI + void-reason UI (both use existing DB fields — no schema) |
-| **2** | Business intelligence | `reporting_repo` + `analytics_service`; real dashboard (revenue/occupancy/alerts + 7-day trend via inline SVG); reports (revenue/occupancy/top-items/funnel/GST/Z-report); server-side CSV export |
-| **3** | POS completeness | Stock movement log + auto-deduct on invoice; order discount/comp (tax-correct); **dine-in table loop** (toggle + table picker + occupy→free); receipt/KOT reprint; table transfer |
-| **4** | Booking growth | Booking payment status + deposit/refund (behind a payment adapter); customer "my bookings" lookup + cancel/reschedule request; admin manual booking + reschedule + maintenance block |
-| **5** | CRM + comms | Notification adapter (booking confirm/remind, enquiry reply) + delivery log; admin CRM customers page (history, lifetime spend, segments, do-not-contact) |
-| **6** | Foundation | Service layer + UnitOfWork so order→items→KOT→invoice is atomic (fixes the invoice-sequence-gap bug). Highest regression risk — done last |
+| **1** | Security + quick wins | Cashier PIN rate-limit ✅, audit log (table scaffolded, hooks/UI not wired), token refresh, password reset; inventory admin UI + void-reason UI (both use existing DB fields — no schema) |
+| **2** | Business intelligence | ✅ **Dashboard + Z-report shipped** (Detailed-Roadmap Phase 4: `reporting_repo` + `analytics_service`, real KPIs + day-close by payment mode). Still open: 7-day trend, top-items/funnel/GST reports, server-side CSV export — growth-track |
+| **3** | POS completeness | Stock movement log + auto-deduct on invoice; order discount/comp (tax-correct); **dine-in table loop** (toggle + table picker + occupy→free); receipt/KOT reprint; table transfer — all still open (counter/takeaway-only launch deprioritized dine-in) |
+| **4** | Booking growth | ✅ **Payment status + refund shipped** (Detailed-Roadmap Phase 3, Razorpay/noop adapter). ✅ **Customer "my bookings" lookup shipped** (self-service `/bookings/lookup` + resume). Still open: cancel/reschedule request, admin manual booking + reschedule + maintenance block |
+| **5** | CRM + comms | ✅ **Notification adapter + delivery log shipped** (Detailed-Roadmap Phase 5: console/email, fires on booking confirm + payment-pending). Still open: enquiry-reply notifications, admin CRM customers page (history, lifetime spend, segments, do-not-contact) |
+| **6** | Foundation | Service layer + UnitOfWork so order→items→KOT→invoice is atomic. The **invoice-issuance slice only** was made atomic (DEC-032/DEC-025) — the full order→items→KOT→invoice UnitOfWork is still open, highest regression risk, done last |
 
 ## Design principles
 
@@ -55,4 +56,4 @@ Single linear Alembic chain after current head `e1f2a3b4c5d6`: m1 audit_log → 
 
 ## Deferred (documented, not planned for these phases)
 
-Split/merge bills; full self-service reschedule; sub-day schedule exceptions; live payment gateway + SMS/email provider wiring; scheduled reminder cron; fine-grained per-page RBAC; multi-venue UI; cash-drawer/shift sessions; offline-first kiosk; direct thermal/ESC-POS printing.
+Split/merge bills; full self-service reschedule; sub-day schedule exceptions; SMS provider wiring (live payment gateway + email provider **are** wired — see Detailed-Roadmap Phases 3/5); scheduled reminder cron; fine-grained per-page RBAC; multi-venue UI; cash-drawer/shift sessions; offline-first kiosk; direct thermal/ESC-POS printing.

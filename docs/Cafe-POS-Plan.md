@@ -4,7 +4,8 @@
 > Designed to slot into the current FastAPI + SQLAlchemy + React monorepo with the same patterns.
 >
 > **Status: Phases 0–1 IMPLEMENTED** (Alembic `d0e1f2a3b4c5` foundations + `e1f2a3b4c5d6` POS). Shipped: the `apps/kiosk` POS app, menu categories/items, tables, orders, KOT station routing, payments (cash/UPI/card), and GST invoices (CGST/SGST, financial-year numbering, amount-in-words, 80mm thermal print), plus admin cafe screens. See [Features.md](Features.md) (Kiosk POS & KDS) and [API-Reference.md](API-Reference.md).
-> Phases 2–4 remain future work (inventory logic, discounts/comps, dine-in table loop, credit notes, e-invoicing, offline) — tracked in [Roadmap.md](Roadmap.md). GST mode is configurable (see §3).
+> Phases 2–4 (inventory logic, discounts/comps, dine-in table loop, credit notes, e-invoicing, offline) remain future work — tracked in [Roadmap.md](Roadmap.md). GST mode is configurable (see §3).
+> **Since then (Detailed-Roadmap.md, current head `e8f9a0b1c2d3`):** café × turf synergy sub-step 1 shipped — a customer can attach café items to a **confirmed booking** (`orders.booking_id`, public `POST /bookings/{ref}/preorder`, kiosk "🎫 Pre-order" badge). A narrow owner dashboard + day-close (Z-report by payment mode) also shipped (`GET /admin/reports/dashboard`/`day-close`) — **not** the fuller `/admin/cafe/reports/*` suite speculated in §5/§8 below (sales/GST-summary/item-sales/variance/wastage reports, suppliers, purchases, stock — all still open).
 
 ---
 

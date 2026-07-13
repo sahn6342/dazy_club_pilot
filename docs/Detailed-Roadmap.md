@@ -161,7 +161,7 @@ Your existing 6-phase enhancement roadmap was written before the launch context.
 
 # 🚀 GO LIVE  (after Phases 1–3 hard-done; 4–5 strongly recommended)
 
-Run the go/no-go checklist from `Launch-Plan.md §5`. Soft-launch with a handful of real customers, fix, then open.
+Run the go/no-go checklist from [Launch-Plan.md §5](Launch-Plan.md#5-gono-go-checklist). Soft-launch with a handful of real customers, fix, then open.
 
 ---
 

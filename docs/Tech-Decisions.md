@@ -17,8 +17,8 @@
 | Concern | Plan |
 |---|---|
 | Production DB | PostgreSQL — swap `DAZY_DB_URL`, zero code changes |
-| Payment | Adapter pattern ready; provider TBD |
-| OTP / SMS | Adapter pattern ready; provider TBD |
+| Payment | **Live** — Razorpay (stdlib `urllib`+`hmac`, zero SDK dep) + noop (dev) adapter, swap via `DAZY_PAYMENT_PROVIDER` |
+| Notifications | **Live** — console (dev) + SMTP email (stdlib `smtplib`, zero dep) adapter, swap via `DAZY_NOTIFY_PROVIDER`; fires on booking confirm + payment-pending |
+| SMS | Adapter pattern ready (same `NotificationProvider` interface); provider TBD — email is the only real channel today |
 | Redis | Slot locking for high concurrency (SQLite partial-index sufficient for pilot) |
 | CDN / media | File upload stored locally at `/media/gallery/`; swap to S3 path when ready |
-| Notifications | Email/SMS confirmation flow (currently booking ref shown on screen only) |

@@ -15,6 +15,20 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       DAZY_CORS_ORIGINS: https://${WEB_DOMAIN},https://${ADMIN_DOMAIN},https://${KIOSK_DOMAIN}
+      # Payment adapter — defaults keep a keyless deploy bootable in dev/no-op mode.
+      DAZY_PAYMENT_PROVIDER: ${DAZY_PAYMENT_PROVIDER:-noop}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      # Notification adapter — console prints to `docker compose logs api`.
+      DAZY_NOTIFY_PROVIDER: ${DAZY_NOTIFY_PROVIDER:-console}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # Used in notification links (e.g. the /my-bookings payment-resume link).
+      DAZY_WEB_BASE_URL: https://${WEB_DOMAIN}
       # DAZY_DB_PATH / DAZY_MEDIA_DIR default to /data/... inside the image (see apps/api/Dockerfile).
       # Point DAZY_DB_URL at Postgres here instead, with zero code changes, if/when you outgrow SQLite.
     volumes:

@@ -42,11 +42,22 @@ The booking flow: choose a sport, choose a date, see **live availability slots**
 - **Multi-slot booking** — select consecutive slots; one is flagged primary.
 - **Party size & price** — party size validated against the sport's max (Cricket 11, Pickleball 6, Badminton 4); price derives from per-sport base price.
 - **Promo codes** — validated via `GET /promos/validate` before submission.
-- **Booking submission** — `POST /bookings` returns a booking reference immediately; customer record is created/linked.
+- **Booking submission** — `POST /bookings` returns a booking reference immediately; customer record is created/linked. A priced slot goes to `pending` and opens the **payment panel** (dev-simulate buttons or real Razorpay checkout, depending on `DAZY_PAYMENT_PROVIDER`); a free slot (e.g. a 100%-off promo) confirms immediately.
+- **Accidental-abandonment guard** — while payment is pending or the booking just confirmed, the sport tabs/date pills/other slot chips are disabled, so a stray click can't silently lose the in-progress flow.
+- **Café pre-order** — once confirmed, "Add food & drinks for your visit" lets the customer attach café items to the booking (`POST /bookings/{ref}/preorder`); the order is ready for the counter when they arrive.
 
 **Mobile:**
 
 ![Web book mobile](screenshots/web-book-mobile.png)
+
+### My Bookings
+
+Self-service booking lookup at `/my-bookings` — no login. Enter the booking ref (pre-filled if arriving from a payment-reminder link) + the phone/email used at booking time.
+
+- **Pending booking** — resumes payment with the *original* checkout order (never a second gateway charge for one booking).
+- **Confirmed booking** — shows the details + the same café pre-order panel as the Book page.
+- Wrong contact or unknown ref → generic "not found" (no enumeration); rate-limited per IP.
+- Exists because a closed tab or reload had no other way back to a pending payment (there's no customer login/profile system).
 
 ### Contact
 
@@ -77,7 +88,12 @@ Username + password → JWT stored client-side. Wrong credentials show an inline
 
 ![Admin dashboard](screenshots/admin-dashboard.png)
 
-Landing overview of venue activity (bookings/enquiries at a glance).
+Real venue KPIs, computed in the venue's timezone (not browser/server local):
+- **Bookings today** — count + revenue (confirmed, priced bookings only).
+- **Café revenue today** — sum of issued invoices.
+- **Occupancy today** — booked slots ÷ bookable slots.
+- **Pending bookings** / **New enquiries** — quick-glance counts, unchanged from before.
+- **Day-close (Z-report)** — a date-pickable table of café payment totals by mode (cash/UPI/card), for reconciling the till.
 
 ### Bookings
 
@@ -214,6 +230,7 @@ Touch-first POS at **:5175**. Cashier logs in with staff name + 4-digit PIN. Top
 
 - **Open** tab — open/in-kitchen/served orders, each with a **Pay** action (guarded: only payable, non-zero, item-bearing orders).
 - **History** tab — paid/cancelled orders, marked "✓ Settled".
+- Orders created by a customer's web pre-order (linked to a turf booking) show a **"🎫 Pre-order"** badge, so staff know to have it ready for the customer's slot time.
 - Auto-refreshes every 15s; manual refresh button.
 
 ### Tables

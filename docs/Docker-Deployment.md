@@ -7,8 +7,8 @@ Internet
    │
    ▼
 ┌─────────────────────────── caddy (ports 80/443) ───────────────────────────┐
-│  book.example.com   → web:80       admin.example.com → admin:80            │
-│  pos.example.com    → kiosk:80     api.example.com   → api:8000            │
+│  book.dazyclub.in   → web:80       admin.dazyclub.in → admin:80            │
+│  pos.dazyclub.in    → kiosk:80     api.dazyclub.in   → api:8000            │
 └──────────────────────────────────────────────────────────────────────────┘
    web / admin / kiosk = static Vite builds (Caddy file_server, SPA fallback)
    api = FastAPI container, /data volume (dazy.db + media/)
@@ -48,11 +48,27 @@ docker compose logs -f caddy    # watch for cert issuance per domain
 | `WEB_DOMAIN`, `ADMIN_DOMAIN`, `KIOSK_DOMAIN`, `API_DOMAIN` | Public hostnames Caddy issues certs for and routes to each service |
 | `JWT_SECRET` | Signs auth tokens — **must** be a long random string, not the dev default |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | The env-var superadmin login — **must** be changed off `admin`/`admin` |
+| `DAZY_PAYMENT_PROVIDER` | `noop` (default — dev "Simulate payment" buttons) or `razorpay` for live checkout |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Razorpay API keys (test-mode `rzp_test_*` first; live after KYC) |
+| `RAZORPAY_WEBHOOK_SECRET` | Secret for the webhook registered below |
+| `DAZY_NOTIFY_PROVIDER` | `console` (default — sends appear in `docker compose logs api`) or `email` |
+| `SMTP_HOST/PORT/USER/PASSWORD/FROM` | SMTP credentials, only needed when `DAZY_NOTIFY_PROVIDER=email` |
 
 `docker-compose.yml` derives the rest automatically:
 - Each frontend is built with `VITE_API_BASE_URL=https://${API_DOMAIN}/api/v1` baked in at build time (Vite env vars are compile-time, not runtime — changing `API_DOMAIN` requires a rebuild: `docker compose up -d --build`).
 - The API's `DAZY_CORS_ORIGINS` is derived from the three frontend domains automatically.
+- The API's `DAZY_WEB_BASE_URL` (used for the `/my-bookings` payment-resume link inside notifications) is derived from `WEB_DOMAIN`.
 - The API's `DAZY_DB_PATH`/`DAZY_MEDIA_DIR` default to `/data/dazy.db` / `/data/media` inside the container (set in `apps/api/Dockerfile`) — no `.env` entry needed.
+
+## Razorpay webhook (required for live payments)
+
+The client-side payment callback is a UX shortcut; the **webhook is the source of truth** (a customer can pay and go offline before the callback fires). After the stack is up:
+
+1. Razorpay dashboard → Settings → Webhooks → Add: `https://<API_DOMAIN>/api/v1/payments/razorpay/webhook`, event **`payment.captured`**.
+2. Copy the webhook secret into `RAZORPAY_WEBHOOK_SECRET` in `.env`.
+3. `docker compose up -d api` to pick it up.
+
+Verify: complete a test-card booking on the web app, then check the webhook shows a `200` delivery in the Razorpay dashboard.
 
 **Postgres later:** set `DAZY_DB_URL` on the `api` service in `docker-compose.yml` (e.g. `postgresql://...`) — the repository pattern means zero code changes (see ADR-011/DEC-014). Not needed for pilot volume.
 
@@ -87,7 +103,7 @@ Then add real gallery photos, testimonials, and promo codes via the admin app (G
 After first deploy (and after any redeploy):
 
 ```bash
-python scripts/smoke_test.py --base-url https://api.example.com \
+python scripts/smoke_test.py --base-url https://api.dazyclub.in \
   --admin-username <ADMIN_USERNAME> --admin-password <ADMIN_PASSWORD>
 ```
 
