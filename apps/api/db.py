@@ -18,16 +18,12 @@ _DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "dazy.db")
 DB_PATH = os.environ.get("DAZY_DB_PATH", _DEFAULT_PATH)
 DB_URL = os.environ.get("DAZY_DB_URL", f"sqlite:///{DB_PATH}")
 
-engine = create_engine(
-    DB_URL,
-    connect_args={"check_same_thread": False},  # sync handlers run on anyio worker threads
-    future=True,
-)
+_connect_args = {"check_same_thread": False} if DB_URL.startswith("sqlite") else {}
+engine = create_engine(DB_URL, connect_args=_connect_args)
 SessionLocal = sessionmaker(
     bind=engine,
     autoflush=False,
     expire_on_commit=False,  # allows attribute reads during row -> Pydantic conversion
-    future=True,
 )
 
 
