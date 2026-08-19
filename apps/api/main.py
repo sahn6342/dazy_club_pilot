@@ -1,7 +1,11 @@
+import logging
 import os
+import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -47,8 +51,15 @@ from routes.admin.cafe.tables import router as admin_cafe_tables_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from db import init_db, seed_if_empty
-    init_db()
-    seed_if_empty()
+    try:
+        logger.info("=== startup: running migrations ===")
+        init_db()
+        logger.info("=== startup: seeding initial data ===")
+        seed_if_empty()
+        logger.info("=== startup: complete ===")
+    except Exception:
+        logger.critical("=== startup FAILED ===\n%s", traceback.format_exc())
+        raise
     yield
 
 

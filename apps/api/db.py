@@ -2,12 +2,18 @@
 SQLAlchemy engine + session management for SQLite persistence.
 To swap to PostgreSQL: change DAZY_DB_URL env var (and add a driver). Zero repo rewrites.
 """
+import logging
 import os
 from contextlib import contextmanager
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 # Loaded here (earliest config-reading module) so DAZY_*/RAZORPAY_*/SMTP_* env
 # vars from apps/api/.env are visible before any other module's `os.environ.get`

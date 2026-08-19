@@ -36,8 +36,8 @@ def upgrade() -> None:
 
     # Step 4: partial unique index — SQLite supports partial indexes natively
     op.execute(
-        "CREATE UNIQUE INDEX uq_active_court_slot "
-        "ON bookings(court_id, slotId) "
+        'CREATE UNIQUE INDEX uq_active_court_slot '
+        'ON bookings(court_id, "slotId") '
         "WHERE status NOT IN ('cancelled', 'no_show')"
     )
 

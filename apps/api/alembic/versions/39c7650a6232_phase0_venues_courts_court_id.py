@@ -50,7 +50,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_bookings_court_id'), 'bookings', ['court_id'], unique=False)
 
     # Backfill existing bookings to their sport's court (deterministic id: court-{sport}).
-    op.execute("UPDATE bookings SET court_id = 'court-' || sportSlug WHERE court_id IS NULL")
+    op.execute('UPDATE bookings SET court_id = \'court-\' || "sportSlug" WHERE court_id IS NULL')
 
     # ### end Alembic commands ###
 
