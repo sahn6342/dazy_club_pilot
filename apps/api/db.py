@@ -85,14 +85,19 @@ def _cms_seed():
     ]
 
 
+_seed_log = logging.getLogger("seed")
+
+
 def seed_if_empty() -> None:
     """Idempotent: insert seed data only for empty tables.
     Seeds gallery/testimonials/cms, plus one venue and one court per sport."""
     import uuid
     from datetime import datetime, timezone
     from sqlalchemy import select, func
+    _seed_log.info("importing seed data modules")
     from seed import GALLERY_ITEMS, TESTIMONIALS, SPORTS
     from db_models import GalleryRow, TestimonialRow, CmsRow, VenueRow, CourtRow, ScheduleRuleRow, PromoCodeRow
+    _seed_log.info("opening session")
 
     # Daily schedule blocks reproducing the original 12-slot grid (60-min slots,
     # lunch gap 12:00-14:00 and 17:00-18:00 break).
@@ -102,20 +107,25 @@ def seed_if_empty() -> None:
 
     now = datetime.now(timezone.utc).isoformat()
     with _session() as s:
+        _seed_log.info("seeding gallery")
         if s.scalar(select(func.count()).select_from(GalleryRow)) == 0:
             for g in GALLERY_ITEMS:
                 s.add(GalleryRow(id=g.id, title=g.title, sportSlug=g.sportSlug, tone=g.tone, imageUrl=g.imageUrl, approved=True))
+        _seed_log.info("seeding testimonials")
         if s.scalar(select(func.count()).select_from(TestimonialRow)) == 0:
             for t in TESTIMONIALS:
                 s.add(TestimonialRow(id=t.id, name=t.name, context=t.context, quote=t.quote, approved=True))
+        _seed_log.info("seeding cms")
         if s.scalar(select(func.count()).select_from(CmsRow)) == 0:
             for e in _cms_seed():
                 s.add(CmsRow(key=e.key, label=e.label, value=e.value))
         # Venue — seeded once, never cleared.
         venue_id = "venue-dazy"
+        _seed_log.info("seeding venue")
         if s.scalar(select(func.count()).select_from(VenueRow)) == 0:
             s.add(VenueRow(id=venue_id, name="Dazy.club", timezone="Asia/Kolkata", active=True, createdAt=now))
         # Courts — re-seeded whenever the table is empty (e.g. after test teardown).
+        _seed_log.info("seeding courts")
         if s.scalar(select(func.count()).select_from(CourtRow)) == 0:
             for sport in SPORTS:
                 s.add(CourtRow(
@@ -128,6 +138,7 @@ def seed_if_empty() -> None:
                     createdAt=now,
                 ))
         # Schedule rules: one row per court / weekday / block (reproduces the 12-slot grid).
+        _seed_log.info("seeding schedule rules")
         if s.scalar(select(func.count()).select_from(ScheduleRuleRow)) == 0:
             for sport in SPORTS:
                 court_id = f"court-{sport.slug}"
@@ -145,6 +156,7 @@ def seed_if_empty() -> None:
                             discount_percent=None,
                         ))
         # Sample promo codes (idempotent).
+        _seed_log.info("seeding promo codes")
         if s.scalar(select(func.count()).select_from(PromoCodeRow)) == 0:
             s.add(PromoCodeRow(
                 id=str(uuid.uuid4()), code="WELCOME10", kind="percent", value=10,
@@ -156,3 +168,4 @@ def seed_if_empty() -> None:
                 active=True, valid_from=None, valid_to=None, max_uses=None,
                 used_count=0, sport_slug=None, createdAt=now,
             ))
+        _seed_log.info("committing all seed data")
