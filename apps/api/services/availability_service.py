@@ -12,6 +12,7 @@ from db_models import CourtRow, VenueRow, ScheduleRuleRow, ScheduleExceptionRow,
 from models import SlotDto
 from services.pricing_service import slot_price
 
+# for rebuild
 # Per-slot display cap (max players in a single booking). Distinct from court.capacity
 # (max concurrent parties per slot), which Phase 2 uses for availability.
 _MAX_PLAYERS = {"cricket": 11, "badminton": 4, "pickleball": 6}
