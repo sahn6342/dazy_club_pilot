@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import traceback
 from contextlib import asynccontextmanager
 
@@ -58,7 +59,9 @@ async def lifespan(app: FastAPI):
         seed_if_empty()
         logger.info("=== startup: complete ===")
     except Exception:
-        logger.critical("=== startup FAILED ===\n%s", traceback.format_exc())
+        tb = traceback.format_exc()
+        logger.critical("=== startup FAILED ===\n%s", tb)
+        print(f"=== startup FAILED ===\n{tb}", file=sys.stderr, flush=True)
         raise
     yield
 

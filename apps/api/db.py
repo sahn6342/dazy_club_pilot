@@ -24,7 +24,11 @@ _DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "dazy.db")
 DB_PATH = os.environ.get("DAZY_DB_PATH", _DEFAULT_PATH)
 DB_URL = os.environ.get("DAZY_DB_URL", f"sqlite:///{DB_PATH}")
 
-_connect_args = {"check_same_thread": False} if DB_URL.startswith("sqlite") else {}
+if DB_URL.startswith("sqlite"):
+    _connect_args = {"check_same_thread": False}
+else:
+    # lock_timeout: fail fast on stuck advisory/row locks instead of hanging indefinitely
+    _connect_args = {"options": "-c lock_timeout=15000"}
 engine = create_engine(DB_URL, connect_args=_connect_args)
 SessionLocal = sessionmaker(
     bind=engine,
@@ -61,7 +65,10 @@ def init_db() -> None:
     cfg = Config(os.path.join(_BASE_DIR, "alembic.ini"))
     cfg.set_main_option("script_location", os.path.join(_BASE_DIR, "alembic"))
     cfg.set_main_option("sqlalchemy.url", DB_URL)
-    command.upgrade(cfg, "head")
+    # Use the module-level engine so lock_timeout / connect_args apply to migration queries too.
+    with engine.connect() as conn:
+        cfg.attributes["connection"] = conn
+        command.upgrade(cfg, "head")
 
 
 # CMS seed (moved from deps.py)
