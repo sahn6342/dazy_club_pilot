@@ -131,6 +131,7 @@ def seed_if_empty() -> None:
         _seed_log.info("seeding venue")
         if s.scalar(select(func.count()).select_from(VenueRow)) == 0:
             s.add(VenueRow(id=venue_id, name="Dazy.club", timezone="Asia/Kolkata", active=True, createdAt=now))
+            s.flush()  # courts FK → venues; flush to satisfy constraint before court inserts
         # Courts — re-seeded whenever the table is empty (e.g. after test teardown).
         _seed_log.info("seeding courts")
         if s.scalar(select(func.count()).select_from(CourtRow)) == 0:
@@ -144,6 +145,7 @@ def seed_if_empty() -> None:
                     active=True,
                     createdAt=now,
                 ))
+            s.flush()  # schedule_rules FK → courts; flush before rule inserts
         # Schedule rules: one row per court / weekday / block (reproduces the 12-slot grid).
         _seed_log.info("seeding schedule rules")
         if s.scalar(select(func.count()).select_from(ScheduleRuleRow)) == 0:
