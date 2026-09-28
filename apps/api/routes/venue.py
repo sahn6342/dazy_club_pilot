@@ -6,6 +6,7 @@ router = APIRouter()
 _VENUE_KEYS = {
     "venue_name", "venue_address", "venue_phone",
     "venue_email", "venue_hours", "social_instagram", "social_facebook",
+    "whatsapp_phone", "whatsapp_message",
 }
 
 

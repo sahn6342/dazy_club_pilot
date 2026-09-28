@@ -1,5 +1,6 @@
 import { NavLink, Link, Outlet } from "react-router-dom";
 import { BRAND } from "@dazy/shared";
+import { WhatsappFab } from "./WhatsappFab";
 
 export function Layout() {
   return (
@@ -20,6 +21,7 @@ export function Layout() {
         <strong>{BRAND.name}</strong>
         <span>Premium sports experience. Cricket, Badminton &amp; Pickleball.</span>
       </footer>
+      <WhatsappFab />
     </main>
   );
 }

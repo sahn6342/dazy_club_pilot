@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { BRAND } from "@dazy/shared";
 import { api, MenuCategory, MenuItem, MenuResponse, Order } from "../lib/api";
 import { clearToken } from "../lib/auth";
 import { PaymentModal } from "../components/PaymentModal";
@@ -96,7 +97,7 @@ export function Menu() {
   return (
     <div className="kiosk-layout">
       <header className="kiosk-header">
-        <span className="kiosk-logo">Dazy.club</span>
+        <span className="kiosk-logo">{BRAND.name}</span>
         <nav className="kiosk-nav">
           <button className="kiosk-nav-btn active" onClick={() => navigate("/menu")}>Menu</button>
           <button className="kiosk-nav-btn" onClick={() => navigate("/orders")}>Orders</button>

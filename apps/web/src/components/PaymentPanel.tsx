@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BRAND } from "@dazy/shared";
 import type { CheckoutConfig } from "../lib/api";
 import { verifyBookingPayment } from "../lib/api";
 
@@ -59,7 +60,7 @@ export function PaymentPanel({ bookingRef, checkout, amount, customerName, custo
         order_id: checkout.order_id,
         amount: checkout.amount,
         currency: checkout.currency,
-        name: "Dazy.club",
+        name: BRAND.name,
         description: `Booking ${bookingRef}`,
         prefill: { name: customerName, contact: customerContact },
         theme: { color: "#d8b456" },

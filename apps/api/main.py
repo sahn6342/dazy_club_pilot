@@ -5,6 +5,7 @@ import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from brand import BRAND_NAME
 
 logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
@@ -66,7 +67,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Dazy.club API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title=f"{BRAND_NAME} API", version="0.1.0", lifespan=lifespan)
 
 # Serve uploaded media (gallery images) read-only at /media.
 ensure_media_dirs()
@@ -133,4 +134,4 @@ app.include_router(admin_cafe_tables_router, prefix=prefix)
 
 @app.get("/")
 def root():
-    return {"app": "Dazy.club API", "docs": "/docs", "health": "/api/v1/health"}
+    return {"app": f"{BRAND_NAME} API", "docs": "/docs", "health": "/api/v1/health"}

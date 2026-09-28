@@ -1,4 +1,4 @@
-# Dazy.club — Enhancement Roadmap
+# Dazy Club — Enhancement Roadmap
 
 > **Status: partially superseded.** This is the original gap-analysis-driven roadmap (6 phases, growth-first sequencing). **[Detailed-Roadmap.md](Detailed-Roadmap.md) re-sequences this for the actual launch context** (counter-only café, online prepay from day one, MVP-in-weeks) — treat that doc as authoritative for what to build next; this one remains as the fuller gap analysis and the source for later growth-track detail. For what currently exists, see [Features.md](Features.md) and [API-Reference.md](API-Reference.md). Items move out of this file into the feature docs as they land.
 

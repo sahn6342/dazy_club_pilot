@@ -1,6 +1,6 @@
-# Dazy.club API
+# Dazy Club API
 
-FastAPI backend powering all three Dazy.club frontends — the public booking website, the staff admin back-office, and the cafe POS/KDS kiosk. SQLAlchemy 2.0 over SQLite (swappable to PostgreSQL via `DAZY_DB_URL`), Alembic migrations, JWT auth.
+FastAPI backend powering all three Dazy Club frontends — the public booking website, the staff admin back-office, and the cafe POS/KDS kiosk. SQLAlchemy 2.0 over SQLite (swappable to PostgreSQL via `DAZY_DB_URL`), Alembic migrations, JWT auth.
 
 ## Dev
 

@@ -1,6 +1,7 @@
 """Message content for booking-lifecycle notifications (Detailed-Roadmap Phase 5)."""
 import os
 
+from brand import BRAND_NAME
 from models import BookingRecord
 
 _WEB_BASE_URL = os.environ.get("DAZY_WEB_BASE_URL", "http://localhost:5173")
@@ -21,7 +22,7 @@ def booking_payment_pending(booking: BookingRecord) -> tuple[str, str]:
         f"Time: {booking.startTime}-{booking.endTime}\n"
         f"Amount due: {amount}\n\n"
         f"Resume payment: {_WEB_BASE_URL}/my-bookings?ref={booking.bookingRef}\n\n"
-        f"— Dazy.club"
+        f"— {BRAND_NAME}"
     )
     return subject, body
 
@@ -39,6 +40,6 @@ def booking_confirmation(booking: BookingRecord) -> tuple[str, str]:
         f"Time: {booking.startTime}-{booking.endTime}\n"
         f"Party size: {booking.party_size}\n"
         f"Amount paid: {amount}\n\n"
-        f"See you on court!\n— Dazy.club"
+        f"See you on court!\n— {BRAND_NAME}"
     )
     return subject, body

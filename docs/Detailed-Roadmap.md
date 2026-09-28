@@ -1,4 +1,4 @@
-# Dazy.club — Detailed Implementation Roadmap
+# Dazy Club — Detailed Implementation Roadmap
 
 > Phase-by-phase build plan to launch and then grow revenue at the venue.
 > **Re-sequences the existing `Roadmap.md`** for the launch reality: café is **counter/takeaway only**, bookings take **online prepay from day one**, target is **MVP in weeks**, focus is **customers + owner**.

@@ -1,5 +1,5 @@
 export const BRAND = {
-  name: "Dazy.club",
+  name: "Dazy Club",
   adminTitle: "Dazy Admin",
   tagline: "Cricket · Badminton · Pickleball",
 } as const;

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { BRAND } from "@dazy/shared";
 import { api } from "../lib/api";
 import { setToken, isAuthenticated } from "../lib/auth";
 
@@ -67,7 +68,7 @@ export function Login() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <h1 className="login-title">Dazy.club Kiosk</h1>
+        <h1 className="login-title">{BRAND.name} Kiosk</h1>
         <input
           className="login-input"
           placeholder="Staff username"

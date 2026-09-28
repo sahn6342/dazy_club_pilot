@@ -28,6 +28,13 @@ export interface GalleryItem {
   imageUrl?: string | null;
 }
 
+export async function getVenueInfo(): Promise<Record<string, string>> {
+  const r = await fetch(`${API}/venue`);
+  if (!r.ok) throw new Error("Failed to load venue info");
+  const entries: { key: string; value: string }[] = await r.json();
+  return Object.fromEntries(entries.map((e) => [e.key, e.value]));
+}
+
 export async function getGallery(): Promise<GalleryItem[]> {
   const r = await fetch(`${API}/gallery`);
   if (!r.ok) throw new Error("Failed to load gallery");

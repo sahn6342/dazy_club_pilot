@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { BRAND } from "@dazy/shared";
 import { api, CafeTable } from "../lib/api";
 import { clearToken } from "../lib/auth";
 
@@ -35,7 +36,7 @@ export function Tables() {
   return (
     <div className="kiosk-layout">
       <header className="kiosk-header">
-        <span className="kiosk-logo">Dazy.club</span>
+        <span className="kiosk-logo">{BRAND.name}</span>
         <nav className="kiosk-nav">
           <button className="kiosk-nav-btn" onClick={() => navigate("/menu")}>Menu</button>
           <button className="kiosk-nav-btn" onClick={() => navigate("/orders")}>Orders</button>

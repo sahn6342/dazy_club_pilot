@@ -1,6 +1,6 @@
 import { useEffect, useState, type JSX } from "react";
 import { Link } from "react-router-dom";
-import { galleryItems, launchSports, testimonials } from "@dazy/shared";
+import { BRAND, galleryItems, launchSports, testimonials } from "@dazy/shared";
 import { getGallery, resolveImg, type GalleryItem } from "../lib/api";
 
 const AVATAR: Record<string, string> = {
@@ -111,10 +111,10 @@ export function Home() {
         </video>
         <div className="hero-overlay" aria-hidden="true" />
         <div className="hero-content">
-          <p className="eyebrow">Cricket · Badminton · Pickleball</p>
+          <p className="eyebrow">Cricket · Badminton · Pickleball · Cricket Academy</p>
           <h1>Premium sports energy, built for your next game.</h1>
           <p className="hero-copy">
-            Dazy.club brings together Cricket, Badminton, and Pickleball in one premium venue.
+            {BRAND.name} brings together Cricket, Badminton, and Pickleball in one premium venue.
             Whether it's a casual weekend game or a corporate event, we've got your court.
           </p>
           <div className="actions">
@@ -150,7 +150,7 @@ export function Home() {
           {launchSports.map((sport) => (
             <article className="card sport-card" key={sport.id}>
               <div className="card-media">
-                <img src={`/images/${sport.slug}.jpg`} alt={`${sport.name} at Dazy.club`} loading="lazy" />
+                <img src={`/images/${sport.slug}.jpg`} alt={`${sport.name} at ${BRAND.name}`} loading="lazy" />
               </div>
               <p className="eyebrow">{sport.name}</p>
               <h3>{sport.tagline}</h3>
@@ -174,7 +174,7 @@ export function Home() {
       <section id="how" className="section">
         <div className="section-heading">
           <p className="eyebrow">How it works</p>
-          <h2>Booked in three steps.</h2>
+          <h2>Book in three steps.</h2>
           <p>No calls, no waiting. Pick, choose, play.</p>
         </div>
         <div className="card-grid steps">
@@ -217,7 +217,7 @@ export function Home() {
       <section id="gallery" className="section">
         <div className="section-heading">
           <p className="eyebrow">Gallery</p>
-          <h2>Moments at Dazy.club.</h2>
+          <h2>Moments at {BRAND.name}.</h2>
           <p>A glimpse of the energy, atmosphere, and play you can expect on court.</p>
         </div>
         <Carousel

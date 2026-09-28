@@ -1,29 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { launchSports } from "@dazy/shared";
-import { submitContactEnquiry, submitCorporateEnquiry, todayIso } from "../lib/api";
+import { submitContactEnquiry, submitCorporateEnquiry, todayIso, getVenueInfo } from "../lib/api";
 import { validateName, validateContact, validateCompany, validateGroupSize } from "../lib/validate";
 
-const API = (import.meta as any).env?.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 type VenueInfo = { address: string; phone: string; email: string; hours: string; instagram: string; facebook: string };
 
 function useVenueInfo(): VenueInfo {
   const [info, setInfo] = useState<VenueInfo>({ address: "", phone: "", email: "", hours: "", instagram: "", facebook: "" });
   useEffect(() => {
-    fetch(`${API}/venue`)
-      .then((r) => r.json())
-      .then((entries: { key: string; value: string }[]) => {
-        const v = Object.fromEntries(entries.map((e) => [e.key, e.value]));
-        setInfo({
-          address:   v.venue_address   ?? "",
-          phone:     v.venue_phone     ?? "",
-          email:     v.venue_email     ?? "",
-          hours:     v.venue_hours     ?? "",
-          instagram: v.social_instagram ?? "",
-          facebook:  v.social_facebook  ?? "",
-        });
-      })
-      .catch(() => {});
+    getVenueInfo().then((v) => {
+      setInfo({
+        address:   v.venue_address   ?? "",
+        phone:     v.venue_phone     ?? "",
+        email:     v.venue_email     ?? "",
+        hours:     v.venue_hours     ?? "",
+        instagram: v.social_instagram ?? "",
+        facebook:  v.social_facebook  ?? "",
+      });
+    }).catch(() => {});
   }, []);
   return info;
 }

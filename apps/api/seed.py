@@ -1,3 +1,4 @@
+from brand import BRAND_NAME
 from models import SportDto, GalleryItemDto, TestimonialDto, NotificationDto
 
 SPORTS: list[SportDto] = [
@@ -55,7 +56,7 @@ NOTIFICATIONS: list[NotificationDto] = [
     NotificationDto(
         id="launch-banner",
         title="Now open",
-        body="Browse sports, check availability, and book your court at Dazy.club.",
+        body=f"Browse sports, check availability, and book your court at {BRAND_NAME}.",
         surface="banner",
     ),
 ]

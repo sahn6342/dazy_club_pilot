@@ -6,6 +6,7 @@ import logging
 import os
 from contextlib import contextmanager
 
+from brand import BRAND_NAME
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
@@ -80,15 +81,17 @@ def _cms_seed():
         CmsEntry(key="faq_corporate", label="FAQ: Corporate events", value="Yes. Use the corporate enquiry form above and our team will get back to you to plan your event."),
         CmsEntry(key="faq_group_size", label="FAQ: Max group size", value="Cricket supports up to 11 players, Pickleball up to 6, and Badminton up to 4 per court slot. For larger groups, use the corporate enquiry form."),
         CmsEntry(key="hero_tagline", label="Hero tagline", value="Premium sports energy, built for your next game."),
-        CmsEntry(key="hero_copy", label="Hero body copy", value="Dazy.club brings together Cricket, Badminton, and Pickleball in one premium venue. Whether it's a casual weekend game or a corporate event, we've got your court."),
+        CmsEntry(key="hero_copy", label="Hero body copy", value=f"{BRAND_NAME} brings together Cricket, Badminton, and Pickleball in one premium venue. Whether it's a casual weekend game or a corporate event, we've got your court."),
         CmsEntry(key="footer_tagline", label="Footer tagline", value="Premium sports experience. Cricket, Badminton & Pickleball."),
-        CmsEntry(key="venue_name", label="Venue name", value="Dazy.club"),
+        CmsEntry(key="venue_name", label="Venue name", value=BRAND_NAME),
         CmsEntry(key="venue_address", label="Venue address", value="123 Sports Complex, Bengaluru, Karnataka 560001"),
         CmsEntry(key="venue_phone", label="Venue phone", value="+91 98765 43210"),
-        CmsEntry(key="venue_email", label="Venue email", value="hello@dazy.club"),
+        CmsEntry(key="venue_email", label="Venue email", value="dazyclub1223@gmail.com"),
         CmsEntry(key="venue_hours", label="Venue hours", value="Mon–Sun: 6:00 AM – 10:00 PM"),
-        CmsEntry(key="social_instagram", label="Instagram handle / URL", value=""),
-        CmsEntry(key="social_facebook", label="Facebook page URL", value=""),
+        CmsEntry(key="social_instagram",  label="Instagram handle / URL", value=""),
+        CmsEntry(key="social_facebook",   label="Facebook page URL", value=""),
+        CmsEntry(key="whatsapp_phone",    label="WhatsApp phone (country code + digits only)", value="919876543211"),
+        CmsEntry(key="whatsapp_message",  label="WhatsApp pre-filled message", value="Hello! I am interested."),
     ]
 
 
@@ -126,11 +129,17 @@ def seed_if_empty() -> None:
         if s.scalar(select(func.count()).select_from(CmsRow)) == 0:
             for e in _cms_seed():
                 s.add(CmsRow(key=e.key, label=e.label, value=e.value))
+        else:
+            # Insert any CMS keys added after initial seed (idempotent upsert for new keys only).
+            existing_keys = set(s.execute(select(CmsRow.key)).scalars())
+            for e in _cms_seed():
+                if e.key not in existing_keys:
+                    s.add(CmsRow(key=e.key, label=e.label, value=e.value))
         # Venue — seeded once, never cleared.
         venue_id = "venue-dazy"
         _seed_log.info("seeding venue")
         if s.scalar(select(func.count()).select_from(VenueRow)) == 0:
-            s.add(VenueRow(id=venue_id, name="Dazy.club", timezone="Asia/Kolkata", active=True, createdAt=now))
+            s.add(VenueRow(id=venue_id, name=BRAND_NAME, timezone="Asia/Kolkata", active=True, createdAt=now))
             s.flush()  # courts FK → venues; flush to satisfy constraint before court inserts
         # Courts — re-seeded whenever the table is empty (e.g. after test teardown).
         _seed_log.info("seeding courts")

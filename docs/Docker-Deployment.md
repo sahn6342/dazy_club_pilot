@@ -7,8 +7,8 @@ Internet
    │
    ▼
 ┌─────────────────────────── caddy (ports 80/443) ───────────────────────────┐
-│  book.dazyclub.in   → web:80       admin.dazyclub.in → admin:80            │
-│  pos.dazyclub.in    → kiosk:80     api.dazyclub.in   → api:8000            │
+│  book.dazyclub.com   → web:80       admin.dazyclub.com → admin:80            │
+│  pos.dazyclub.com    → kiosk:80     api.dazyclub.com   → api:8000            │
 └──────────────────────────────────────────────────────────────────────────┘
    web / admin / kiosk = static Vite builds (Caddy file_server, SPA fallback)
    api = FastAPI container, /data volume (dazy.db + media/)
@@ -103,7 +103,7 @@ Then add real gallery photos, testimonials, and promo codes via the admin app (G
 After first deploy (and after any redeploy):
 
 ```bash
-python scripts/smoke_test.py --base-url https://api.dazyclub.in \
+python scripts/smoke_test.py --base-url https://api.dazyclub.com \
   --admin-username <ADMIN_USERNAME> --admin-password <ADMIN_PASSWORD>
 ```
 

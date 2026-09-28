@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
+from brand import BRAND_NAME
 
 from auth import get_current_admin, get_current_cashier
 from deps import invoice_repo, cafe_settings_repo, order_repo, payment_repo
@@ -36,7 +37,7 @@ def print_invoice(invoice_id: str):
     payments = payment_repo.get_by_order(inv.order_id) if order else []
 
     # ── Business info ──
-    biz_name = settings.legalName or "Dazy.club Cafe"
+    biz_name = settings.legalName or f"{BRAND_NAME} Cafe"
     gstin = settings.gstin or ""
     fssai = settings.fssaiNumber or ""
     address = settings.addressLine or ""

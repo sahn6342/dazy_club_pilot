@@ -1,4 +1,4 @@
-# Dazy.club — Feature Catalog
+# Dazy Club — Feature Catalog
 
 Complete reference of every feature across the four apps, with screenshots. For the REST API and data model, see [API-Reference.md](API-Reference.md).
 

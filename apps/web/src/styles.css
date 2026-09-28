@@ -1072,15 +1072,16 @@ summary:focus-visible {
   font-size: 1.05rem;
 }
 
-/* ── FAQ (full-width, 2 masonry-style columns) ── */
+/* ── FAQ (2-column grid — rows stay aligned on expand/collapse) ── */
 .faq-grid {
-  column-count: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   column-gap: 2.5rem;
+  align-items: start;
 }
 
 .faq-grid details {
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
+  min-width: 0;
 }
 
 /* ── Venue info band (Contact page) ── */
@@ -1235,7 +1236,7 @@ summary:focus-visible {
   }
 
   .faq-grid {
-    column-count: 1;
+    grid-template-columns: 1fr;
   }
 
   .corporate-image {
@@ -1282,4 +1283,31 @@ summary:focus-visible {
     min-height: 2.5rem;
     padding: 0.6rem 1rem;
   }
+}
+
+/* ── WhatsApp floating action button ── */
+.whatsapp-fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 900;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: #25d366;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s, box-shadow 0.2s;
+  text-decoration: none;
+}
+.whatsapp-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.whatsapp-fab svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  fill: #fff;
 }

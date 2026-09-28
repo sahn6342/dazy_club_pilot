@@ -1,4 +1,4 @@
-﻿# E2E Bible — Dazy.club
+﻿# E2E Bible — Dazy Club
 
 Canonical reference for writing, maintaining, and extending Playwright E2E tests in this repo.
 Living document — update when a new pattern is proven, a flaky fix is discovered, or the stack changes.

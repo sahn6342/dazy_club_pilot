@@ -1,7 +1,7 @@
-# Dazy.club Project Context
+# Dazy Club Project Context
 
 ## Product
-Dazy.club is a premium sports-venue platform for **Cricket, Badminton, and Pickleball**. It has grown beyond its original "public website only" launch into a full venue operating system spanning four apps:
+Dazy Club is a premium sports-venue platform for **Cricket, Badminton, and Pickleball**. It has grown beyond its original "public website only" launch into a full venue operating system spanning four apps:
 
 - **Web** — public booking website + enquiry capture.
 - **Admin** — staff back-office: bookings, scheduling, content, cafe menu/orders, users.

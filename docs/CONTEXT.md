@@ -1,4 +1,4 @@
-# Dazy.club — Master AI Context
+# Dazy Club — Master AI Context
 
 > Single source of truth. Feed this file to any AI assistant for full project context.
 > Last updated: 2026-07-03 (Detailed-Roadmap Phases 3-7 sub-step 1: booking online prepay, owner dashboard, notifications, café pre-order, self-service booking lookup)
@@ -6,7 +6,7 @@
 
 ---
 
-## What is Dazy.club?
+## What is Dazy Club?
 
 A premium multi-sport venue platform for a single pilot venue offering **Cricket, Badminton, and Pickleball**, plus an on-site **cafe**. It is now four apps:
 

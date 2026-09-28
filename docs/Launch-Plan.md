@@ -1,14 +1,14 @@
-# Dazy.club — Launch Plan (Domain, Hosting, Deployment)
+# Dazy Club — Launch Plan (Domain, Hosting, Deployment)
 
 > Referenced from [Detailed-Roadmap.md](Detailed-Roadmap.md)'s 🚀 GO LIVE section ("run the go/no-go checklist from `Launch-Plan.md §5`"). Technical deploy mechanics live in [Docker-Deployment.md](Docker-Deployment.md) — this doc covers the business/ops decisions (domain, hosting provider, cost) and sequences them into one checklist.
 
 ## 1. Domain — decided
 
-**`dazyclub.in`** — Porkbun, **$7.83/yr flat** (registration = renewal, no promo/renewal-shock gap). `.in` has been open to global registrants since 2005, no local-presence requirement.
+**`dazyclub.com`** — Porkbun, **$9.83/yr flat** (registration = renewal, no promo/renewal-shock gap). Safest, most recognised TLD.
 
-Four subdomains (free, one purchase covers all): `book.` `admin.` `pos.` `api.dazyclub.in`.
+Four subdomains (free, one purchase covers all): `book.` `admin.` `pos.` `api.dazyclub.com`.
 
-Considered and rejected: `dazy.club` (brand-exact match, but `.club` renewal jumps ~3x after a promo year) and `dazyclub.com` (safest TLD, but breaks the "Dazy.club" brand string). `.env.example` and `docs/Docker-Deployment.md` are already wired for `dazyclub.in`.
+Considered and rejected: `dazyclub.club` (brand-exact match, but `.club` renewal jumps ~3x after a promo year) and `dazyclub.in` (India-country TLD, adds friction for non-India visitors). `.env.example` and `docs/Docker-Deployment.md` are already wired for `dazyclub.com`.
 
 ## 2. Hosting — decided
 
@@ -23,20 +23,20 @@ Rejected: Render/Koyeb free tiers (no persistent disk — would wipe the SQLite 
 ## 3. Repo readiness — done
 
 - `docker-compose.yml` — api service passes through `DAZY_PAYMENT_PROVIDER`, `RAZORPAY_KEY_ID/SECRET/WEBHOOK_SECRET`, `DAZY_NOTIFY_PROVIDER`, `SMTP_*`, derives `DAZY_WEB_BASE_URL` from `WEB_DOMAIN`. All have safe `${VAR:-default}` fallbacks (noop/console) so a deploy without real keys still boots.
-- `.env.example` — filled in with the real `dazyclub.in` subdomains and every new var, ready to `cp` and fill secrets.
+- `.env.example` — filled in with the real `dazyclub.com` subdomains and every new var, ready to `cp` and fill secrets.
 - `docs/Docker-Deployment.md` — env var table + a new "Razorpay webhook" section with the exact registration steps.
 
 No application code changes were needed — the payment/notification adapters (`apps/api/integrations/{payments,notifications}/`) already read these vars via their `factory.py` modules.
 
 ## 4. Deploy sequence
 
-1. **Buy `dazyclub.in`** at Porkbun.
+1. **Buy `dazyclub.com`** at Porkbun.
 2. **Add it to a free Cloudflare DNS zone** — point Porkbun's nameservers at Cloudflare. Create 4 `A` records (`book`/`admin`/`pos`/`api`) → the server's public IP, **DNS-only (gray cloud)** at first so Caddy can issue Let's Encrypt certs; flip the proxy on later if wanted (CDN/DDoS), with SSL mode "Full (strict)".
 3. **Provision the server** (Oracle primary / Vultr-Linode fallback, §2). Open ports 80/443 in both the cloud firewall (VCN Security List on Oracle) and the OS firewall (`ufw`).
 4. **Install Docker** (`curl -fsSL https://get.docker.com | sh`) + the compose plugin.
 5. **Wait for DNS to propagate** before starting Caddy (it requests certs on boot and will fail/retry otherwise).
-6. **Deploy**: `git clone`, `cp .env.example .env`, fill in real values — the four `dazyclub.in` subdomains (already defaulted), a long random `JWT_SECRET`, real `ADMIN_USERNAME`/`ADMIN_PASSWORD`, `DAZY_PAYMENT_PROVIDER=razorpay` + the existing **test** Razorpay keys, `DAZY_NOTIFY_PROVIDER=console` for now. Then `docker compose up -d --build`.
-7. **Register the Razorpay webhook** — dashboard → `https://api.dazyclub.in/api/v1/payments/razorpay/webhook`, event `payment.captured` → copy the secret into `.env` → `docker compose up -d api`.
+6. **Deploy**: `git clone`, `cp .env.example .env`, fill in real values — the four `dazyclub.com` subdomains (already defaulted), a long random `JWT_SECRET`, real `ADMIN_USERNAME`/`ADMIN_PASSWORD`, `DAZY_PAYMENT_PROVIDER=razorpay` + the existing **test** Razorpay keys, `DAZY_NOTIFY_PROVIDER=console` for now. Then `docker compose up -d --build`.
+7. **Register the Razorpay webhook** — dashboard → `https://api.dazyclub.com/api/v1/payments/razorpay/webhook`, event `payment.captured` → copy the secret into `.env` → `docker compose up -d api`.
 8. **Remove demo content**: `docker compose exec api python scripts/reset_demo_content.py --yes`, then add real gallery/testimonials/promos and venue details via the admin app.
 9. **Set up backups**: nightly cron tarring the `api_data` volume (`dazy.db` + media) to Oracle Object Storage (20GB always-free) or any rclone target.
 10. **Switch to live Razorpay keys** once KYC clears — one `.env` edit + `docker compose up -d api`. Optionally switch `DAZY_NOTIFY_PROVIDER=email` with real SMTP creds at the same time.
@@ -46,13 +46,13 @@ No application code changes were needed — the payment/notification adapters (`
 Run this before opening to real customers, and again after any change to payment/booking code:
 
 - [ ] All 4 hostnames resolve and serve valid HTTPS (`docker compose logs caddy` shows cert issuance for each)
-- [ ] `curl https://api.dazyclub.in/api/v1/health` → `{"status":"ok"}`
-- [ ] Full booking end-to-end on `https://book.dazyclub.in`: priced slot → Razorpay **test** checkout → test card → "BOOKING CONFIRMED"
+- [ ] `curl https://api.dazyclub.com/api/v1/health` → `{"status":"ok"}`
+- [ ] Full booking end-to-end on `https://book.dazyclub.com`: priced slot → Razorpay **test** checkout → test card → "BOOKING CONFIRMED"
 - [ ] Razorpay dashboard shows the webhook delivering `200` for that booking
-- [ ] Booking appears correctly in `https://admin.dazyclub.in` → Bookings
+- [ ] Booking appears correctly in `https://admin.dazyclub.com` → Bookings
 - [ ] A notification row appears in `GET /admin/notifications` for that booking
 - [ ] `/my-bookings` on the live site correctly resumes a pending payment (book a slot, close the tab, look it up again)
-- [ ] Kiosk login works at `https://pos.dazyclub.in` with a real cashier PIN; a café order + GST invoice prints correctly
+- [ ] Kiosk login works at `https://pos.dazyclub.com` with a real cashier PIN; a café order + GST invoice prints correctly
 - [ ] Reboot the VM (`sudo reboot`) → all 5 containers auto-restart (`docker compose ps`), booking/café data intact
 - [ ] `ADMIN_USERNAME`/`ADMIN_PASSWORD` changed off `admin`/`admin`; `JWT_SECRET` is a real random string
 - [ ] Demo content removed (`reset_demo_content.py --yes` run); real venue details in CMS
@@ -83,7 +83,7 @@ Optional extra safety net: repo → Settings → Environments → create `produc
 
 | Item | Cost |
 |---|---|
-| Domain `dazyclub.in` (Porkbun) | ~₹650–700/yr |
+| Domain `dazyclub.com` (Porkbun) | ~₹650–700/yr |
 | Hosting (Oracle Always Free) | **₹0** (fallback Mumbai VPS: ~₹6,000/yr) |
 | TLS + DNS (Let's Encrypt + Cloudflare free) | ₹0 |
 | Backups (Oracle Object Storage free tier) | ₹0 |

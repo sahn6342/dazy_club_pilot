@@ -1,4 +1,4 @@
-# Dazy.club — Café POS, Inventory & GST Billing — Integration Plan
+# Dazy Club — Café POS, Inventory & GST Billing — Integration Plan
 
 > Build plan for adding a café (food & beverage) operation alongside the existing turf-booking platform.
 > Designed to slot into the current FastAPI + SQLAlchemy + React monorepo with the same patterns.

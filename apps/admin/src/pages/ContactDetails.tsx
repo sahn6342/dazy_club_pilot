@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BRAND } from "@dazy/shared";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { useToast } from "../components/Toast";
@@ -14,6 +15,8 @@ const VENUE_KEYS = [
   "venue_hours",
   "social_instagram",
   "social_facebook",
+  "whatsapp_phone",
+  "whatsapp_message",
 ];
 
 const inputStyle: React.CSSProperties = {
@@ -62,13 +65,15 @@ export function ContactDetails() {
   }
 
   const fieldMeta: Record<string, { label: string; placeholder: string; multiline?: boolean }> = {
-    venue_name:        { label: "Venue name",         placeholder: "e.g. Dazy.club" },
+    venue_name:        { label: "Venue name",         placeholder: `e.g. ${BRAND.name}` },
     venue_address:     { label: "Address",            placeholder: "Full address", multiline: true },
     venue_phone:       { label: "Phone",              placeholder: "+91 98765 43210" },
-    venue_email:       { label: "Email",              placeholder: "hello@dazy.club" },
+    venue_email:       { label: "Email",              placeholder: "dazyclub1223@gmail.com" },
     venue_hours:       { label: "Opening hours",      placeholder: "Mon–Sun: 6 AM – 9 PM", multiline: true },
     social_instagram:  { label: "Instagram URL",      placeholder: "https://instagram.com/..." },
     social_facebook:   { label: "Facebook URL",       placeholder: "https://facebook.com/..." },
+    whatsapp_phone:    { label: "WhatsApp phone (country code + digits only)", placeholder: "919876543211" },
+    whatsapp_message:  { label: "WhatsApp pre-filled message", placeholder: "Hello! I am interested.", multiline: true },
   };
 
   return (
