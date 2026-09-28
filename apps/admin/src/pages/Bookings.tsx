@@ -8,7 +8,8 @@ import { api } from "../lib/api";
 type Booking = {
   id: string; bookingRef: string; name: string; contact: string;
   sportSlug: string; date: string; startTime: string; endTime: string;
-  party_size: number; price: number | null; promo_code: string | null; status: string; createdAt: string;
+  party_size: number; price: number | null; promo_code: string | null;
+  gst_rate_percent: number | null; status: string; createdAt: string;
 };
 
 const STATUS_MSG: Record<string, string> = {
@@ -89,7 +90,11 @@ export function Bookings() {
                       <td>{b.date}</td>
                       <td>{b.startTime}–{b.endTime}</td>
                       <td>{b.party_size}</td>
-                      <td>{b.price != null ? `₹${b.price}` : "—"}{b.promo_code && <small className="muted"> ({b.promo_code})</small>}</td>
+                      <td>
+                        {b.price != null ? `₹${b.price}` : "—"}
+                        {b.gst_rate_percent != null && <small className="muted"> (incl. {b.gst_rate_percent}% GST)</small>}
+                        {b.promo_code && <small className="muted"> ({b.promo_code})</small>}
+                      </td>
                       <td><StatusBadge status={b.status} /></td>
                       <td>
                         <div className="action-row">

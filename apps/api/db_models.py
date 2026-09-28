@@ -81,6 +81,7 @@ class BookingRow(Base):
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     paymentStatus: Mapped[str] = mapped_column(String, nullable=False, default="unpaid")
     depositAmount: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    gst_rate_percent: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
 
 
 class BookingPaymentRow(Base):

@@ -198,6 +198,7 @@ class BookingRecord(BaseModel):
     is_primary: bool = True
     paymentStatus: str = "unpaid"  # unpaid | paid | refunded
     depositAmount: float | None = None
+    gst_rate_percent: float | None = None
 
     model_config = {"frozen": False}
 
@@ -244,6 +245,9 @@ class BookingLookupResult(BaseModel):
     price: float | None = None
     paymentRequired: bool
     checkout: dict | None = None
+    gst_rate_percent: float | None = None
+    taxable_amount: float | None = None
+    gst_amount: float | None = None
 
 
 class DashboardDto(BaseModel):

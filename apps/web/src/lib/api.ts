@@ -86,6 +86,9 @@ export interface BookingResult {
   promoCode?: string | null;
   paymentRequired: boolean;
   checkout?: CheckoutConfig;
+  gstRatePercent?: number | null;
+  taxableAmount?: number | null;
+  gstAmount?: number | null;
 }
 
 export interface PaymentVerifyPayload {
@@ -157,6 +160,9 @@ export interface BookingLookupResult {
   price: number | null;
   paymentRequired: boolean;
   checkout: CheckoutConfig | null;
+  gstRatePercent?: number | null;
+  taxableAmount?: number | null;
+  gstAmount?: number | null;
 }
 
 export async function lookupBooking(ref: string, contact: string): Promise<BookingLookupResult> {

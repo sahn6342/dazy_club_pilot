@@ -47,6 +47,14 @@ def validate_promo(promo_row, sport: str, today: str) -> None:
         raise PromoError("Promo code has invalid discount value.")
 
 
+def gst_components(price_inclusive: float, rate_percent: float) -> tuple[float, float]:
+    """Return (taxable_value, gst_amount) for a GST-inclusive price."""
+    p = Decimal(str(price_inclusive))
+    r = Decimal(str(rate_percent))
+    taxable = (p * 100 / (100 + r)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    return float(taxable), float(p - taxable)
+
+
 def apply_promo(promo_row, amount: float | None) -> float | None:
     """amount is slot.finalPrice. promo_row must be pre-validated. Free slot stays free."""
     if amount is None:

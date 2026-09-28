@@ -17,6 +17,7 @@ const VENUE_KEYS = [
   "social_facebook",
   "whatsapp_phone",
   "whatsapp_message",
+  "booking_gst_rate",
 ];
 
 const inputStyle: React.CSSProperties = {
@@ -74,6 +75,7 @@ export function ContactDetails() {
     social_facebook:   { label: "Facebook URL",       placeholder: "https://facebook.com/..." },
     whatsapp_phone:    { label: "WhatsApp phone (country code + digits only)", placeholder: "919876543211" },
     whatsapp_message:  { label: "WhatsApp pre-filled message", placeholder: "Hello! I am interested.", multiline: true },
+    booking_gst_rate:  { label: "Slot booking GST rate (%)", placeholder: "18" },
   };
 
   return (

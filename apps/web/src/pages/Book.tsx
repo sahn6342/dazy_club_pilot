@@ -63,6 +63,8 @@ export function Book() {
 
   const [bookedPrice, setBookedPrice] = useState<number | null>(null);
   const [bookedPromo, setBookedPromo] = useState<string | null>(null);
+  const [bookedGstRate, setBookedGstRate] = useState<number | null>(null);
+  const [bookedGstAmount, setBookedGstAmount] = useState<number | null>(null);
   const [bookedStartTime, setBookedStartTime] = useState("");
   const [bookedEndTime, setBookedEndTime] = useState("");
   const [bookedSlotCount, setBookedSlotCount] = useState(1);
@@ -215,6 +217,8 @@ export function Book() {
       setBookingRef(result.bookingRef);
       setBookedPrice(result.price ?? null);
       setBookedPromo(result.promoCode ?? null);
+      setBookedGstRate(result.gstRatePercent ?? null);
+      setBookedGstAmount(result.gstAmount ?? null);
       setBookedStartTime(result.startTime ?? firstSlot.startTime);
       setBookedEndTime(result.endTime ?? lastSlot!.endTime);
       setBookedSlotCount(result.slotCount ?? selectedSlots.length);
@@ -528,6 +532,11 @@ export function Book() {
               {bookedPromo && <span className="muted"> — promo {bookedPromo}</span>}
             </p>
           )}
+          {bookedGstAmount != null && bookedGstRate != null && (
+            <p className="gst-note muted" style={{ fontSize: "0.85em" }}>
+              Includes GST ({bookedGstRate}%): ₹{bookedGstAmount.toFixed(2)}
+            </p>
+          )}
           <p>We'll reach out to confirm details. Save your reference number.</p>
           <PreOrderPanel bookingRef={bookingRef} contact={fields.contact} />
           <button
@@ -540,6 +549,7 @@ export function Book() {
               setErrors({});
               setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
               setBookedPrice(null); setBookedPromo(null);
+              setBookedGstRate(null); setBookedGstAmount(null);
               setBookedStartTime(""); setBookedEndTime(""); setBookedSlotCount(1);
               setPendingCheckout(null);
               setTouched({ name: false, contact: false, players: false });

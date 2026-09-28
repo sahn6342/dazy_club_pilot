@@ -7,6 +7,14 @@ import { api } from "../lib/api";
 
 type CmsEntry = { key: string; label: string; value: string };
 
+// These keys are managed in Contact Details — hide them here to avoid duplication.
+const CONTACT_DETAILS_KEYS = new Set([
+  "venue_name", "venue_address", "venue_phone", "venue_email", "venue_hours",
+  "social_instagram", "social_facebook",
+  "whatsapp_phone", "whatsapp_message",
+  "booking_gst_rate",
+]);
+
 const inputStyle = { padding: "0.5rem 0.65rem", borderRadius: "8px", fontFamily: "inherit", width: "100%" };
 
 export function CMS() {
@@ -103,7 +111,7 @@ export function CMS() {
           </form>
 
           <div className="cms-list">
-            {entries.map((entry) => (
+            {entries.filter((e) => !CONTACT_DETAILS_KEYS.has(e.key)).map((entry) => (
               <div key={entry.key} className="cms-entry" data-key={entry.key}>
                 <input
                   className="cms-label cms-textarea"

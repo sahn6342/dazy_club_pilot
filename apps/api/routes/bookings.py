@@ -5,10 +5,10 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
 
 from models import BookingRequest, BookingRecord, BookingPaymentVerifyRequest, BookingLookupResult
-from deps import booking_repo, court_repo, customer_repo, promo_repo, booking_payment_repo, payment_provider
+from deps import booking_repo, court_repo, customer_repo, promo_repo, booking_payment_repo, payment_provider, cms_repo
 from rate_limit import booking_lookup_limiter
 from services.availability_service import find_slot
-from services.pricing_service import apply_promo, PromoError
+from services.pricing_service import apply_promo, gst_components, PromoError
 from services.notification_service import notify_booking_confirmed, notify_booking_payment_pending
 
 router = APIRouter()
@@ -51,11 +51,15 @@ def create_booking(request: BookingRequest):
         final_price = apply_promo(promo, base_total)
         applied_promo = promo.code
 
+    # Read GST rate from CMS (default 18% if key not yet present).
+    gst_entry = cms_repo.get_by_id("booking_gst_rate")
+    gst_rate = float(gst_entry.value) if gst_entry and gst_entry.value else 18.0
+
     customer = customer_repo.upsert_by_contact(request.name, request.contact)
     ref = str(uuid.uuid4())[:8].upper()
     now = datetime.now(timezone.utc).isoformat()
 
-    # Build one BookingRow per slot. Primary row carries price/promo/message.
+    # Build one BookingRow per slot. Primary row carries price/promo/message/GST rate.
     records = [
         BookingRecord(
             id=str(uuid.uuid4()),
@@ -76,6 +80,7 @@ def create_booking(request: BookingRequest):
             status="pending",
             createdAt=now,
             is_primary=(i == 0),
+            gst_rate_percent=gst_rate if i == 0 else None,
         )
         for i, slot in enumerate(slots)
     ]
@@ -89,6 +94,7 @@ def create_booking(request: BookingRequest):
             promo_repo.decrement_use(applied_promo)
         raise HTTPException(status_code=409, detail="One or more slots are unavailable (booking conflict).")
 
+    taxable_val, gst_amt = gst_components(final_price, gst_rate) if final_price else (None, None)
     response = {
         "bookingRef": ref,
         "name": request.name,
@@ -102,6 +108,9 @@ def create_booking(request: BookingRequest):
         "basePrice": base_total,
         "discountPercent": slots[0].discountPercent,
         "promoCode": applied_promo,
+        "gstRatePercent": gst_rate,
+        "taxableAmount": taxable_val,
+        "gstAmount": gst_amt,
     }
 
     # A free booking (promo covers it entirely, or the slot has no price) needs
@@ -166,6 +175,8 @@ def lookup_booking(ref: str, contact: str, req: Request):
         raise HTTPException(status_code=404, detail="Booking not found.")
 
     last = bookings[-1] if len(bookings) > 1 else primary
+    _gst_rate = primary.gst_rate_percent
+    _taxable, _gst_amt = gst_components(primary.price, _gst_rate) if (primary.price and _gst_rate) else (None, None)
     result = BookingLookupResult(
         bookingRef=primary.bookingRef,
         name=primary.name,
@@ -177,6 +188,9 @@ def lookup_booking(ref: str, contact: str, req: Request):
         slotCount=len(bookings),
         price=primary.price,
         paymentRequired=primary.status == "pending" and primary.paymentStatus != "paid",
+        gst_rate_percent=_gst_rate,
+        taxable_amount=_taxable,
+        gst_amount=_gst_amt,
     )
     if result.paymentRequired:
         payment = booking_payment_repo.get_by_ref(ref)

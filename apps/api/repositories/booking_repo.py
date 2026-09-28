@@ -30,6 +30,7 @@ def _to_model(row: BookingRow) -> BookingRecord:
         is_primary=row.is_primary,
         paymentStatus=row.paymentStatus,
         depositAmount=float(row.depositAmount) if row.depositAmount is not None else None,
+        gst_rate_percent=float(row.gst_rate_percent) if row.gst_rate_percent is not None else None,
     )
 
 
