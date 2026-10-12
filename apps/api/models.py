@@ -117,6 +117,7 @@ class SlotDto(BaseModel):
 class BookingRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     contact: str = Field(min_length=1)
+    email: str | None = Field(default=None, max_length=254)
     slotId: str | None = Field(default=None, min_length=1)   # legacy single-slot field
     slotIds: list[str] = Field(default_factory=list)         # preferred; supports multi-slot
     sportSlug: str = Field(min_length=1)
@@ -142,6 +143,16 @@ class BookingRequest(BaseModel):
     @classmethod
     def validate_contact(cls, v: str) -> str:
         return _validate_contact(v)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        s = v.strip()
+        if not _EMAIL_RE.match(s):
+            raise ValueError("email must be a valid email address.")
+        return s
 
     @field_validator("sportSlug")
     @classmethod
@@ -199,6 +210,7 @@ class BookingRecord(BaseModel):
     paymentStatus: str = "unpaid"  # unpaid | paid | refunded
     depositAmount: float | None = None
     gst_rate_percent: float | None = None
+    email: str | None = None
 
     model_config = {"frozen": False}
 
@@ -521,8 +533,8 @@ class ScheduleRuleCreate(BaseModel):
 
     @model_validator(mode="after")
     def open_before_close(self) -> "ScheduleRuleCreate":
-        if self.open_time >= self.close_time:
-            raise ValueError("open_time must be before close_time.")
+        if self.open_time == self.close_time:
+            raise ValueError("open_time and close_time cannot be equal (zero-duration block).")
         return self
 
 
@@ -535,8 +547,8 @@ class ScheduleRuleUpdate(BaseModel):
 
     @model_validator(mode="after")
     def open_before_close(self) -> "ScheduleRuleUpdate":
-        if self.open_time and self.close_time and self.open_time >= self.close_time:
-            raise ValueError("open_time must be before close_time.")
+        if self.open_time and self.close_time and self.open_time == self.close_time:
+            raise ValueError("open_time and close_time cannot be equal (zero-duration block).")
         return self
 
 
@@ -563,8 +575,8 @@ class ScheduleExceptionCreate(BaseModel):
         if not self.closed:
             if not self.open_time or not self.close_time:
                 raise ValueError("open_time and close_time are required for special-hours exceptions.")
-            if self.open_time >= self.close_time:
-                raise ValueError("open_time must be before close_time.")
+            if self.open_time == self.close_time:
+                raise ValueError("open_time and close_time cannot be equal (zero-duration block).")
         else:
             if self.open_time or self.close_time:
                 raise ValueError("open_time and close_time must be empty when closed=true.")

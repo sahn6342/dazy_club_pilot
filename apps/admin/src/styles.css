@@ -259,11 +259,48 @@ body { margin: 0; }
 }
 .filter-bar select:focus { border-color: var(--gold); }
 
+.filter-bar input[type="date"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: #f7f4ea;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  outline: none;
+  font-family: inherit;
+  color-scheme: dark;
+}
+.filter-bar input[type="date"]:focus { border-color: var(--gold); }
+
+/* ── Pagination bar ──────────────────────────────────────── */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.pagination-bar button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+.pagination-bar button:disabled { opacity: 0.35; cursor: not-allowed; }
+.pagination-bar button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+
 /* ── Table ───────────────────────────────────────────── */
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 12px;
+  position: relative;
 }
 
 table {
@@ -291,6 +328,55 @@ td {
 }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+/* ── Bookings table: fixed layout, sticky last 2 cols ── */
+.bookings-table {
+  table-layout: fixed;
+  min-width: 920px;
+}
+
+.bookings-table th,
+.bookings-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sticky Status column (right = width of Actions) */
+.bookings-table th:nth-last-child(2),
+.bookings-table td:nth-last-child(2) {
+  position: sticky;
+  right: 180px;
+  z-index: 1;
+  box-shadow: -2px 0 0 var(--border);
+}
+
+/* Sticky Actions column */
+.bookings-table th:last-child,
+.bookings-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+/* Sticky cell backgrounds — must be opaque to cover scrolled content */
+.bookings-table thead th:nth-last-child(-n+2) {
+  background: var(--sidebar-bg);
+}
+.bookings-table tbody td:nth-last-child(-n+2) {
+  background: #08090b;
+}
+.bookings-table tbody tr:hover td:nth-last-child(-n+2) {
+  background: #0e1014;
+}
+
+/* Cell tooltip: text truncation wrapper */
+.cell-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 td code {
   font-family: monospace;

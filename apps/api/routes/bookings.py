@@ -55,7 +55,7 @@ def create_booking(request: BookingRequest):
     gst_entry = cms_repo.get_by_id("booking_gst_rate")
     gst_rate = float(gst_entry.value) if gst_entry and gst_entry.value else 18.0
 
-    customer = customer_repo.upsert_by_contact(request.name, request.contact)
+    customer = customer_repo.upsert_by_contact(request.name, request.contact, email=request.email)
     ref = str(uuid.uuid4())[:8].upper()
     now = datetime.now(timezone.utc).isoformat()
 
@@ -81,9 +81,22 @@ def create_booking(request: BookingRequest):
             createdAt=now,
             is_primary=(i == 0),
             gst_rate_percent=gst_rate if i == 0 else None,
+            email=request.email if i == 0 else None,
         )
         for i, slot in enumerate(slots)
     ]
+
+    # For paid bookings, create the payment order BEFORE writing any DB rows.
+    # This ensures a Razorpay outage returns a clean 503 with nothing persisted
+    # and no promo usage consumed.
+    order = None
+    if final_price:
+        try:
+            order = payment_provider.create_order(amount=final_price, ref=ref)
+        except RuntimeError:
+            if applied_promo:
+                promo_repo.decrement_use(applied_promo)
+            raise HTTPException(status_code=503, detail="Payment gateway unavailable — please try again.")
 
     try:
         for rec in records:
@@ -124,7 +137,6 @@ def create_booking(request: BookingRequest):
         response["paymentRequired"] = False
         return response
 
-    order = payment_provider.create_order(amount=final_price, ref=ref)
     booking_payment_repo.create(
         booking_ref=ref, provider=order.provider, provider_order_id=order.providerOrderId,
         amount=order.amount, checkout_json=json.dumps(order.checkout),
@@ -147,11 +159,22 @@ def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest):
     if primary.paymentStatus == "paid":
         return {"status": "confirmed", "paymentStatus": "paid"}
 
-    verification = payment_provider.verify_payment(body.providerOrderId, body.providerPaymentId, body.signature)
+    # Fetch the payment record for THIS booking to get the authoritative providerOrderId.
+    # Never trust the client-supplied providerOrderId for HMAC verification — an attacker
+    # could supply a valid signature from a different (cheaper) booking to confirm this one.
+    stored_payment = booking_payment_repo.get_by_ref(booking_ref)
+    if not stored_payment or not stored_payment.providerOrderId:
+        raise HTTPException(status_code=404, detail="No payment record found for this booking.")
+
+    verification = payment_provider.verify_payment(
+        stored_payment.providerOrderId,  # from DB — not client-supplied
+        body.providerPaymentId,
+        body.signature,
+    )
     if not verification.verified:
         raise HTTPException(status_code=400, detail=verification.reason or "Payment verification failed.")
 
-    booking_payment_repo.mark_verified(body.providerOrderId, verification.providerPaymentId, body.signature)
+    booking_payment_repo.mark_verified(stored_payment.providerOrderId, verification.providerPaymentId, body.signature)
     booking_repo.confirm_payment_by_ref(booking_ref)
     notify_booking_confirmed(booking_ref)
     return {"status": "confirmed", "paymentStatus": "paid"}

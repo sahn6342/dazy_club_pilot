@@ -3,14 +3,15 @@ Phase 5). Every send attempt — sent, skipped, or failed — is recorded via
 notification_repo so delivery is auditable. Never raises: a notification
 failure must never fail the booking (or other) flow that triggered it.
 """
-from deps import booking_repo, notification_provider, notification_repo
+from deps import booking_repo, notification_provider, whatsapp_provider, sms_provider, notification_repo
 from services import notification_templates
 
 
-def send_and_log(ref_type: str, ref_id: str, to: str, subject: str, body: str) -> None:
-    channel = "email" if "@" in to else "sms"
+def send_and_log(ref_type: str, ref_id: str, channel: str, to: str, subject: str, body: str, provider=None) -> None:
+    if provider is None:
+        provider = notification_provider
     try:
-        result = notification_provider.send(to, subject, body)
+        result = provider.send(to, subject, body)
         status, detail = result.status, result.detail
     except Exception as exc:
         status, detail = "failed", str(exc)
@@ -18,6 +19,19 @@ def send_and_log(ref_type: str, ref_id: str, to: str, subject: str, body: str) -
         ref_type=ref_type, ref_id=ref_id, channel=channel,
         recipient=to, status=status, error_message=detail,
     )
+
+
+def _send_all_channels(booking, subject: str, email_body: str, whatsapp_body: str, sms_body: str, dedup: bool = False) -> None:
+    """Fire all three channels independently. Each failure is isolated.
+    dedup=True skips channels that already have a 'sent' row for this booking id."""
+    if booking.email:
+        if not dedup or not notification_repo.has_sent(booking.id, "email"):
+            send_and_log("booking", booking.id, "email", booking.email, subject, email_body, notification_provider)
+    if booking.contact and "@" not in booking.contact:
+        if not dedup or not notification_repo.has_sent(booking.id, "sms"):
+            send_and_log("booking", booking.id, "sms", booking.contact, subject, sms_body, sms_provider)
+        if not dedup or not notification_repo.has_sent(booking.id, "whatsapp"):
+            send_and_log("booking", booking.id, "whatsapp", booking.contact, subject, whatsapp_body, whatsapp_provider)
 
 
 def notify_booking_confirmed(booking_ref: str) -> None:
@@ -29,8 +43,10 @@ def notify_booking_confirmed(booking_ref: str) -> None:
         if not bookings:
             return
         primary = next((b for b in bookings if b.is_primary), bookings[0])
-        subject, body = notification_templates.booking_confirmation(primary)
-        send_and_log("booking", primary.id, primary.contact, subject, body)
+        subject, email_body = notification_templates.booking_confirmation(primary)
+        wa_body = notification_templates.booking_confirmation_whatsapp(primary)
+        sms_body = notification_templates.booking_confirmation_sms(primary)
+        _send_all_channels(primary, subject, email_body, wa_body, sms_body, dedup=True)
     except Exception:
         pass
 
@@ -45,6 +61,38 @@ def notify_booking_payment_pending(booking_ref: str) -> None:
             return
         primary = next((b for b in bookings if b.is_primary), bookings[0])
         subject, body = notification_templates.booking_payment_pending(primary)
-        send_and_log("booking", primary.id, primary.contact, subject, body)
+        # Payment pending only sent to email (if present) and SMS — WhatsApp reserved for confirmation.
+        if primary.email:
+            send_and_log("booking", primary.id, "email", primary.email, subject, body, notification_provider)
+        if primary.contact and "@" not in primary.contact:
+            send_and_log("booking", primary.id, "sms", primary.contact, subject, body, sms_provider)
+    except Exception:
+        pass
+
+
+def notify_booking_cancelled(booking_ref: str) -> None:
+    """Fires when a booking is cancelled (admin action or timeout sweep)."""
+    try:
+        bookings = booking_repo.get_by_ref(booking_ref)
+        if not bookings:
+            return
+        primary = next((b for b in bookings if b.is_primary), bookings[0])
+        subject, email_body = notification_templates.booking_cancelled(primary)
+        sms_body = f"Booking {primary.bookingRef} cancelled. Contact us if you have questions. — {primary.sportSlug}"
+        _send_all_channels(primary, subject, email_body, email_body, sms_body)
+    except Exception:
+        pass
+
+
+def notify_booking_refunded(booking_ref: str) -> None:
+    """Fires when a refund is issued via the admin panel."""
+    try:
+        bookings = booking_repo.get_by_ref(booking_ref)
+        if not bookings:
+            return
+        primary = next((b for b in bookings if b.is_primary), bookings[0])
+        subject, email_body = notification_templates.booking_refunded(primary)
+        sms_body = f"Refund for booking {primary.bookingRef} is being processed. — {primary.sportSlug}"
+        _send_all_channels(primary, subject, email_body, email_body, sms_body)
     except Exception:
         pass

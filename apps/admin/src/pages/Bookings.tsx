@@ -9,7 +9,7 @@ type Booking = {
   id: string; bookingRef: string; name: string; contact: string;
   sportSlug: string; date: string; startTime: string; endTime: string;
   party_size: number; price: number | null; promo_code: string | null;
-  gst_rate_percent: number | null; status: string; createdAt: string;
+  gst_rate_percent: number | null; status: string; paymentStatus: string; createdAt: string;
 };
 
 const STATUS_MSG: Record<string, string> = {
@@ -19,32 +19,126 @@ const STATUS_MSG: Record<string, string> = {
   no_show: "Marked as no-show",
 };
 
+const EMPTY_FILTER = { sport: "", status: "", date_from: "", date_to: "" };
+const PAGE_SIZE = 10;
+
+type SortDir = "asc" | "desc";
+
+function SortTh({
+  col, label, sortBy, sortDir, onSort,
+}: {
+  col: string; label: string; sortBy: string; sortDir: SortDir;
+  onSort: (col: string) => void;
+}) {
+  const active = sortBy === col;
+  return (
+    <th style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+      onClick={() => onSort(col)}>
+      {label}{" "}
+      {active
+        ? (sortDir === "desc" ? "↓" : "↑")
+        : <span style={{ opacity: 0.3 }}>↕</span>}
+    </th>
+  );
+}
+
 export function Bookings() {
   const toast = useToast();
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [filter, setFilter] = useState({ sport: "", status: "" });
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [filter, setFilter] = useState(EMPTY_FILTER);
   const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
 
-  function load() {
+  function buildExportQuery() {
     const q = new URLSearchParams();
-    if (filter.sport) q.set("sport", filter.sport);
-    if (filter.status) q.set("status", filter.status);
-    api.get<Booking[]>(`/admin/bookings${q.size ? `?${q}` : ""}`)
-      .then((data) => { setBookings(data); setError(""); })
-      .catch((err) => setError(err.message ?? "Failed to load bookings"));
+    if (filter.sport)     q.set("sport",     filter.sport);
+    if (filter.status)    q.set("status",    filter.status);
+    if (filter.date_from) q.set("date_from", filter.date_from);
+    if (filter.date_to)   q.set("date_to",   filter.date_to);
+    q.set("sort_by", sortBy);
+    q.set("sort_dir", sortDir);
+    return q;
   }
 
-  useEffect(() => { load(); }, [filter]);
+  useEffect(() => {
+    const q = new URLSearchParams();
+    if (filter.sport)     q.set("sport",     filter.sport);
+    if (filter.status)    q.set("status",    filter.status);
+    if (filter.date_from) q.set("date_from", filter.date_from);
+    if (filter.date_to)   q.set("date_to",   filter.date_to);
+    q.set("sort_by", sortBy);
+    q.set("sort_dir", sortDir);
+    q.set("limit",  String(PAGE_SIZE));
+    q.set("offset", String((page - 1) * PAGE_SIZE));
+    api.get<any>(`/admin/bookings?${q}`)
+      .then((data) => {
+        const items: Booking[] = Array.isArray(data) ? data : (data.items ?? []);
+        const t: number = Array.isArray(data) ? data.length : (data.total ?? 0);
+        setBookings(items);
+        setTotal(t);
+        setError("");
+      })
+      .catch((err) => setError(err.message ?? "Failed to load bookings"));
+  }, [filter, sortBy, sortDir, page, reloadKey]);
+
+  function handleSort(col: string) {
+    setPage(1);
+    if (sortBy === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(col);
+      setSortDir("desc");
+    }
+  }
 
   async function setStatus(id: string, status: string) {
     try {
       await api.patch(`/admin/bookings/${id}`, { status });
-      load();
+      setReloadKey((k) => k + 1);
       toast.success(STATUS_MSG[status] ?? "Booking updated");
     } catch (err: any) {
       toast.error(err?.message ?? "Failed to update booking");
     }
   }
+
+  async function exportCsv() {
+    const q = buildExportQuery();
+    try {
+      const allRows = await api.get<Booking[]>(`/admin/bookings/export?${q}`);
+      const headers = [
+        "Ref", "Name", "Contact", "Sport", "Date", "Start", "End",
+        "Players", "Price (INR)", "GST %", "GST Amount (INR)", "Promo", "Status", "Payment",
+      ];
+      const rows = allRows.map((b) => {
+        const gstAmt = (b.price != null && b.gst_rate_percent != null)
+          ? (b.price - (b.price * 100) / (100 + b.gst_rate_percent)).toFixed(2)
+          : "";
+        return [
+          b.bookingRef, b.name, b.contact, b.sportSlug, b.date,
+          b.startTime, b.endTime, b.party_size,
+          b.price ?? "", b.gst_rate_percent != null ? b.gst_rate_percent : "",
+          gstAmt, b.promo_code ?? "", b.status, b.paymentStatus,
+        ];
+      });
+      const csv = [headers, ...rows]
+        .map((r) => r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(","))
+        .join("\n");
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+      const a = Object.assign(document.createElement("a"), { href: url, download: "bookings.csv" });
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${allRows.length} bookings`);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Export failed");
+    }
+  }
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const sortProps = { sortBy, sortDir, onSort: handleSort };
 
   return (
     <div className="admin-layout">
@@ -52,14 +146,14 @@ export function Bookings() {
       <div className="admin-main">
         <TopBar title="Bookings" />
         <div className="page-body">
-          <div className="filter-bar">
-            <select value={filter.sport} onChange={(e) => setFilter((f) => ({ ...f, sport: e.target.value }))}>
+          <div className="filter-bar" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+            <select value={filter.sport} onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, sport: e.target.value })); }}>
               <option value="">All sports</option>
               <option value="cricket">Cricket</option>
               <option value="badminton">Badminton</option>
               <option value="pickleball">Pickleball</option>
             </select>
-            <select value={filter.status} onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value }))}>
+            <select value={filter.status} onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, status: e.target.value })); }}>
               <option value="">All statuses</option>
               <option value="pending">Pending</option>
               <option value="confirmed">Confirmed</option>
@@ -67,56 +161,110 @@ export function Bookings() {
               <option value="cancelled">Cancelled</option>
               <option value="no_show">No-show</option>
             </select>
+            <input
+              type="date" title="From date"
+              value={filter.date_from}
+              onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, date_from: e.target.value })); }}
+            />
+            <input
+              type="date" title="To date"
+              value={filter.date_to}
+              onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, date_to: e.target.value })); }}
+            />
+            {(filter.sport || filter.status || filter.date_from || filter.date_to) && (
+              <button className="btn-action secondary" onClick={() => { setPage(1); setFilter(EMPTY_FILTER); }}>Clear</button>
+            )}
+            <button
+              className="btn-primary small"
+              style={{ marginLeft: "auto" }}
+              onClick={exportCsv}
+            >
+              Export CSV
+            </button>
           </div>
+
           {error ? (
             <p className="empty-msg" style={{ color: "var(--color-error, #f87171)" }}>{error}</p>
           ) : bookings.length === 0 ? (
-            <p className="empty-msg">No bookings yet. They will appear here once customers book on the public site.</p>
+            <p className="empty-msg">No bookings found.</p>
           ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Ref</th><th>Name</th><th>Sport</th><th>Date</th><th>Time</th>
-                    <th>Players</th><th>Price</th><th>Status</th><th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bookings.map((b) => (
-                    <tr key={b.id}>
-                      <td><code>{b.bookingRef}</code></td>
-                      <td><div>{b.name}</div><small>{b.contact}</small></td>
-                      <td style={{ textTransform: "capitalize" }}>{b.sportSlug}</td>
-                      <td>{b.date}</td>
-                      <td>{b.startTime}–{b.endTime}</td>
-                      <td>{b.party_size}</td>
-                      <td>
-                        {b.price != null ? `₹${b.price}` : "—"}
-                        {b.gst_rate_percent != null && <small className="muted"> (incl. {b.gst_rate_percent}% GST)</small>}
-                        {b.promo_code && <small className="muted"> ({b.promo_code})</small>}
-                      </td>
-                      <td><StatusBadge status={b.status} /></td>
-                      <td>
-                        <div className="action-row">
-                          {b.status === "pending" && (
-                            <button className="btn-action confirm" onClick={() => setStatus(b.id, "confirmed")}>Confirm</button>
-                          )}
-                          {b.status === "confirmed" && (
-                            <button className="btn-action confirm" onClick={() => setStatus(b.id, "completed")}>Complete</button>
-                          )}
-                          {b.status === "confirmed" && (
-                            <button className="btn-action cancel" onClick={() => setStatus(b.id, "no_show")}>No-show</button>
-                          )}
-                          {(b.status === "pending" || b.status === "confirmed") && (
-                            <button className="btn-action cancel" onClick={() => setStatus(b.id, "cancelled")}>Cancel</button>
-                          )}
-                        </div>
-                      </td>
+            <>
+              <div className="table-wrap">
+                <table className="bookings-table">
+                  <colgroup>
+                    <col style={{ width: 90 }} />   {/* Ref */}
+                    <col style={{ width: 160 }} />  {/* Name */}
+                    <col style={{ width: 85 }} />   {/* Sport */}
+                    <col style={{ width: 105 }} />  {/* Date */}
+                    <col style={{ width: 110 }} />  {/* Time */}
+                    <col style={{ width: 65 }} />   {/* Players */}
+                    <col style={{ width: 130 }} />  {/* Price */}
+                    <col style={{ width: 65 }} />   {/* GST % */}
+                    <col style={{ width: 110 }} />  {/* Status — sticky */}
+                    <col style={{ width: 180 }} />  {/* Actions — sticky */}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Ref</th>
+                      <SortTh col="name" label="Name" {...sortProps} />
+                      <SortTh col="sportSlug" label="Sport" {...sortProps} />
+                      <SortTh col="date" label="Date" {...sortProps} />
+                      <th>Time</th>
+                      <th>Plrs</th>
+                      <SortTh col="price" label="Price" {...sortProps} />
+                      <th>GST%</th>
+                      <SortTh col="status" label="Status" {...sortProps} />
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {bookings.map((b) => (
+                      <tr key={b.id}>
+                        <td><code title={b.bookingRef}>{b.bookingRef}</code></td>
+                        <td>
+                          <span className="cell-text" title={b.name}>{b.name}</span>
+                          <small className="muted cell-text" title={b.contact}>{b.contact}</small>
+                        </td>
+                        <td style={{ textTransform: "capitalize" }}>{b.sportSlug}</td>
+                        <td>{b.date}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>{b.startTime}–{b.endTime}</td>
+                        <td>{b.party_size}</td>
+                        <td title={b.promo_code ? `Promo: ${b.promo_code}` : undefined}>
+                          {b.price != null ? `₹${b.price}` : "—"}
+                          {b.promo_code && <small className="muted"> ({b.promo_code})</small>}
+                        </td>
+                        <td>{b.gst_rate_percent != null ? `${b.gst_rate_percent}%` : "—"}</td>
+                        <td><StatusBadge status={b.status} /></td>
+                        <td>
+                          <div className="action-row" style={{ whiteSpace: "nowrap" }}>
+                            {b.status === "pending" && (
+                              <button className="btn-action confirm" onClick={() => setStatus(b.id, "confirmed")}>Confirm</button>
+                            )}
+                            {b.status === "confirmed" && (
+                              <button className="btn-action confirm" onClick={() => setStatus(b.id, "completed")}>Complete</button>
+                            )}
+                            {b.status === "confirmed" && (
+                              <button className="btn-action cancel" onClick={() => setStatus(b.id, "no_show")}>No-show</button>
+                            )}
+                            {(b.status === "pending" || b.status === "confirmed") && (
+                              <button className="btn-action cancel" onClick={() => setStatus(b.id, "cancelled")}>Cancel</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="pagination-bar">
+                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>‹ Prev</button>
+                <span>
+                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+                </span>
+                <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next ›</button>
+              </div>
+            </>
           )}
         </div>
       </div>

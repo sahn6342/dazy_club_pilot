@@ -29,18 +29,21 @@ class SqliteCustomerRepository:
             row = s.get(CustomerRow, id)
             return _to_model(row) if row else None
 
-    def upsert_by_contact(self, name: str, contact: str) -> CustomerRecord:
+    def upsert_by_contact(self, name: str, contact: str, email: str | None = None) -> CustomerRecord:
         """Return existing customer for this contact or create a new one."""
         with _session() as s:
             row = s.scalar(select(CustomerRow).where(CustomerRow.phone == contact))
             if row:
                 if name.strip():
-                    row.name = name.strip()  # only update if non-empty
+                    row.name = name.strip()
+                if email:
+                    row.email = email
             else:
                 row = CustomerRow(
                     id=str(uuid.uuid4()),
                     name=name,
                     phone=contact,
+                    email=email,
                     createdAt=datetime.now(timezone.utc).isoformat(),
                 )
                 s.add(row)

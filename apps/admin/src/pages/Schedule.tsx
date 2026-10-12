@@ -20,8 +20,7 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const inputStyle = { padding: "0.4rem 0.5rem", borderRadius: "6px", fontFamily: "inherit", width: "5.5rem" };
 
-let _bk = 0;
-const blockKey = () => `b${_bk++}`;
+const blockKey = () => `b-${Math.random().toString(36).slice(2, 9)}`;
 
 function ruleToDraft(r: Rule): DraftBlock {
   return {
@@ -36,7 +35,7 @@ function ruleToDraft(r: Rule): DraftBlock {
 type DraftLike = { open_time: string; close_time: string; slot_minutes: string; price: string; discount_percent: string };
 function draftToPayload(b: DraftLike): { open_time: string; close_time: string; slot_minutes: number; price: number | null; discount_percent: number | null } | string {
   const open = b.open_time.trim(), close = b.close_time.trim();
-  if (open >= close) return `Block ${open}–${close}: open must be before close.`;
+  if (open === close) return `Block ${open}–${close}: open and close cannot be equal (zero-duration).`;
   const mins = Number(b.slot_minutes);
   if (!mins || mins < 15 || mins > 720 || !Number.isInteger(mins)) return "Slot minutes must be a whole number between 15 and 720.";
   const price = b.price === "" ? null : Number(b.price);
@@ -91,7 +90,7 @@ function WeeklyEditor({ courtId, rules, onSaved }: { courtId: string; rules: Rul
     setBlocks((bs) => bs.map((b) => (b.key === key ? { ...b, [field]: value } : b)));
   }
   function addBlock() {
-    setBlocks((bs) => [...bs, { key: blockKey(), open_time: "06:00", close_time: "12:00", slot_minutes: "60", price: "", discount_percent: "" }]);
+    setBlocks((bs) => [...bs, { key: blockKey(), open_time: "06:00", close_time: "22:00", slot_minutes: "60", price: "", discount_percent: "" }]);
   }
   function removeBlock(key: string) {
     setBlocks((bs) => bs.filter((b) => b.key !== key));
@@ -99,7 +98,10 @@ function WeeklyEditor({ courtId, rules, onSaved }: { courtId: string; rules: Rul
   function makeContinuous() {
     const price = blocks[0]?.price ?? "";
     const disc = blocks[0]?.discount_percent ?? "";
-    setBlocks([{ key: blockKey(), open_time: "06:00", close_time: "21:00", slot_minutes: "60", price, discount_percent: disc }]);
+    setBlocks([
+      { key: blockKey(), open_time: "00:00", close_time: "12:00", slot_minutes: "60", price, discount_percent: disc },
+      { key: blockKey(), open_time: "12:00", close_time: "00:00", slot_minutes: "60", price, discount_percent: disc },
+    ]);
   }
 
   async function save() {
@@ -133,7 +135,7 @@ function WeeklyEditor({ courtId, rules, onSaved }: { courtId: string; rules: Rul
       <div className="enquiry-header">
         <h2 className="section-heading">Weekly hours</h2>
         <div className="action-row">
-          <button className="btn-action secondary" onClick={makeContinuous} data-testid="weekly-continuous">Make continuous (06–21)</button>
+          <button className="btn-action secondary" onClick={makeContinuous} data-testid="weekly-continuous">Make continuous (24h)</button>
         </div>
       </div>
       <p className="schedule-hint">
@@ -227,7 +229,7 @@ function BlockRow({ rule, siblings, onSaved, onDeleted }: { rule: Rule; siblings
 
 function AddBlock({ courtId, weekday, existing, onAdded }: { courtId: string; weekday: number; existing: Rule[]; onAdded: () => void }) {
   const toast = useToast();
-  const [draft, setDraft] = useState({ open_time: "06:00", close_time: "12:00", slot_minutes: "60", price: "", discount_percent: "" });
+  const [draft, setDraft] = useState({ open_time: "06:00", close_time: "22:00", slot_minutes: "60", price: "", discount_percent: "" });
   async function add() {
     const payload = draftToPayload(draft);
     if (typeof payload === "string") { toast.error(payload); return; }
@@ -288,9 +290,11 @@ export function Schedule() {
     const existing = rules.filter((r) => r.weekday === weekday);
     const price = existing[0]?.price ?? null;
     for (const r of existing) await api.delete(`/admin/schedule/rules/${r.id}`);
-    await api.post("/admin/schedule/rules", { court_id: courtId, weekday, open_time: "06:00", close_time: "21:00", slot_minutes: 60, price, discount_percent: existing[0]?.discount_percent ?? null });
+    const disc = existing[0]?.discount_percent ?? null;
+    await api.post("/admin/schedule/rules", { court_id: courtId, weekday, open_time: "00:00", close_time: "12:00", slot_minutes: 60, price, discount_percent: disc });
+    await api.post("/admin/schedule/rules", { court_id: courtId, weekday, open_time: "12:00", close_time: "00:00", slot_minutes: 60, price, discount_percent: disc });
     loadSchedule();
-    toast.success(`${WEEKDAYS[weekday]} set to one continuous block`);
+    toast.success(`${WEEKDAYS[weekday]} set to 24-hour (two blocks)`);
   }
 
   async function closeDay(weekday: number) {
@@ -328,7 +332,7 @@ export function Schedule() {
     }
     if (!excForm.closed) {
       if (!excForm.open_time || !excForm.close_time) { setError("Open and close times required for special hours."); return; }
-      if (excForm.open_time >= excForm.close_time) { setError("Open time must be before close time."); return; }
+      if (excForm.open_time === excForm.close_time) { setError("Open and close times cannot be equal (zero-duration)."); return; }
     }
     try {
       await api.post("/admin/schedule/exceptions", {

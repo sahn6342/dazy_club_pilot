@@ -58,6 +58,7 @@ export interface BookingPayload {
   players: number;
   promoCode?: string;
   message?: string;
+  email?: string;
 }
 
 export interface CheckoutConfig {
@@ -282,7 +283,9 @@ export function getNext7Days(): { iso: string; label: string; short: string }[] 
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    const iso = d.toISOString().split("T")[0];
+    // Use local year/month/day — toISOString() returns UTC and diverges from
+    // toLocaleDateString() for users in UTC+ zones before 00:00 UTC (e.g. IST 00:00–05:30).
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const label = d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
     const short = d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" });
     return { iso, label, short };

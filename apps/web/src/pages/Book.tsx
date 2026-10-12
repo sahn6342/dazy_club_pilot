@@ -11,6 +11,7 @@ type FormStatus = "idle" | "payment" | "success" | "error";
 interface BookingFields {
   name: string;
   contact: string;
+  email: string;
   players: string;
   message: string;
 }
@@ -31,7 +32,8 @@ function formatDuration(slots: Slot[]): string {
   if (slots.length <= 1) return "";
   const [fh, fm] = slots[0].startTime.split(":").map(Number);
   const [eh, em] = slots[slots.length - 1].endTime.split(":").map(Number);
-  const totalMin = eh * 60 + em - (fh * 60 + fm);
+  let totalMin = eh * 60 + em - (fh * 60 + fm);
+  if (totalMin <= 0) totalMin += 1440; // cross-midnight
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   if (h === 0) return `${m} min`;
@@ -70,7 +72,7 @@ export function Book() {
   const [bookedSlotCount, setBookedSlotCount] = useState(1);
   const [pendingCheckout, setPendingCheckout] = useState<CheckoutConfig | null>(null);
 
-  const [fields, setFields] = useState<BookingFields>({ name: "", contact: "", players: "1", message: "" });
+  const [fields, setFields] = useState<BookingFields>({ name: "", contact: "", email: "", players: "1", message: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<keyof FieldErrors, boolean>>({ name: false, contact: false, players: false });
 
@@ -213,6 +215,7 @@ export function Book() {
         players: Number(fields.players),
         promoCode: promo.trim() || undefined,
         message: fields.message.trim(),
+        email: fields.email.trim() || undefined,
       });
       setBookingRef(result.bookingRef);
       setBookedPrice(result.price ?? null);
@@ -444,6 +447,18 @@ export function Book() {
               {touched.contact && errors.contact && <p className="field-error">{errors.contact}</p>}
             </div>
 
+            <div>
+              <label>
+                Email (optional)
+                <input
+                  type="email"
+                  value={fields.email}
+                  onChange={(e) => change("email", e.target.value)}
+                  placeholder="For booking confirmation"
+                />
+              </label>
+            </div>
+
             <div className="field-group">
               <label>
                 Number of players
@@ -545,7 +560,7 @@ export function Book() {
               setSelectedSlots([]);
               setBookingStatus("idle");
               setBookingRef("");
-              setFields({ name: "", contact: "", players: "1", message: "" });
+              setFields({ name: "", contact: "", email: "", players: "1", message: "" });
               setErrors({});
               setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
               setBookedPrice(null); setBookedPromo(null);

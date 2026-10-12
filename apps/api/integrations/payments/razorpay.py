@@ -7,6 +7,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import urllib.error
 import urllib.request
@@ -14,6 +15,9 @@ import urllib.request
 from .base import PaymentProvider, PaymentOrder, PaymentVerification
 
 _API = "https://api.razorpay.com/v1"
+_SUPPORTED_EVENTS = {"payment.captured"}
+
+logger = logging.getLogger(__name__)
 
 
 class RazorpayPaymentProvider(PaymentProvider):
@@ -23,6 +27,8 @@ class RazorpayPaymentProvider(PaymentProvider):
         self._key_id = os.environ["RAZORPAY_KEY_ID"]
         self._key_secret = os.environ["RAZORPAY_KEY_SECRET"]
         self._webhook_secret = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
+        if not self._webhook_secret:
+            logger.warning("RAZORPAY_WEBHOOK_SECRET not set — webhooks will be rejected.")
 
     def _request(self, method: str, path: str, body: dict | None = None) -> dict:
         data = json.dumps(body).encode() if body is not None else None
@@ -62,6 +68,11 @@ class RazorpayPaymentProvider(PaymentProvider):
             return PaymentVerification(verified=False, reason="Webhook signature mismatch."), None
         try:
             payload = json.loads(raw_body)
+            event = payload.get("event", "")
+            if event not in _SUPPORTED_EVENTS:
+                # Signature is valid but event type is not one we handle.
+                # Return a distinct reason so the route can ACK with 200 (silence Razorpay retries).
+                return PaymentVerification(verified=False, reason="unrecognised_event"), None
             entity = payload["payload"]["payment"]["entity"]
             order_id, payment_id = entity["order_id"], entity["id"]
         except (KeyError, json.JSONDecodeError):

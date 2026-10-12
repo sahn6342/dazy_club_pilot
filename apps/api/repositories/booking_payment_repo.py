@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, delete as sa_delete, update as sa_update
 
 from models import BookingPaymentDto
 from db import _session
@@ -58,6 +58,20 @@ class SqliteBookingPaymentRepository:
             row.signature = signature
             s.flush()
             return _to_model(row)
+
+    def mark_expired_by_refs(self, booking_refs: list[str]) -> None:
+        """Mark unpaid payment records as expired for timed-out bookings."""
+        if not booking_refs:
+            return
+        with _session() as s:
+            s.execute(
+                sa_update(BookingPaymentRow)
+                .where(
+                    BookingPaymentRow.bookingRef.in_(booking_refs),
+                    BookingPaymentRow.status == "pending",
+                )
+                .values(status="expired")
+            )
 
     def mark_refunded(self, booking_ref: str) -> None:
         with _session() as s:

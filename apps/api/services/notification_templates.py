@@ -43,3 +43,50 @@ def booking_confirmation(booking: BookingRecord) -> tuple[str, str]:
         f"See you on court!\n— {BRAND_NAME}"
     )
     return subject, body
+
+
+def booking_confirmation_whatsapp(booking: BookingRecord) -> str:
+    """Short WhatsApp message for a confirmed booking (under 500 chars)."""
+    amount = f"Rs. {booking.price:.2f}" if booking.price is not None else "free"
+    return (
+        f"Hi {booking.name}! Your {booking.sportSlug} booking is confirmed.\n"
+        f"Ref: {booking.bookingRef} | Date: {booking.date} | {booking.startTime}-{booking.endTime}\n"
+        f"Amount: {amount}\nSee you on court! — {BRAND_NAME}"
+    )
+
+
+def booking_confirmation_sms(booking: BookingRecord) -> str:
+    """SMS confirmation (under 160 chars)."""
+    return (
+        f"{BRAND_NAME}: Booking {booking.bookingRef} confirmed. "
+        f"{booking.sportSlug} {booking.date} {booking.startTime}-{booking.endTime}."
+    )
+
+
+def booking_cancelled(booking: BookingRecord) -> tuple[str, str]:
+    """Returns (subject, body) for a cancelled/expired booking."""
+    subject = f"Booking cancelled — {booking.bookingRef}"
+    body = (
+        f"Hi {booking.name},\n\n"
+        f"Your booking (ref: {booking.bookingRef}) has been cancelled.\n\n"
+        f"Sport: {booking.sportSlug}\n"
+        f"Date: {booking.date}\n"
+        f"Time: {booking.startTime}-{booking.endTime}\n\n"
+        f"If you have any questions, please contact us.\n— {BRAND_NAME}"
+    )
+    return subject, body
+
+
+def booking_refunded(booking: BookingRecord) -> tuple[str, str]:
+    """Returns (subject, body) for a refunded booking."""
+    amount = f"Rs. {booking.price:.2f}" if booking.price is not None else "Rs. 0.00"
+    subject = f"Refund processed — {booking.bookingRef}"
+    body = (
+        f"Hi {booking.name},\n\n"
+        f"A refund of {amount} has been processed for booking {booking.bookingRef}.\n\n"
+        f"Sport: {booking.sportSlug}\n"
+        f"Date: {booking.date}\n"
+        f"Time: {booking.startTime}-{booking.endTime}\n\n"
+        f"Refunds typically appear within 5-7 business days.\n— {BRAND_NAME}"
+    )
+    return subject, body

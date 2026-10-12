@@ -31,6 +31,7 @@ def _to_model(row: BookingRow) -> BookingRecord:
         paymentStatus=row.paymentStatus,
         depositAmount=float(row.depositAmount) if row.depositAmount is not None else None,
         gst_rate_percent=float(row.gst_rate_percent) if row.gst_rate_percent is not None else None,
+        email=row.email,
     )
 
 
@@ -98,20 +99,27 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
                 .values(status="cancelled", paymentStatus="refunded")
             )
 
-    def expire_stale_pending(self, before_iso: str) -> int:
+    def expire_stale_pending(self, before_iso: str) -> list[BookingRecord]:
         """Cancel pending+unpaid bookings created before `before_iso` (the
-        payment-timeout sweep) — frees their slots. Returns rows affected."""
+        payment-timeout sweep) — frees their slots. Returns cancelled primary rows."""
         with _session() as s:
-            result = s.execute(
-                sa_update(BookingRow)
-                .where(
+            stale = s.scalars(
+                select(BookingRow).where(
                     BookingRow.status == "pending",
                     BookingRow.paymentStatus == "unpaid",
+                    BookingRow.is_primary.is_(True),
                     BookingRow.createdAt < before_iso,
                 )
+            ).all()
+            if not stale:
+                return []
+            refs = [r.bookingRef for r in stale]
+            s.execute(
+                sa_update(BookingRow)
+                .where(BookingRow.bookingRef.in_(refs))
                 .values(status="cancelled")
             )
-            return result.rowcount or 0
+            return [_to_model(r) for r in stale]
 
     def delete(self, id: str) -> bool:
         with _session() as s:

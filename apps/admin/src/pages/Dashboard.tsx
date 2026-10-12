@@ -36,7 +36,7 @@ export function Dashboard() {
 
   useEffect(() => {
     api.get<Enquiry[]>("/admin/enquiries").then(setEnquiries).catch(() => {});
-    api.get<Booking[]>("/admin/bookings").then(setBookings).catch(() => {});
+    api.get<any>("/admin/bookings").then((d) => setBookings(Array.isArray(d) ? d : (d.items ?? []))).catch(() => {});
     api.get<DashboardData>("/admin/reports/dashboard")
       .then((d) => { setDashboard(d); setDayCloseDate(d.date); setDashboardError(""); })
       .catch((err) => setDashboardError(err.message ?? "Failed to load dashboard"));

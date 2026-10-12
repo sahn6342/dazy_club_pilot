@@ -26,11 +26,21 @@ _PENDING_TIMEOUT_MINUTES = 15
 def _sweep_stale_pending() -> None:
     """Cancel payment-timeout pending bookings. Runs on every availability
     read (cheap — one indexed UPDATE) rather than needing a background
-    scheduler; lazy-imports booking_repo to match this codebase's existing
+    scheduler; lazy-imports deps to match this codebase's existing
     convention for avoiding startup-order/circular-import coupling."""
-    from deps import booking_repo
+    from deps import booking_repo, booking_payment_repo, promo_repo
+    from services.notification_service import notify_booking_cancelled
     cutoff = (datetime.now(timezone.utc) - timedelta(minutes=_PENDING_TIMEOUT_MINUTES)).isoformat()
-    booking_repo.expire_stale_pending(cutoff)
+    expired = booking_repo.expire_stale_pending(cutoff)
+    if expired:
+        booking_payment_repo.mark_expired_by_refs([b.bookingRef for b in expired])
+    for booking in expired:
+        if booking.promo_code:
+            try:
+                promo_repo.decrement_use(booking.promo_code)
+            except Exception:
+                pass
+        notify_booking_cancelled(booking.bookingRef)
 
 
 def _hhmm_to_min(t: str) -> int:
@@ -39,6 +49,7 @@ def _hhmm_to_min(t: str) -> int:
 
 
 def _min_to_hhmm(mins: int) -> str:
+    mins = mins % 1440
     return f"{mins // 60:02d}:{mins % 60:02d}"
 
 
@@ -47,7 +58,7 @@ def _blocks_for(court_id: str, d: str, weekday: int, s) -> list[tuple[str, str, 
     rules = s.scalars(
         select(ScheduleRuleRow).where(
             ScheduleRuleRow.court_id == court_id, ScheduleRuleRow.weekday == weekday
-        )
+        ).order_by(ScheduleRuleRow.open_time)
     ).all()
     # Match a court-specific exception OR a venue-wide one (court_id IS NULL).
     # order_by puts court-specific first (False=0 sorts before True=1), so it wins.
@@ -130,43 +141,68 @@ def generate_slots(sport: str | None = None, date: str | None = None, drop_past:
                 dates = [(start_date + timedelta(days=i)).isoformat() for i in range(_DEFAULT_DAYS)]
 
             for d in dates:
-                wd = date_cls.fromisoformat(d).weekday()
+                d_obj = date_cls.fromisoformat(d)
+                wd = d_obj.weekday()
                 blocks = _blocks_for(court.id, d, wd, s)
-                if not blocks:
-                    continue
                 # Phase 2: capacity-aware occupied counts (cancel frees slot)
                 occupied = _occupied_by_slot(court.id, d, s)
+                seen_ids: set[str] = set()  # dedup cross-midnight overlap within this date
 
+                def _emit_slot(cur: int, step: int, date_str: str, base_price, final_price, discount) -> None:
+                    start_hhmm = _min_to_hhmm(cur)
+                    end_hhmm = _min_to_hhmm(cur + step)
+                    is_past = (date_str == today_local and cur <= (now_local.hour * 60 + now_local.minute))
+                    if is_past and drop_past:
+                        return
+                    sid = f"slot-{court.id}-{date_str}-{start_hhmm.replace(':', '')}"
+                    if sid in seen_ids:
+                        return
+                    seen_ids.add(sid)
+                    under_capacity = (occupied.get(sid, 0) + 1 <= court.capacity)
+                    out.append(SlotDto(
+                        id=sid,
+                        courtId=court.id,
+                        courtName=court.name,
+                        sportSlug=court.sport,
+                        date=date_str,
+                        startTime=start_hhmm,
+                        endTime=end_hhmm,
+                        available=under_capacity and not is_past,
+                        maxPlayers=_MAX_PLAYERS.get(court.sport, court.capacity),
+                        price=base_price,
+                        discountPercent=discount,
+                        finalPrice=final_price,
+                    ))
+
+                # Same-day slots (including same-day portion of cross-midnight blocks).
                 for open_t, close_t, step, price, discount in blocks:
                     base_price, final_price = slot_price(price, discount)
-                    cur = _hhmm_to_min(open_t)
-                    end = _hhmm_to_min(close_t)
+                    open_min = _hhmm_to_min(open_t)
+                    close_min = _hhmm_to_min(close_t)
+                    cross_midnight = close_min < open_min or close_min == 0
+                    end = 1440 if cross_midnight else close_min
+                    cur = open_min
                     while cur + step <= end:
-                        start_hhmm = _min_to_hhmm(cur)
-                        end_hhmm = _min_to_hhmm(cur + step)
-                        is_past = (d == today_local and cur <= (now_local.hour * 60 + now_local.minute))
-                        if is_past and drop_past:
-                            cur += step
-                            continue
-                        sid = f"slot-{court.id}-{d}-{start_hhmm.replace(':', '')}"
-                        # A slot is available when there's remaining capacity AND it's not past.
-                        under_capacity = (occupied.get(sid, 0) + 1 <= court.capacity)
-                        out.append(SlotDto(
-                            id=sid,
-                            courtId=court.id,
-                            courtName=court.name,
-                            sportSlug=court.sport,
-                            date=d,
-                            startTime=start_hhmm,
-                            endTime=end_hhmm,
-                            available=under_capacity and not is_past,
-                            maxPlayers=_MAX_PLAYERS.get(court.sport, court.capacity),
-                            price=base_price,
-                            discountPercent=discount,
-                            finalPrice=final_price,
-                        ))
+                        _emit_slot(cur, step, d, base_price, final_price, discount)
                         cur += step
-    return out
+
+                # Cross-midnight overflow: after-midnight portion from previous day's rules.
+                prev_d_obj = d_obj - timedelta(days=1)
+                if prev_d_obj >= start_date - timedelta(days=1):
+                    prev_d = prev_d_obj.isoformat()
+                    prev_wd = prev_d_obj.weekday()
+                    prev_blocks = _blocks_for(court.id, prev_d, prev_wd, s)
+                    for open_t, close_t, step, price, discount in prev_blocks:
+                        close_min = _hhmm_to_min(close_t)
+                        open_min = _hhmm_to_min(open_t)
+                        if close_min >= open_min or close_min == 0:
+                            continue  # not cross-midnight, or closes exactly at midnight
+                        base_price, final_price = slot_price(price, discount)
+                        cur = 0
+                        while cur + step <= close_min:
+                            _emit_slot(cur, step, d, base_price, final_price, discount)
+                            cur += step
+    return sorted(out, key=lambda s: (s.date, s.startTime, s.courtId))
 
 
 def find_slot(sport: str, date: str, slot_id: str) -> SlotDto | None:

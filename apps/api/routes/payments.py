@@ -17,8 +17,14 @@ async def razorpay_webhook(request: Request):
     signature = request.headers.get("X-Razorpay-Signature")
 
     verification, provider_order_id = payment_provider.verify_webhook(raw_body, signature)
-    if not verification.verified or not provider_order_id:
+    if not verification.verified:
+        # Unrecognised event type: signature is valid but we don't handle this event.
+        # Returning 200 silences Razorpay retries for non-payment events.
+        if verification.reason == "unrecognised_event":
+            return {"status": "ignored"}
         raise HTTPException(status_code=400, detail=verification.reason or "Webhook verification failed.")
+    if not provider_order_id:
+        raise HTTPException(status_code=400, detail="Webhook verification failed.")
 
     payment = booking_payment_repo.get_by_order_id(provider_order_id)
     if not payment:
