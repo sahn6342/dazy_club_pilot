@@ -1,0 +1,461 @@
+# Dazy Club — App Overview
+
+One-document guide to the whole platform: what it does, how each flow works, the tech stack, how it is developed and deployed, and every environment/config variable.
+
+> Source of truth is the code. Where this doc and older docs disagree (e.g. README says React 18; code uses React 19), trust the code. Details such as field-level API schemas live in [API-Reference.md](API-Reference.md).
+
+---
+
+## 1. What Dazy Club is
+
+A sports-venue operating system for **Cricket, Badminton and Pickleball**, plus an in-venue **café**. It has four deployable parts:
+
+| App | Path | Dev port | Users | Purpose |
+|---|---|---|---|---|
+| Web | `apps/web` | 5173 | Customers (no login) | Browse, book and pay for slots, enquiries, café pre-order |
+| Admin | `apps/admin` | 5174 | Admin / manager | Back-office: bookings, schedule, content, café setup, users |
+| Kiosk | `apps/kiosk` | 5175 | Cashier / kitchen (PIN) | Café POS billing, GST invoices, kitchen display (KDS) |
+| API | `apps/api` | 8000 | All of the above | FastAPI backend, database, payments, notifications |
+
+### Roles
+
+| Role | How created | Login | Can do |
+|---|---|---|---|
+| Customer | none | none — identified by booking ref + phone/email | Book, pay, look up own bookings, pre-order café items |
+| Superadmin (`admin`) | `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars | username + password, JWT 8 h | Everything, incl. user management |
+| Manager | Admin → Users | username + password, JWT 8 h | Everything except user management |
+| Cashier | Admin → Users | staff name + 4-digit PIN (kiosk), JWT 2 h | Kiosk POS |
+| Kitchen | Admin → Users | staff name + 4-digit PIN (kiosk), JWT 2 h | Kiosk (same permissions as cashier today) |
+
+---
+
+## 2. Architecture
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    W[Web :5173<br/>customers]
+    A[Admin :5174<br/>staff]
+    K[Kiosk :5175<br/>cashier / kitchen]
+  end
+  W & A & K -->|HTTPS /api/v1| API[FastAPI API]
+  API --> DB[(Database<br/>Postgres prod / SQLite dev)]
+  API --> MEDIA[/media<br/>gallery uploads/]
+  API -->|create order, refund| RZP[Razorpay]
+  RZP -->|webhook payment.captured| API
+  W -->|checkout.js| RZP
+  API -->|email| SMTP[SMTP server]
+```
+
+Key design points:
+
+- Three independent static React SPAs share one API (`VITE_API_BASE_URL`).
+- **Slots are not stored.** They are computed from schedule rules and exceptions, minus existing bookings.
+- A booking is stored as **one row per slot**, all sharing a `bookingRef`. A partial unique index `uq_active_court_slot` on `(court_id, slotId)` (where status is not cancelled/no_show) is the hard double-booking guard.
+- Repositories are named `Sqlite*Repository` for historical reasons; they run on any SQLAlchemy URL.
+- On startup the API runs `alembic upgrade head` then seeds demo data if the DB is empty. There is no separate migrate step.
+- No background worker or scheduler exists. Stale pending bookings are swept lazily whenever slots are read.
+
+---
+
+## 3. Features by app
+
+### 3.1 Customer web (`apps/web`)
+
+All pages are public.
+
+| Route | Feature |
+|---|---|
+| `/` | Hero, stats, sport cards, "how it works", gallery carousel (from CMS), testimonials, corporate-events CTA, FAQ |
+| `/book` | Pick sport (tabs) and one of the next 7 days; optional court filter; live slot grid with price, discount and "Booked" tags; select **consecutive** slots (up to 8); enter name, phone/email, players, message; live promo validation; pay |
+| `/my-bookings` | Look up by booking ref, phone/email, or both. Ref + contact on a pending booking resumes payment. Confirmed bookings show the paid amount and the café pre-order panel |
+| `/contact` | General enquiry and corporate enquiry (company, group size, event type, date, sport), plus venue details from CMS |
+
+Other: floating WhatsApp button, Razorpay checkout loaded dynamically, simulated-payment buttons when provider is `noop`, café pre-order panel on a confirmed booking.
+
+There is **no customer cancel**. A pending booking auto-expires after 15 minutes; cancel and refund are admin-only.
+
+### 3.2 Admin back-office (`apps/admin`)
+
+Login at `/login`, then:
+
+| Page | Feature |
+|---|---|
+| Dashboard | Bookings and revenue today, café revenue, occupancy, pending bookings, new enquiries, day-close table (café payments by cash/UPI/card) |
+| Bookings | List, filter, sort, export; confirm / complete / no-show / cancel; refund; delete |
+| Schedule | Weekly open/close rules per court (slot length, price, discount) and date exceptions (holiday, special hours; venue-wide or per court) |
+| Courts | Court CRUD (capacity = concurrent parties per slot) |
+| Promos | Percent or flat codes, date window, max uses, sport restriction |
+| Enquiries | Triage contact and corporate enquiries (new / handled) |
+| Gallery | CRUD with image upload (jpg/png/webp/gif, 10 MB, magic-byte check) |
+| Testimonials, CMS, Contact details | Public content and venue info (including `booking_gst_rate`) |
+| Users | Create managers, cashiers, kitchen staff (superadmin only) |
+| Café | Categories, items (GST rate, HSN, station), tables, settings (GSTIN, invoice series), orders (read-only) |
+
+### 3.3 Kiosk (`apps/kiosk`)
+
+| Route | Feature |
+|---|---|
+| `/login` | Staff name + 4-digit PIN pad |
+| `/menu` | Category rail, item grid, cart; place order; pay by cash, UPI or card (round-off shown); GST invoice with 80 mm thermal print |
+| `/orders` | Open and history tabs, pay action, "Pre-order" badge for web pre-orders, 15 s auto-refresh |
+| `/tables` | Table floor view, 30 s refresh |
+| `/kds` | Kitchen display: polls KOTs every 10 s; mark preparing / ready |
+
+Turf bookings are **not** created from the kiosk; the cashier flow is café POS only.
+
+---
+
+## 4. Flows
+
+### 4.1 Online booking and payment
+
+```mermaid
+sequenceDiagram
+  participant C as Customer (web)
+  participant API
+  participant DB
+  participant R as Razorpay
+  C->>API: GET /slots?sport&date
+  API->>DB: sweep pending > 15 min, compute slots
+  API-->>C: slots with price / availability
+  C->>API: POST /bookings (slotIds, contact, promo)
+  API->>API: validate slots (contiguous, available), apply promo, GST rate
+  alt price is zero
+    API->>DB: insert rows confirmed + paid
+    API-->>C: confirmed (no payment)
+  else price > 0
+    API->>R: create order (paise)
+    R-->>API: order_id
+    API->>DB: insert rows pending + unpaid (slot held), payment row
+    API-->>C: checkout payload
+    C->>R: Razorpay checkout
+    par client callback
+      C->>API: POST /bookings/{ref}/payment/verify
+    and webhook (source of truth)
+      R->>API: POST /payments/razorpay/webhook
+    end
+    API->>API: verify HMAC signature, idempotent
+    API->>DB: confirmed + paid
+    API-->>C: confirmation + email
+  end
+```
+
+Rules worth knowing:
+
+- Payment order is created **before** booking rows are written. If the gateway fails, the promo use is released and the API returns 503 with nothing persisted.
+- The "hold" is the pending row. It occupies the slot for **15 minutes**, then the lazy sweep cancels it, releases promo usage and sends a cancellation notice.
+- Verify uses the stored `providerOrderId`, never the client's, so a signature cannot be reused across bookings.
+- Resume: `GET /bookings/lookup?ref&contact` returns the stored checkout payload while payment is due (only when contact is also supplied).
+- Slot id format: `slot-{courtId}-{YYYY-MM-DD}-{HHMM}`.
+
+### 4.2 Booking state machine
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending
+  pending --> confirmed: payment verified / free
+  pending --> cancelled: 15 min timeout or admin
+  confirmed --> completed
+  confirmed --> cancelled
+  confirmed --> no_show
+  completed --> [*]
+  cancelled --> [*]
+  no_show --> [*]
+```
+
+Invalid transitions return 409. Payment status is separate: `unpaid` → `paid` → `refunded`.
+
+### 4.3 Cancel and refund (admin only)
+
+1. Admin `PATCH /admin/bookings/{id}` to `cancelled` — applies to all rows with that ref and notifies the customer. **No automatic refund.**
+2. Admin `POST /admin/bookings/{id}/refund` — needs `paymentStatus=paid` and a verified provider payment. Refunds the **full** stored amount through Razorpay, marks booking cancelled + refunded (slot freed), marks payment refunded, notifies customer. Provider failure returns 502.
+
+### 4.4 Café order (kiosk)
+
+```mermaid
+flowchart LR
+  O[Create order<br/>POST /cafe/orders] --> I[Add items<br/>snapshot price, tax, HSN]
+  I --> KOT[Fire KOT<br/>one per station]
+  KOT --> KDS[KDS: preparing -> ready -> served]
+  I --> PAY[Record payment<br/>cash / UPI / card]
+  PAY -->|total paid >= total| PAID[order paid]
+  PAID --> INV[Invoice<br/>tax invoice or bill of supply]
+```
+
+- Totals recompute on every item add or void; rounded to the rupee with a round-off line.
+- Invoice type: **tax invoice** when a GSTIN is set and scheme is not unregistered, otherwise **bill of supply**. Numbers look like `SERIES/FYYY/0001`, financial year April–March, from `invoice_sequences` in the same transaction.
+- Tax is split 50/50 CGST/SGST (intra-state only; no IGST).
+- **Pre-order**: customer with a confirmed booking calls `POST /bookings/{ref}/preorder` (ref + contact). It creates a takeaway café order linked via `booking_id`, shown on the kiosk with a "Pre-order" badge.
+
+### 4.5 Authentication
+
+- Admin / manager: `POST /admin/login` → HS256 JWT (`sub`, `role`, `exp`), 8 h.
+- Cashier / kitchen: `POST /cafe/login` (name + PIN) → JWT, 2 h.
+- Manager, cashier and kitchen tokens are re-checked against the users table on every request, so deleting a user revokes access. The env-var admin token is not re-checked.
+- No refresh, logout or revocation list. Tokens are Bearer tokens kept in localStorage (`dazy_kiosk_token` for the kiosk).
+- Customers have no accounts.
+
+### 4.6 Pricing and availability rules
+
+- Horizon: next **7 days** in the venue timezone (default `Asia/Kolkata`). Past slots are hidden.
+- Rule per court, per weekday: open/close time, slot minutes (default 60), price (null = free), discount percent. Exceptions override rules; a court-specific exception beats a venue-wide one; an exception with no special hours means closed.
+- A slot is available while `occupied + 1 <= court.capacity` (occupied = sum of `party_size`).
+- Max players per sport: cricket 11, badminton 4, pickleball 6; party size 1–12.
+- Price = sum of slot `finalPrice`; promo (percent or flat, never below zero) applied to the total.
+- Prices are **GST-inclusive**; GST (default 18%, CMS key `booking_gst_rate`) is split out and snapshotted on the booking.
+- Money uses Decimal, HALF_UP, 2 places.
+
+### 4.7 Notifications
+
+`notification_service` is the single entry point; it never raises and logs every attempt to `notification_messages` (sent / skipped / failed).
+
+| Event | Channels |
+|---|---|
+| payment pending | email, SMS |
+| confirmed | email, SMS, WhatsApp (de-duplicated) |
+| cancelled, refunded | email, SMS |
+
+Only **email** is real (SMTP). SMS and WhatsApp are stubs that print. With `console` provider, sends are logged to stdout. A phone-only contact is skipped by the email provider. Payment-resume links use `DAZY_WEB_BASE_URL`.
+
+---
+
+## 5. Data model
+
+Dates/times are stored as strings (ISO UTC timestamps, `YYYY-MM-DD`, `HH:MM`). 19 Alembic migrations in `apps/api/alembic/versions`.
+
+| Group | Tables |
+|---|---|
+| Venue and schedule | `venues`, `courts`, `schedule_rules`, `schedule_exceptions` |
+| Booking | `customers`, `bookings`, `booking_payments`, `promo_codes`, `notification_messages` |
+| Content and leads | `gallery`, `testimonials`, `cms`, `enquiries` |
+| Café | `cafe_settings`, `menu_categories`, `menu_items`, `cafe_tables`, `orders`, `order_items`, `kots`, `payments`, `invoices`, `invoice_lines`, `invoice_sequences` |
+| Access and ops | `users`, `audit_log` (unused scaffolding) |
+
+`bookings` highlights: one row per slot; the primary row (`is_primary`) carries price, promo, message, email and GST rate; `status` (pending, confirmed, completed, cancelled, no_show); `paymentStatus` (unpaid, paid, refunded); `court_id` and `customer_id` are soft foreign keys. `booking_payments.status`: created, verified, expired, refunded.
+
+---
+
+## 6. API surface
+
+Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only at `/media`.
+
+**Public**
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health`, `GET /sports`, `GET /venue`, `GET /gallery`, `GET /menu` | Info and content |
+| `GET /testimonials`, `GET /notifications` | Static seed data (not DB-backed) |
+| `GET /slots?sport&date` | Computed availability |
+| `GET /promos/validate?code&sport&amount` | Validate promo without redeeming |
+| `POST /bookings` | Create booking |
+| `POST /bookings/{ref}/payment/verify` | Client payment callback |
+| `GET /bookings/lookup`, `GET /bookings/search` | Self-service lookup (rate-limited) |
+| `POST /bookings/{ref}/preorder` | Café pre-order |
+| `POST /payments/razorpay/webhook` | Razorpay webhook (signature-verified) |
+| `POST /contact-enquiries`, `POST /corporate-enquiries` | Enquiry forms |
+
+**Admin** (admin or manager JWT): `POST /admin/login`; `/admin/bookings` (list, export, PATCH status, DELETE, `/{id}/refund`); `/admin/courts`; `/admin/schedule/rules` and `/exceptions`; `/admin/promos`; `/admin/cms`; `/admin/gallery` (+ `/upload`); `/admin/testimonials`; `/admin/enquiries`; `/admin/customers`; `/admin/notifications`; `/admin/reports/dashboard` and `/day-close`; `/admin/cafe/settings`, `/categories`, `/items`, `/tables`.
+
+**Superadmin only**: `/admin/users` (list, create, update, delete).
+
+**Kiosk / cashier** (cashier, kitchen, manager or admin JWT): `POST /cafe/login`; `/cafe/menu`; `/cafe/tables`; `/cafe/orders` (create, list, get, patch, add item, void item, `/kot`, `/payments`, `/invoice`); `/cafe/kots` and `/kots/{id}/status`; `/cafe/invoices` (list, get, `/print`).
+
+**Rate limiting**: in-process sliding window, 10 attempts per 60 s per client IP, on admin login, cashier login and booking lookup/search only.
+
+---
+
+## 7. Tech stack
+
+| Layer | Technology |
+|---|---|
+| Frontends | React 19, TypeScript 5.7, Vite 6, react-router-dom 7, plain CSS (dark theme, gold `#d8b456`); local `useState`/`useEffect` only (no Redux or React Query) |
+| Shared packages | `packages/shared` (brand, sports, types), `packages/ui` (design tokens), `packages/config` (base tsconfig) |
+| Backend | Python 3.12, FastAPI >= 0.115, Uvicorn, Pydantic v2, SQLAlchemy 2 (sync), Alembic, PyJWT (HS256), bcrypt, python-multipart, python-dotenv, psycopg2-binary |
+| Database | PostgreSQL on Neon in production; SQLite for dev and tests (`DAZY_DB_URL` switches, no code change) |
+| Payments | Razorpay via REST (`urllib`, no SDK) with HMAC-SHA256 checks; `noop` provider for dev |
+| Notifications | SMTP (`smtplib`) for email; console, SMS and WhatsApp stubs |
+| Monorepo | pnpm 11.5.3 workspaces (no Turborepo/Nx); uv for Python deps |
+| Testing | pytest (~377 tests, SQLite), Playwright (`web`, `admin`, `kiosk` projects) |
+| Containers | Dockerfiles for API and frontends, Docker Compose, Caddy (self-host option) |
+| CI/CD | GitHub Actions `deploy.yml` (self-host path) |
+
+---
+
+## 8. Local development
+
+Prerequisites: Node (CI uses 22), pnpm, Python 3.12, [uv](https://github.com/astral-sh/uv).
+
+```bash
+pnpm install                       # JS deps
+cd apps/api && uv run uvicorn main:app --reload --port 8000   # API: creates SQLite DB, migrates, seeds
+pnpm dev:web                       # http://localhost:5173
+pnpm dev:admin                     # http://localhost:5174
+pnpm --filter @dazy/kiosk dev      # http://localhost:5175
+```
+
+Other root scripts: `pnpm dev` (everything via `concurrently`), `pnpm build`, `pnpm typecheck`, `pnpm api:test`, `pnpm e2e`, `pnpm e2e:web`, `pnpm e2e:admin`.
+
+Dev logins: admin `admin` / `admin` (defaults when env vars unset). Kiosk: create a cashier in Admin → Users, then log in with name + 4-digit PIN.
+
+Tests:
+
+```bash
+cd apps/api && uv run pytest tests -q   # backend; conftest uses temp SQLite, noop payments, console notify
+pnpm e2e                                # Playwright; starts the 3 frontends + API if not running
+```
+
+Frontends have no unit tests; lint/format scripts are placeholders.
+
+---
+
+## 9. Deployment
+
+### 9.1 Production: Neon + Render + Cloudflare
+
+| Piece | Service | Notes |
+|---|---|---|
+| Database | **Neon** (PostgreSQL) | Set `DAZY_DB_URL` on the API. API sets `lock_timeout=15000` for Postgres and runs migrations on boot. |
+| API | **Render** web service `dazy_club_pilot` | Docker runtime, root `apps/api`, builds `apps/api/Dockerfile`, free plan, Singapore, custom domain `api.dazyclub.com`, auto-deploy on commit, health check `/api/v1/health`. All settings and the full env var list are tracked in the repo-root [`render.yaml`](../render.yaml). |
+| Web, Admin, Kiosk | **Cloudflare** (Pages/Workers) | Three projects, build with `pnpm --filter @dazy/<app> build`, output `apps/<app>/dist`, SPA fallback to `index.html`. Set `VITE_API_BASE_URL=https://<render-host>/api/v1` at **build time**. |
+| Payments | **Razorpay** | Test keys in dev. Live: set `DAZY_PAYMENT_PROVIDER=razorpay` + keys; register webhook `https://<api-host>/api/v1/payments/razorpay/webhook` (event `payment.captured`) and set its secret. |
+
+`render.yaml` (exported from Render, then completed) lists every env var by name; values are never stored in it (`sync: false`), so enter them in the Render dashboard. **Rule: a new env var in code means adding it to both `render.yaml` and `.env.example` in the same change.** Cloudflare has no config file in the repo, so its build settings above are entered by hand; the Neon project and the Razorpay webhook are also dashboard-only.
+
+Checklist when something breaks in prod:
+
+- Every Cloudflare frontend origin must be in `DAZY_CORS_ORIGINS` on Render (comma-separated, no trailing slash).
+- `DAZY_WEB_BASE_URL` must be the public web URL (used in email links).
+- Rebuild a frontend after changing `VITE_API_BASE_URL`; it is baked in at build time.
+- Check logs: Render service logs (API), Neon query logs (DB), Cloudflare dashboard (frontends).
+- Uploaded gallery images are written to `DAZY_MEDIA_DIR` on local disk. The free plan has no persistent disk, so they are lost on redeploy and spin-down. Upgrade to a paid plan with a disk (commented block in `render.yaml`) or move media to object storage.
+- Render free-tier services sleep after idle, so the first request is slow and a Razorpay webhook may arrive while the API is waking (Razorpay retries). Expiry of pending bookings only runs when slots are read.
+- `DAZY_PAYMENT_PROVIDER=razorpay` with missing `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET` makes the API fail at startup. `DAZY_WEB_BASE_URL` unset makes email links point to `http://localhost:5173`.
+
+### 9.2 Alternative: self-host with Docker Compose + Caddy
+
+Documented in [Docker-Deployment.md](Docker-Deployment.md) and [Launch-Plan.md](Launch-Plan.md). Single VPS running five containers:
+
+- `api` (python:3.12-alpine, non-root, port 8000, SQLite + media on volume `api_data` at `/data`)
+- `web`, `admin`, `kiosk` (Caddy serving static builds with SPA fallback; `VITE_API_BASE_URL` passed as build arg)
+- `caddy` edge: automatic Let's Encrypt HTTPS for `WEB_DOMAIN`, `ADMIN_DOMAIN`, `KIOSK_DOMAIN`, `API_DOMAIN`
+
+```bash
+cp .env.example .env     # fill real values
+docker compose up -d --build
+```
+
+Back up the `api_data` volume regularly (DB + uploads). Point `DAZY_DB_URL` at Postgres in `docker-compose.yml` to leave SQLite.
+
+### 9.3 CI/CD (`.github/workflows/deploy.yml`)
+
+Triggers on push to `main` and manual dispatch.
+
+1. `test` job: backend `pytest tests -q`, then `pnpm install` + `pnpm build` (typecheck and all builds). Playwright is **not** run in CI.
+2. `deploy` job: SSH to the server, `git pull --ff-only`, `docker compose up -d --build`, `docker image prune`. This targets the self-host path; Render and Cloudflare deploy through their own dashboards/Git integration.
+
+Post-deploy check: `python scripts/smoke_test.py` (stdlib only) hits health, slots and an authenticated café read.
+
+---
+
+## 10. Environment and config variables
+
+Names and defaults only. **Never commit real values.** `.env.example` is at the repo root; for local dev the API also reads `apps/api/.env` via python-dotenv.
+
+### 10.1 API (Render env / `apps/api/.env` / compose `api` service)
+
+| Variable | Default | Purpose | Secret |
+|---|---|---|---|
+| `JWT_SECRET` | `dazy-dev-secret-change-in-production` | Signs admin/cashier JWTs. **Must be set in prod** (32+ random chars) | yes |
+| `ADMIN_USERNAME` | `admin` | Superadmin username. **Change in prod** | no |
+| `ADMIN_PASSWORD` | `admin` | Superadmin password, compared in plain text. **Change in prod** | yes |
+| `DAZY_DB_URL` | `sqlite:///<DAZY_DB_PATH>` | SQLAlchemy URL. Neon Postgres URL in prod | yes |
+| `DAZY_DB_PATH` | `apps/api/dazy.db` locally, `/data/dazy.db` in Docker | SQLite file path (ignored if `DAZY_DB_URL` set) | no |
+| `DAZY_MEDIA_DIR` | `apps/api/media` locally, `/data/media` in Docker | Where uploaded images are stored and served at `/media` | no |
+| `DAZY_CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174,http://localhost:5175` | Comma-separated allowed browser origins | no |
+| `DAZY_WEB_BASE_URL` | `http://localhost:5173` | Public web URL used in notification links | no |
+| `DAZY_PAYMENT_PROVIDER` | `noop` | `noop` (dev, trusts client) or `razorpay` | no |
+| `RAZORPAY_KEY_ID` | — | Razorpay key id. Required when provider is `razorpay` | semi |
+| `RAZORPAY_KEY_SECRET` | — | Razorpay key secret. Required when provider is `razorpay` | yes |
+| `RAZORPAY_WEBHOOK_SECRET` | — | Verifies webhook signature | yes |
+| `DAZY_NOTIFY_PROVIDER` | `console` | `console` (log only) or `email` (SMTP) | no |
+| `DAZY_NOTIFY_WHATSAPP_PROVIDER` | `whatsapp_stub` | Read, but only the stub is wired in | no |
+| `DAZY_NOTIFY_SMS_PROVIDER` | `sms_stub` | Read, but only the stub is wired in | no |
+| `SMTP_HOST` | — | SMTP server host | no |
+| `SMTP_PORT` | `587` | SMTP port | no |
+| `SMTP_USER` | — | SMTP username | yes |
+| `SMTP_PASSWORD` | — | SMTP password | yes |
+| `SMTP_FROM` | — | From address on emails | no |
+
+### 10.2 Frontends (build time)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` | API base URL baked into each SPA at build. Set per frontend project (Cloudflare) or as a Docker build arg (compose sets it from `API_DOMAIN`). `apps/web/.env` exists for local use |
+
+### 10.3 Self-host only (Compose + Caddy, root `.env`)
+
+| Variable | Purpose |
+|---|---|
+| `WEB_DOMAIN`, `ADMIN_DOMAIN`, `KIOSK_DOMAIN`, `API_DOMAIN` | Hostnames Caddy requests certificates for (DNS must already point at the server); also feed CORS, `DAZY_WEB_BASE_URL` and `VITE_API_BASE_URL` |
+
+### 10.4 CI secrets (GitHub Actions, self-host deploy)
+
+`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PORT`, `DEPLOY_PATH`.
+
+### 10.5 Test-only (set by `apps/api/tests/conftest.py`)
+
+`DAZY_DB_URL` (temp SQLite), `DAZY_PAYMENT_PROVIDER=noop`, `DAZY_NOTIFY_PROVIDER=console`. This keeps pytest isolated from real Razorpay test keys in `apps/api/.env`.
+
+### 10.6 Built-in constants and CMS config
+
+| Setting | Value | Where |
+|---|---|---|
+| Pending booking hold | 15 minutes | booking service |
+| Booking horizon | 7 days | availability service |
+| Max slots per booking | 8 (contiguous) | `POST /bookings` |
+| Party size | 1–12 | `POST /bookings` |
+| Admin / manager token TTL | 8 hours | `auth.py` |
+| Cashier / kitchen token TTL | 2 hours | `auth.py` |
+| Rate limit | 10 attempts / 60 s / IP | `rate_limit.py` |
+| Upload limit | 10 MB, jpg/png/webp/gif | admin gallery |
+| GZip minimum | 500 bytes | `main.py` |
+| Venue timezone | `Asia/Kolkata` (column default on `venues`) | DB |
+| `booking_gst_rate` | 18 (percent) | CMS key, editable in Admin → CMS |
+| Public venue CMS keys | contact details, hours, social, WhatsApp, `booking_gst_rate` | CMS, served by `GET /venue` |
+
+---
+
+## 11. Known gaps and risks
+
+Security and config:
+
+- Default `admin`/`admin` and a hard-coded JWT secret apply when env vars are unset. Set both in every real environment.
+- Rate limiter is per process (keep a single API instance) and keyed on `req.client.host`. The Dockerfile now starts uvicorn with `--proxy-headers --forwarded-allow-ips *` so the real client IP is used behind Render/Caddy. No limit on `POST /bookings`, enquiry forms or the webhook.
+- `GET /cafe/invoices/{id}/print` is unauthenticated (UUID ids only).
+- Cashier and kitchen roles have identical permissions; manager has every admin permission except user management.
+- No JWT refresh or logout.
+
+Behaviour:
+
+- No customer self-cancel. Admin cancel does not auto-refund; refunds are full-amount only, no partial refund or policy rules.
+- Pending-booking expiry runs only when slots are read, and `mark_expired_by_refs` filters payment status `"pending"` while new payments are created as `"created"`, so payment rows may never flip to expired (unconfirmed by test).
+- Webhook handles only `payment.captured`; no `payment.failed` or reconciliation.
+- `GET /testimonials` and `GET /notifications` serve static seed data, not admin-edited DB content.
+- SMS and WhatsApp are stubs; `audit_log` table is unused.
+- Café is intra-state GST only (no IGST).
+
+Ops and quality:
+
+- Media on local disk (see 9.1).
+- Tests run on SQLite only, never Postgres; café tables are not reset between tests; Playwright not in CI; no frontend unit tests.
+- Last recorded Playwright failure: `web-pricing … promo … shows inline error on submit`.
+- Doc drift: README says React 18 (code: 19); `e2e/E2E-BIBLE.md` predates the kiosk project; `docs/Launch-Plan.md` rejects Render while production uses it.
+- The DB engine uses `pool_pre_ping` and `pool_recycle=300` so Neon-suspended connections reconnect.
+- Stray backup file `apps/api/dazy.db.bak_phase5`; `playwright-report/` and `test-results/` are committed.
+
+---
+
+## 12. Further reading
+
+[Features.md](Features.md) · [API-Reference.md](API-Reference.md) · [Detailed-Roadmap.md](Detailed-Roadmap.md) · [Docker-Deployment.md](Docker-Deployment.md) · [Launch-Plan.md](Launch-Plan.md) · [Cafe-POS-Plan.md](Cafe-POS-Plan.md) · [architecture/](architecture/) · [adr/](adr/) · [../e2e/E2E-BIBLE.md](../e2e/E2E-BIBLE.md)

@@ -1,0 +1,80 @@
+# Render Blueprint for the Dazy Club API. Exported from Render on 2026-10-19, then completed.
+#
+# RULES
+#  - NEVER put secret values in this file. Secrets use `sync: false` (value is entered in
+#    the Render dashboard, only the NAME is tracked here).
+#  - Every env var the API reads (apps/api, `os.environ`) MUST be listed below AND in
+#    .env.example. Adding a variable to code = add it to both files in the same PR.
+#  - Only the API lives on Render. Not tracked here: Neon DB project, Cloudflare frontends
+#    (VITE_API_BASE_URL is a build-time setting there), Razorpay dashboard webhook.
+version: "1"
+projects:
+- name: DazyClub
+  environments:
+  - name: Production
+    services:
+    - type: web
+      name: dazy_club_pilot
+      runtime: docker
+      repo: https://github.com/sahn6342/dazy_club_pilot
+      branch: main
+      plan: free
+      # --- Upgrade path for persistent gallery uploads (free plan has NO disk, so files
+      # under DAZY_MEDIA_DIR are lost on every redeploy / spin-down). Uncomment both lines
+      # and the disk block, set DAZY_MEDIA_DIR=/data/media. Image runs as non-root user
+      # `app`; verify the mounted disk is writable after deploy.
+      # plan: starter
+      # disk:
+      #   name: dazy-data
+      #   mountPath: /data
+      #   sizeGB: 1
+      region: singapore
+      dockerContext: .
+      dockerfilePath: ./Dockerfile
+      rootDir: apps/api
+      healthCheckPath: /api/v1/health
+      domains:
+      - api.dazyclub.com
+      autoDeployTrigger: commit
+      envVars:
+      # --- Auth (MUST be non-default in production) ---
+      - key: JWT_SECRET            # random 32+ chars; changing it logs everyone out
+        sync: false
+      - key: ADMIN_USERNAME        # superadmin login (default "admin")
+        sync: false
+      - key: ADMIN_PASSWORD        # superadmin password (default "admin")
+        sync: false
+      # --- Database / storage ---
+      - key: DAZY_DB_URL           # Neon pooled Postgres URL, ends with ?sslmode=require
+        sync: false
+      - key: DAZY_MEDIA_DIR        # uploaded gallery images; needs a disk to persist
+        sync: false
+      # --- CORS / links ---
+      - key: DAZY_CORS_ORIGINS     # comma-separated exact origins: web, admin, kiosk (no trailing slash)
+        sync: false
+      - key: DAZY_WEB_BASE_URL     # public customer site URL; used in email links
+        sync: false
+      # --- Payments ---
+      - key: DAZY_PAYMENT_PROVIDER # noop (fake, dev only) | razorpay
+        sync: false
+      - key: RAZORPAY_KEY_ID       # required when provider=razorpay (startup fails without it)
+        sync: false
+      - key: RAZORPAY_KEY_SECRET   # required when provider=razorpay
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET # secret of webhook https://api.dazyclub.com/api/v1/payments/razorpay/webhook (payment.captured)
+        sync: false
+      # --- Notifications ---
+      - key: DAZY_NOTIFY_PROVIDER  # console (log only) | email (SMTP)
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT             # default 587
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      # Not listed on purpose: DAZY_DB_PATH (SQLite only, ignored when DAZY_DB_URL is set),
+      # DAZY_NOTIFY_WHATSAPP_PROVIDER / DAZY_NOTIFY_SMS_PROVIDER (stubs; defaults are fine).

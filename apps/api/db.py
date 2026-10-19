@@ -30,7 +30,8 @@ if DB_URL.startswith("sqlite"):
 else:
     # lock_timeout: fail fast on stuck advisory/row locks instead of hanging indefinitely
     _connect_args = {"options": "-c lock_timeout=15000"}
-engine = create_engine(DB_URL, connect_args=_connect_args)
+# pool_pre_ping: Neon suspends idle compute and drops connections; test on checkout and reconnect.
+engine = create_engine(DB_URL, connect_args=_connect_args, pool_pre_ping=True, pool_recycle=300)
 SessionLocal = sessionmaker(
     bind=engine,
     autoflush=False,
