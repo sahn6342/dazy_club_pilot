@@ -2,6 +2,7 @@
 Slot generation + availability, derived from schedule data (ScheduleRule/Exception)
 against bookings. Slots are value objects, never stored.
 """
+import logging
 from datetime import date as date_cls, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -23,11 +24,13 @@ _DEFAULT_DAYS = 7
 _PENDING_TIMEOUT_MINUTES = 15
 
 
-def _sweep_stale_pending() -> None:
+def _sweep_stale_pending() -> int:
     """Cancel payment-timeout pending bookings. Runs on every availability
     read (cheap — one indexed UPDATE) rather than needing a background
     scheduler; lazy-imports deps to match this codebase's existing
-    convention for avoiding startup-order/circular-import coupling."""
+    convention for avoiding startup-order/circular-import coupling.
+    Also run on a schedule via POST /internal/sweep so expiry does not depend on
+    someone reading slots. Returns how many bookings were expired."""
     from deps import booking_repo, booking_payment_repo, promo_repo
     from services.notification_service import notify_booking_cancelled
     cutoff = (datetime.now(timezone.utc) - timedelta(minutes=_PENDING_TIMEOUT_MINUTES)).isoformat()
@@ -39,8 +42,10 @@ def _sweep_stale_pending() -> None:
             try:
                 promo_repo.decrement_use(booking.promo_code)
             except Exception:
-                pass
+                logging.getLogger(__name__).exception(
+                    "Failed to release promo %s for expired booking %s", booking.promo_code, booking.bookingRef)
         notify_booking_cancelled(booking.bookingRef)
+    return len(expired)
 
 
 def _hhmm_to_min(t: str) -> int:
@@ -158,7 +163,8 @@ def generate_slots(sport: str | None = None, date: str | None = None, drop_past:
                     if sid in seen_ids:
                         return
                     seen_ids.add(sid)
-                    under_capacity = (occupied.get(sid, 0) + 1 <= court.capacity)
+                    # One court = one booking per slot (matches the uq_active_court_slot index).
+                    under_capacity = occupied.get(sid, 0) == 0
                     out.append(SlotDto(
                         id=sid,
                         courtId=court.id,

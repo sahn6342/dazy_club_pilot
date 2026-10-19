@@ -36,13 +36,13 @@ def test_create_court_success(client, auth_headers):
         "venue_id": "venue-dazy",
         "sport": "badminton",
         "name": "Court 2",
-        "capacity": 2,
+        "capacity": 1,
     }, headers=auth_headers)
     assert r.status_code == 201
     body = r.json()
     assert body["sport"] == "badminton"
     assert body["name"] == "Court 2"
-    assert body["capacity"] == 2
+    assert body["capacity"] == 1
     assert body["active"] is True
     assert "id" in body
 
@@ -114,12 +114,14 @@ def test_update_court_name(client, auth_headers):
     assert r.json()["name"] == "Main Cricket Court"
 
 
-def test_update_court_capacity(client, auth_headers):
-    court_id = "court-badminton"
-    r = client.patch(f"/api/v1/admin/courts/{court_id}",
-                     json={"capacity": 3}, headers=auth_headers)
-    assert r.status_code == 200
-    assert r.json()["capacity"] == 3
+def test_court_capacity_above_one_rejected(client, auth_headers):
+    """One court = one booking per slot; parallel play means adding more courts."""
+    r = client.post("/api/v1/admin/courts", json={
+        "venue_id": "venue-dazy", "sport": "cricket", "name": "Shared", "capacity": 2,
+    }, headers=auth_headers)
+    assert r.status_code == 422
+    r = client.patch("/api/v1/admin/courts/court-badminton", json={"capacity": 3}, headers=auth_headers)
+    assert r.status_code == 422
 
 
 def test_update_court_partial(client, auth_headers):
@@ -127,10 +129,10 @@ def test_update_court_partial(client, auth_headers):
     court_id = "court-pickleball"
     # First update name
     client.patch(f"/api/v1/admin/courts/{court_id}", json={"name": "Named"}, headers=auth_headers)
-    # Then update capacity only — name must persist
-    r = client.patch(f"/api/v1/admin/courts/{court_id}", json={"capacity": 4}, headers=auth_headers)
+    # Then update active only — name must persist
+    r = client.patch(f"/api/v1/admin/courts/{court_id}", json={"active": False}, headers=auth_headers)
     assert r.json()["name"] == "Named"
-    assert r.json()["capacity"] == 4
+    assert r.json()["active"] is False
 
 
 def test_update_court_not_found(client, auth_headers):

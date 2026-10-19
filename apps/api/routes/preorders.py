@@ -2,11 +2,12 @@
 add café items to their confirmed booking so the counter can have it ready
 for when they arrive. Public — identity is the booking ref + matching
 contact (same trust model as booking creation), no login."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from deps import booking_repo, menu_item_repo, menu_category_repo, order_repo
 from models import PreOrderRequest, PreOrderResult, PreOrderLineDto, PublicMenuResponse, PublicMenuItemDto, MenuCategoryDto
 from services.pos_service import create_order as svc_create_order
+from rate_limit import preorder_limiter, client_ip
 
 router = APIRouter()
 
@@ -19,7 +20,8 @@ def get_public_menu():
 
 
 @router.post("/bookings/{booking_ref}/preorder", response_model=PreOrderResult, status_code=201)
-def create_preorder(booking_ref: str, body: PreOrderRequest):
+def create_preorder(booking_ref: str, body: PreOrderRequest, http_req: Request):
+    preorder_limiter.check(client_ip(http_req), "Too many requests. Please try again later.")
     bookings = booking_repo.get_by_ref(booking_ref)
     if not bookings:
         raise HTTPException(status_code=404, detail="Booking not found.")

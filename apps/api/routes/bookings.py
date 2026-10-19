@@ -2,18 +2,27 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone, date as date_cls
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
 
 from models import BookingRequest, BookingRecord, BookingPaymentVerifyRequest, BookingLookupResult
 from deps import booking_repo, court_repo, customer_repo, promo_repo, booking_payment_repo, payment_provider, cms_repo
-from rate_limit import booking_lookup_limiter
+from rate_limit import (
+    booking_lookup_limiter, booking_create_limiter, booking_create_contact_limiter,
+    payment_verify_limiter, client_ip,
+)
 from services.availability_service import find_slot
 from services.pricing_service import apply_promo, gst_components, PromoError
 from services.notification_service import notify_booking_confirmed, notify_booking_payment_pending
 from services.payment_confirmation import confirm_verified_payment, LATE_REFUNDED
+from services.turnstile import require_turnstile
+from services.otp_service import normalize_contact
+from auth import verify_otp_token
 
 router = APIRouter()
+
+# A customer may hold at most this many unpaid bookings at once (blocks slot-hoarding).
+_MAX_PENDING_PER_CONTACT = 2
 
 _PHONE_RE = re.compile(r"^\d{10}$")
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
@@ -56,7 +65,17 @@ def _build_lookup_result(bookings: list, include_checkout: bool = True) -> Booki
 
 
 @router.post("/bookings", status_code=201)
-def create_booking(request: BookingRequest):
+def create_booking(request: BookingRequest, http_req: Request):
+    booking_create_limiter.check(client_ip(http_req), "Too many booking attempts. Please try again later.")
+    booking_create_contact_limiter.check(request.contact.strip().lower(), "Too many booking attempts for this contact. Please try again later.")
+    require_turnstile(request.turnstileToken, client_ip(http_req))
+    from services.availability_service import _sweep_stale_pending
+    _sweep_stale_pending()  # expired holds must not count against the cap
+    if booking_repo.count_pending_by_contact(request.contact) >= _MAX_PENDING_PER_CONTACT:
+        raise HTTPException(
+            status_code=429,
+            detail="You already have bookings waiting for payment. Complete or wait for them to expire (15 minutes) before booking more.",
+        )
     # Resolve all requested slots (in order).
     slots = []
     for sid in request.slotIds:
@@ -191,7 +210,8 @@ def create_booking(request: BookingRequest):
 
 
 @router.post("/bookings/{booking_ref}/payment/verify")
-def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest):
+def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest, http_req: Request):
+    payment_verify_limiter.check(client_ip(http_req), "Too many requests. Please try again shortly.")
     bookings = booking_repo.get_by_ref(booking_ref)
     if not bookings:
         raise HTTPException(status_code=404, detail="Booking not found.")
@@ -234,8 +254,7 @@ def lookup_booking(ref: str, req: Request, contact: str | None = None):
     """Self-service lookup. Contact is optional:
     - With contact: strict identity check, checkout included (enables payment).
     - Without contact: basic info only, checkout stripped (requires contact for payment)."""
-    client_ip = req.client.host if req.client else "unknown"
-    booking_lookup_limiter.check(client_ip, message="Too many lookup attempts. Try again later.")
+    booking_lookup_limiter.check(client_ip(req), message="Too many lookup attempts. Try again later.")
 
     bookings = booking_repo.get_by_ref(ref)
     if not bookings:
@@ -251,14 +270,17 @@ def lookup_booking(ref: str, req: Request, contact: str | None = None):
 
 
 @router.get("/bookings/search", response_model=list[BookingLookupResult])
-def search_bookings(contact: str, req: Request):
-    """Look up all bookings by phone or email. Returns up to 10 most recent."""
-    client_ip = req.client.host if req.client else "unknown"
-    booking_lookup_limiter.check(client_ip, message="Too many lookup attempts. Try again later.")
+def search_bookings(contact: str, req: Request, x_otp_token: str | None = Header(default=None)):
+    """Look up all bookings by phone or email. Returns up to 10 most recent.
+    Requires an OTP token (POST /otp/request then /otp/verify) proving the caller controls the contact."""
+    booking_lookup_limiter.check(client_ip(req), message="Too many lookup attempts. Try again later.")
 
     err = _validate_contact_str(contact)
     if err:
         raise HTTPException(status_code=422, detail=err)
+    if not x_otp_token:
+        raise HTTPException(status_code=401, detail="otp_required")
+    verify_otp_token(x_otp_token, normalize_contact(contact))
 
     primary_rows = booking_repo.search_by_contact(contact)
     if not primary_rows:

@@ -4,7 +4,7 @@ Razorpay credentials. Never select this in production (see factory.py)."""
 import json
 import uuid
 
-from .base import PaymentProvider, PaymentOrder, PaymentVerification
+from .base import PaymentProvider, PaymentOrder, PaymentVerification, CapturedPayment
 
 
 class NoopPaymentProvider(PaymentProvider):
@@ -29,6 +29,9 @@ class NoopPaymentProvider(PaymentProvider):
         order_id = payload.get("providerOrderId")
         payment_id = payload.get("providerPaymentId") or f"noop_pay_{uuid.uuid4().hex[:12]}"
         return PaymentVerification(verified=True, providerPaymentId=payment_id), order_id
+
+    def fetch_captured_payment(self, provider_order_id: str) -> CapturedPayment | None:
+        return None  # noop has no remote state to reconcile against
 
     def refund(self, provider_payment_id: str, amount: float) -> bool:
         return True

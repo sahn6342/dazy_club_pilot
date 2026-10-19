@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Slot } from "@dazy/shared";
-import { createBooking, getNext7Days, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PromoValidationResult } from "../lib/api";
+import { Turnstile } from "../components/Turnstile";
+import { createBooking, getNext7Days, TURNSTILE_SITE_KEY, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PromoValidationResult } from "../lib/api";
 import { validateName, validateContact, validatePlayers } from "../lib/validate";
 import { PaymentPanel } from "../components/PaymentPanel";
 import { PreOrderPanel } from "../components/PreOrderPanel";
@@ -46,6 +47,9 @@ export function Book() {
   const initialSport = searchParams.get("sport") ?? "cricket";
 
   const days = getNext7Days();
+  const [tsToken, setTsToken] = useState<string | null>(null);
+  const [tsReset, setTsReset] = useState(0);
+  const [bookingError, setBookingError] = useState("");
   const [bookSport, setBookSport] = useState(SPORT_LABELS[initialSport] ? initialSport : "cricket");
   const [bookDate, setBookDate] = useState(days[0].iso);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -201,8 +205,15 @@ export function Book() {
     const errs = validateFields(fields);
     if (Object.values(errs).some(Boolean)) return;
 
+    if (TURNSTILE_SITE_KEY && !tsToken) {
+      setBookingError("Please complete the verification challenge first.");
+      setBookingStatus("error");
+      return;
+    }
+
     setSubmitting(true);
     setPromoError("");
+    setBookingError("");
     try {
       const result = await createBooking({
         name: fields.name.trim(),
@@ -216,6 +227,7 @@ export function Book() {
         promoCode: promo.trim() || undefined,
         message: fields.message.trim(),
         email: fields.email.trim() || undefined,
+        turnstileToken: tsToken ?? undefined,
       });
       setBookingRef(result.bookingRef);
       setBookedPrice(result.price ?? null);
@@ -237,9 +249,11 @@ export function Book() {
       if (/promo/i.test(msg)) {
         setPromoError(msg);
       } else {
+        setBookingError(msg);
         setBookingStatus("error");
         loadSlots();
       }
+      setTsReset((n) => n + 1); // Turnstile tokens are single-use
     } finally {
       setSubmitting(false);
     }
@@ -511,11 +525,16 @@ export function Book() {
 
             <label>Message (optional) <textarea value={fields.message} onChange={(e) => change("message", e.target.value)} rows={3} /></label>
 
+            <Turnstile onToken={setTsToken} resetKey={tsReset} />
             <button className="button primary" type="submit" disabled={submitting}>
               {submitting ? "Confirming…" : `Confirm booking${selectedSlots.length > 1 ? ` (${selectedSlots.length} slots)` : ""}`}
             </button>
             {bookingStatus === "error" && (
-              <p className="form-message error">Booking failed. One or more slots may have just been taken. Please choose again.</p>
+              <p className="form-message error" data-testid="booking-error">
+                {bookingError && !/unavailable|conflict|not found|taken/i.test(bookingError)
+                  ? bookingError
+                  : "Booking failed. One or more slots may have just been taken. Please choose again."}
+              </p>
             )}
           </form>
         </div>

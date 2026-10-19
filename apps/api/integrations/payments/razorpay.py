@@ -12,10 +12,11 @@ import os
 import urllib.error
 import urllib.request
 
-from .base import PaymentProvider, PaymentOrder, PaymentVerification
+from .base import PaymentProvider, PaymentOrder, PaymentVerification, CapturedPayment
 
 _API = "https://api.razorpay.com/v1"
 _SUPPORTED_EVENTS = {"payment.captured"}
+_IGNORED_BUT_LOGGED = {"payment.failed"}
 
 logger = logging.getLogger(__name__)
 
@@ -69,15 +70,30 @@ class RazorpayPaymentProvider(PaymentProvider):
         try:
             payload = json.loads(raw_body)
             event = payload.get("event", "")
+            if event in _IGNORED_BUT_LOGGED:
+                ent = payload.get("payload", {}).get("payment", {}).get("entity", {})
+                logger.warning("Razorpay %s for order %s: %s", event, ent.get("order_id"), ent.get("error_description"))
             if event not in _SUPPORTED_EVENTS:
                 # Signature is valid but event type is not one we handle.
                 # Return a distinct reason so the route can ACK with 200 (silence Razorpay retries).
                 return PaymentVerification(verified=False, reason="unrecognised_event"), None
             entity = payload["payload"]["payment"]["entity"]
             order_id, payment_id = entity["order_id"], entity["id"]
+            amount = entity["amount"] / 100 if isinstance(entity.get("amount"), (int, float)) else None
         except (KeyError, json.JSONDecodeError):
             return PaymentVerification(verified=False, reason="Malformed webhook payload."), None
-        return PaymentVerification(verified=True, providerPaymentId=payment_id), order_id
+        return PaymentVerification(verified=True, providerPaymentId=payment_id, amount=amount), order_id
+
+    def fetch_captured_payment(self, provider_order_id: str) -> CapturedPayment | None:
+        try:
+            data = self._request("GET", f"/orders/{provider_order_id}/payments")
+        except RuntimeError:
+            logger.exception("Razorpay reconciliation fetch failed for %s", provider_order_id)
+            return None
+        for p in data.get("items", []):
+            if p.get("status") == "captured":
+                return CapturedPayment(providerPaymentId=p["id"], amount=p["amount"] / 100)
+        return None
 
     def refund(self, provider_payment_id: str, amount: float) -> bool:
         paise = int(round(amount * 100))

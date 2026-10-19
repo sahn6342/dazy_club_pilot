@@ -27,6 +27,8 @@ A sports-venue operating system for **Cricket, Badminton and Pickleball**, plus 
 | Cashier | Admin → Users | staff name + 4-digit PIN (kiosk), JWT 2 h | Kiosk POS |
 | Kitchen | Admin → Users | staff name + 4-digit PIN (kiosk), JWT 2 h | Kiosk (same permissions as cashier today) |
 
+Kiosk (cashier/kitchen) tokens are rejected on every `/admin/*` route (403), and kiosk staff cannot sign in at `/admin/login`; only `admin` and `manager` reach the back office.
+
 ---
 
 ## 2. Architecture
@@ -54,7 +56,7 @@ Key design points:
 - A booking is stored as **one row per slot**, all sharing a `bookingRef`. A partial unique index `uq_active_court_slot` on `(court_id, slotId)` (where status is not cancelled/no_show) is the hard double-booking guard.
 - Repositories are named `Sqlite*Repository` for historical reasons; they run on any SQLAlchemy URL.
 - On startup the API runs `alembic upgrade head` then seeds demo data if the DB is empty. There is no separate migrate step.
-- No background worker or scheduler exists. Stale pending bookings are swept lazily whenever slots are read.
+- No in-process worker exists. Stale pending bookings are swept lazily whenever slots are read, and on a schedule when an external cron calls `POST /internal/sweep` (expiry + payment reconciliation; see section 6).
 
 ---
 
@@ -84,7 +86,7 @@ Login at `/login`, then:
 | Dashboard | Bookings and revenue today, café revenue, occupancy, pending bookings, new enquiries, day-close table (café payments by cash/UPI/card) |
 | Bookings | List, filter, sort, export; confirm / complete / no-show / cancel; refund; delete |
 | Schedule | Weekly open/close rules per court (slot length, price, discount) and date exceptions (holiday, special hours; venue-wide or per court) |
-| Courts | Court CRUD (capacity = concurrent parties per slot) |
+| Courts | Court CRUD. One court = one booking per slot; add more courts for parallel play (capacity is fixed at 1) |
 | Promos | Percent or flat codes, date window, max uses, sport restriction |
 | Enquiries | Triage contact and corporate enquiries (new / handled) |
 | Gallery | CRUD with image upload (jpg/png/webp/gif, 10 MB, magic-byte check) |
@@ -143,6 +145,8 @@ sequenceDiagram
 
 Rules worth knowing:
 
+- A payment that arrives after the booking expired or was cancelled never resurrects it: both the client verify callback and the webhook go through `services/payment_confirmation.py`, which auto-refunds it (payment row `refunded`) or, if the refund call fails, flags the row `paid_orphan` for manual refund and logs an `ORPHAN PAYMENT` error. The webhook still returns 200 so the gateway stops retrying; verify returns 409.
+- All slot rows of a booking are inserted in one transaction (`booking_repo.create_many`): a slot conflict persists nothing.
 - Payment order is created **before** booking rows are written. If the gateway fails, the promo use is released and the API returns 503 with nothing persisted.
 - The "hold" is the pending row. It occupies the slot for **15 minutes**, then the lazy sweep cancels it, releases promo usage and sends a cancellation notice.
 - Verify uses the stored `providerOrderId`, never the client's, so a signature cannot be reused across bookings.
@@ -193,6 +197,7 @@ flowchart LR
 - Admin / manager: `POST /admin/login` → HS256 JWT (`sub`, `role`, `exp`), 8 h.
 - Cashier / kitchen: `POST /cafe/login` (name + PIN) → JWT, 2 h.
 - Manager, cashier and kitchen tokens are re-checked against the users table on every request, so deleting a user revokes access. The env-var admin token is not re-checked.
+- Invoice print opens in a new window, so it uses a 2-minute signed link: `POST /cafe/invoices/{id}/print-link` (kiosk JWT) returns `/print?t=<token>`; the token is bound to one invoice and carries role `print`, which no role check accepts.
 - No refresh, logout or revocation list. Tokens are Bearer tokens kept in localStorage (`dazy_kiosk_token` for the kiosk).
 - Customers have no accounts.
 
@@ -200,7 +205,7 @@ flowchart LR
 
 - Horizon: next **7 days** in the venue timezone (default `Asia/Kolkata`). Past slots are hidden.
 - Rule per court, per weekday: open/close time, slot minutes (default 60), price (null = free), discount percent. Exceptions override rules; a court-specific exception beats a venue-wide one; an exception with no special hours means closed.
-- A slot is available while `occupied + 1 <= court.capacity` (occupied = sum of `party_size`).
+- A slot is available while it has no active booking. One court = one booking per slot (`courts.capacity` is always 1; the API rejects higher values and the unique index enforces it). For parallel play, add more courts.
 - Max players per sport: cricket 11, badminton 4, pickleball 6; party size 1–12.
 - Price = sum of slot `finalPrice`; promo (percent or flat, never below zero) applied to the total.
 - Prices are **GST-inclusive**; GST (default 18%, CMS key `booking_gst_rate`) is split out and snapshotted on the booking.
@@ -250,7 +255,9 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 | `GET /promos/validate?code&sport&amount` | Validate promo without redeeming |
 | `POST /bookings` | Create booking |
 | `POST /bookings/{ref}/payment/verify` | Client payment callback |
-| `GET /bookings/lookup`, `GET /bookings/search` | Self-service lookup (rate-limited) |
+| `GET /bookings/lookup` | Self-service lookup by ref + contact (rate-limited) |
+| `POST /otp/request`, `POST /otp/verify` | One-time code (email, or WhatsApp for a phone number) proving the caller controls a contact; returns a 15-minute `otpToken` |
+| `GET /bookings/search?contact` | All bookings for a contact. Requires `X-OTP-Token` for that contact (401 `otp_required` otherwise) |
 | `POST /bookings/{ref}/preorder` | Café pre-order |
 | `POST /payments/razorpay/webhook` | Razorpay webhook (signature-verified) |
 | `POST /contact-enquiries`, `POST /corporate-enquiries` | Enquiry forms |
@@ -261,7 +268,23 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 
 **Kiosk / cashier** (cashier, kitchen, manager or admin JWT): `POST /cafe/login`; `/cafe/menu`; `/cafe/tables`; `/cafe/orders` (create, list, get, patch, add item, void item, `/kot`, `/payments`, `/invoice`); `/cafe/kots` and `/kots/{id}/status`; `/cafe/invoices` (list, get, `/print`).
 
-**Rate limiting**: in-process sliding window, 10 attempts per 60 s per client IP, on admin login, cashier login and booking lookup/search only.
+**Scheduler hook**: `POST /internal/sweep` with header `X-Internal-Token` (= `DAZY_INTERNAL_TOKEN`; the endpoint is a 404 when the variable is unset). Expires stale pending bookings and reconciles unsettled payments against Razorpay. Call it every 1-5 minutes from any external cron (Cloudflare Cron Trigger, cron-job.org, Render cron job); it also keeps a free-tier instance awake.
+
+**Rate limiting**: DB-backed sliding windows (table `rate_limit_events`), so limits survive restarts and are shared across instances. Keyed on the real client IP: `DAZY_PROXY_HOPS` trusted proxies are skipped from the right of `X-Forwarded-For`, so a client cannot forge its IP (the Dockerfile no longer passes uvicorn's `--proxy-headers`).
+
+| Limiter | Limit |
+|---|---|
+| Admin login, cashier login (per IP) | 10 / min |
+| Kiosk PIN failures (per username) | 5 / 15 min, then locked; a correct PIN clears the counter |
+| Booking lookup/search (per IP) | 10 / min |
+| `POST /bookings` | 10 / 10 min per IP, 5 / hour per contact; max 2 unpaid (pending) bookings per contact |
+| `POST /bookings/{ref}/payment/verify` | 20 / min per IP |
+| Enquiry forms | 5 / 10 min per IP |
+| Café pre-order | 10 / 10 min per IP |
+| `POST /otp/request` | 5 / 10 min per IP and per contact |
+| `POST /otp/verify` | 10 / 10 min per IP and per contact; 5 wrong guesses kill a code |
+
+**Bot protection**: Cloudflare Turnstile on `POST /bookings`, both enquiry forms and `POST /otp/request` (API: `TURNSTILE_SECRET`; sites: `VITE_TURNSTILE_SITE_KEY`). Skipped when unset (dev); the API refuses to boot in production without the secret.
 
 ---
 
@@ -368,7 +391,8 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 |---|---|---|---|
 | `JWT_SECRET` | `dazy-dev-secret-change-in-production` | Signs admin/cashier JWTs. **Must be set in prod** (32+ random chars) | yes |
 | `ADMIN_USERNAME` | `admin` | Superadmin username. **Change in prod** | no |
-| `ADMIN_PASSWORD` | `admin` | Superadmin password, compared in plain text. **Change in prod** | yes |
+| `ADMIN_PASSWORD` | `admin` | Superadmin password (constant-time compare). **Change in prod** | yes |
+| `ADMIN_PASSWORD_HASH` | — | Optional bcrypt hash; when set it replaces `ADMIN_PASSWORD`. Prefer this in prod | yes |
 | `DAZY_DB_URL` | `sqlite:///<DAZY_DB_PATH>` | SQLAlchemy URL. Neon Postgres URL in prod | yes |
 | `DAZY_DB_PATH` | `apps/api/dazy.db` locally, `/data/dazy.db` in Docker | SQLite file path (ignored if `DAZY_DB_URL` set) | no |
 | `DAZY_MEDIA_DIR` | `apps/api/media` locally, `/data/media` in Docker | Where uploaded images are stored and served at `/media` | no |
@@ -379,8 +403,14 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | `RAZORPAY_KEY_SECRET` | — | Razorpay key secret. Required when provider is `razorpay` | yes |
 | `RAZORPAY_WEBHOOK_SECRET` | — | Verifies webhook signature | yes |
 | `DAZY_NOTIFY_PROVIDER` | `console` | `console` (log only) or `email` (SMTP) | no |
+| `DAZY_ENV` | — | `production` (Render also sets `RENDER`) makes the API **refuse to boot** on default/short `JWT_SECRET`, default admin password, non-`razorpay` provider or missing `RAZORPAY_WEBHOOK_SECRET` (`config_guard.py`). Set in `render.yaml` | no |
 | `DAZY_NOTIFY_WHATSAPP_PROVIDER` | `whatsapp_stub` | Read, but only the stub is wired in | no |
 | `DAZY_NOTIFY_SMS_PROVIDER` | `sms_stub` | Read, but only the stub is wired in | no |
+| `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_ID`, `WHATSAPP_OTP_TEMPLATE` | — | Meta WhatsApp Cloud API, used when `DAZY_NOTIFY_WHATSAPP_PROVIDER=whatsapp_cloud`. OTPs go out as an approved *authentication template*. Adapter is unit-tested with a mocked transport only, not against the live API | token: yes |
+| `TURNSTILE_SECRET` | — | Cloudflare Turnstile secret. Required in production | yes |
+| `DAZY_PROXY_HOPS` | `0` | Trusted reverse proxies in front of the API (Render = 1, Cloudflare in front of Render = 2, compose/Caddy = 1). Rate limits use the Nth-from-right `X-Forwarded-For` entry | no |
+| `DAZY_INTERNAL_TOKEN` | — | Secret for `POST /internal/sweep`; endpoint disabled when unset | yes |
+| `DAZY_RATE_LIMIT_SCALE` | `1` | Multiplies every rate limit. E2E only; production refuses to boot unless it is 1 | no |
 | `SMTP_HOST` | — | SMTP server host | no |
 | `SMTP_PORT` | `587` | SMTP port | no |
 | `SMTP_USER` | — | SMTP username | yes |
@@ -392,6 +422,7 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | Variable | Default | Purpose |
 |---|---|---|
 | `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` | API base URL baked into each SPA at build. Set per frontend project (Cloudflare) or as a Docker build arg (compose sets it from `API_DOMAIN`). `apps/web/.env` exists for local use |
+| `VITE_TURNSTILE_SITE_KEY` | — | Cloudflare Turnstile PUBLIC site key for the web build. Unset = widget hidden (dev). Must be set at build time on Cloudflare once `TURNSTILE_SECRET` is set on the API, or booking/enquiry/OTP calls are rejected |
 
 ### 10.3 Self-host only (Compose + Caddy, root `.env`)
 
@@ -417,7 +448,7 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | Party size | 1–12 | `POST /bookings` |
 | Admin / manager token TTL | 8 hours | `auth.py` |
 | Cashier / kitchen token TTL | 2 hours | `auth.py` |
-| Rate limit | 10 attempts / 60 s / IP | `rate_limit.py` |
+| Rate limits | see section 6 | `rate_limit.py` |
 | Upload limit | 10 MB, jpg/png/webp/gif | admin gallery |
 | GZip minimum | 500 bytes | `main.py` |
 | Venue timezone | `Asia/Kolkata` (column default on `venues`) | DB |
@@ -430,17 +461,16 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 
 Security and config:
 
-- Default `admin`/`admin` and a hard-coded JWT secret apply when env vars are unset. Set both in every real environment.
-- Rate limiter is per process (keep a single API instance) and keyed on `req.client.host`. The Dockerfile now starts uvicorn with `--proxy-headers --forwarded-allow-ips *` so the real client IP is used behind Render/Caddy. No limit on `POST /bookings`, enquiry forms or the webhook.
-- `GET /cafe/invoices/{id}/print` is unauthenticated (UUID ids only).
+- Default `admin`/`admin` and a hard-coded JWT secret apply in dev. In production (`DAZY_ENV=production` or on Render) the API now refuses to start with them (see 10.1 `DAZY_ENV`). Self-host: set `DAZY_ENV=production` in the root `.env`.
+- Rate limits are DB-backed and spoof-resistant (section 6). The webhook is not rate-limited (it is signature-gated). Kiosk PINs are still 4 digits; per-username lockout makes that acceptable but a longer PIN is stronger.
 - Cashier and kitchen roles have identical permissions; manager has every admin permission except user management.
 - No JWT refresh or logout.
 
 Behaviour:
 
 - No customer self-cancel. Admin cancel does not auto-refund; refunds are full-amount only, no partial refund or policy rules.
-- Pending-booking expiry runs only when slots are read, and `mark_expired_by_refs` filters payment status `"pending"` while new payments are created as `"created"`, so payment rows may never flip to expired (unconfirmed by test).
-- Webhook handles only `payment.captured`; no `payment.failed` or reconciliation.
+- Pending-booking expiry also runs from `POST /internal/sweep`, but only if you actually schedule that cron. Without it, expiry still only happens when slots are read (payment rows now flip `created` → `expired`; migration `h1i2j3k4l5m6` backfilled old rows).
+- Webhook confirms only `payment.captured` (and checks the captured amount equals the order amount; a mismatch flags the payment `amount_mismatch` and does not confirm). `payment.failed` is logged and acknowledged. Missed webhooks are recovered by reconciliation, which also runs from `POST /internal/sweep`.
 - `GET /testimonials` and `GET /notifications` serve static seed data, not admin-edited DB content.
 - SMS and WhatsApp are stubs; `audit_log` table is unused.
 - Café is intra-state GST only (no IGST).

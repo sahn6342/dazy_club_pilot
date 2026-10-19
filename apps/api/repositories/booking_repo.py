@@ -159,6 +159,17 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
         with _session() as s:
             s.execute(sa_delete(BookingRow))
 
+    def count_pending_by_contact(self, contact: str) -> int:
+        """Bookings (not rows) still awaiting payment for this contact, case-insensitive."""
+        with _session() as s:
+            return s.scalar(
+                select(func.count()).select_from(BookingRow).where(
+                    BookingRow.is_primary.is_(True),
+                    BookingRow.status == "pending",
+                    func.lower(BookingRow.contact) == contact.strip().lower(),
+                )
+            ) or 0
+
     def search_by_contact(self, contact: str) -> list[BookingRecord]:
         """Primary rows where contact OR email matches (case-insensitive). Newest first, max 10."""
         with _session() as s:

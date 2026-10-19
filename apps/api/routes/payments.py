@@ -5,10 +5,14 @@ after paying). Public by nature (gateways can't send bearer tokens) — trust
 is established via signature verification instead, not auth."""
 from fastapi import APIRouter, HTTPException, Request
 
+import logging
+
 from deps import booking_payment_repo, payment_provider
+from repositories.booking_payment_repo import AMOUNT_MISMATCH
 from services.payment_confirmation import confirm_verified_payment
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/payments/razorpay/webhook")
@@ -29,6 +33,14 @@ async def razorpay_webhook(request: Request):
     payment = booking_payment_repo.get_by_order_id(provider_order_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Unknown order.")
+
+    # The order amount is fixed server-side, so a different captured amount means something
+    # is wrong (tampering, wrong order). Never confirm on it; flag for an admin, ack with 200.
+    if verification.amount is not None and abs(verification.amount - payment.amount) > 0.01:
+        logger.error("AMOUNT MISMATCH on order %s (ref %s): expected %.2f, captured %.2f",
+                     provider_order_id, payment.bookingRef, payment.amount, verification.amount)
+        booking_payment_repo.set_status(provider_order_id, AMOUNT_MISMATCH)
+        return {"status": "amount_mismatch"}
 
     # Idempotent and race-safe: late payments are refunded/flagged, never resurrect a booking.
     # Always 200 once the signature checked out, so the gateway stops redelivering.

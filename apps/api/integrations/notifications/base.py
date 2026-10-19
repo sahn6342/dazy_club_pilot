@@ -17,3 +17,11 @@ class NotificationProvider(ABC):
 
     @abstractmethod
     def send(self, to: str, subject: str, body: str) -> NotificationResult: ...
+
+    def send_otp(self, to: str, code: str) -> NotificationResult:
+        """Send a one-time code. Providers whose channel needs a pre-approved template
+        (WhatsApp) override this; the default is a plain message."""
+        return self.send(
+            to, "Your Dazy Club verification code",
+            f"Your Dazy Club verification code is {code}. It is valid for 10 minutes. "
+            "If you did not request it, ignore this message.")

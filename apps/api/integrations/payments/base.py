@@ -20,6 +20,13 @@ class PaymentVerification:
     verified: bool
     providerPaymentId: str | None = None
     reason: str | None = None
+    amount: float | None = None  # amount the provider says was captured (rupees), when known
+
+
+@dataclass
+class CapturedPayment:
+    providerPaymentId: str
+    amount: float  # rupees
 
 
 class PaymentProvider(ABC):
@@ -40,6 +47,12 @@ class PaymentProvider(ABC):
         """Returns (verification, provider_order_id). The order id is pulled
         from the now-trusted payload so the caller can look up the booking —
         never trust an order id passed outside the signed payload/body."""
+        ...
+
+    @abstractmethod
+    def fetch_captured_payment(self, provider_order_id: str) -> "CapturedPayment | None":
+        """Ask the provider whether this order has a captured payment (reconciliation
+        for webhooks that never arrived). None = not paid / unknown."""
         ...
 
     @abstractmethod

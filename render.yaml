@@ -41,6 +41,10 @@ projects:
       # (default JWT secret / admin creds, noop payments). Not a secret, so value is tracked.
       - key: DAZY_ENV
         value: production
+      # Trusted reverse proxies in front of the API; rate limits key on the Nth-from-right
+      # X-Forwarded-For entry (Render alone = 1; put 2 if Cloudflare proxies api.dazyclub.com).
+      - key: DAZY_PROXY_HOPS
+        value: "1"
       # --- Auth (MUST be non-default in production) ---
       - key: JWT_SECRET            # random 32+ chars; changing it logs everyone out
         sync: false
@@ -69,6 +73,21 @@ projects:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET # secret of webhook https://api.dazyclub.com/api/v1/payments/razorpay/webhook (payment.captured)
         sync: false
+      # --- Bot protection (Cloudflare Turnstile): API verifies tokens; sites use the PUBLIC site key ---
+      - key: TURNSTILE_SECRET      # required in production (API refuses to boot without it)
+        sync: false
+      # --- WhatsApp OTP via Meta Cloud API (only when DAZY_NOTIFY_WHATSAPP_PROVIDER=whatsapp_cloud) ---
+      - key: DAZY_NOTIFY_WHATSAPP_PROVIDER  # whatsapp_stub (default) | whatsapp_cloud
+        sync: false
+      - key: WHATSAPP_CLOUD_TOKEN
+        sync: false
+      - key: WHATSAPP_CLOUD_PHONE_ID
+        sync: false
+      - key: WHATSAPP_OTP_TEMPLATE # approved authentication template name
+        sync: false
+      # --- Scheduler: an external cron POSTs /api/v1/internal/sweep with header X-Internal-Token ---
+      - key: DAZY_INTERNAL_TOKEN   # random 32+ chars; endpoint is disabled (404) when unset
+        sync: false
       # --- Notifications ---
       - key: DAZY_NOTIFY_PROVIDER  # console (log only) | email (SMTP)
         sync: false
@@ -83,4 +102,5 @@ projects:
       - key: SMTP_FROM
         sync: false
       # Not listed on purpose: DAZY_DB_PATH (SQLite only, ignored when DAZY_DB_URL is set),
-      # DAZY_NOTIFY_WHATSAPP_PROVIDER / DAZY_NOTIFY_SMS_PROVIDER (stubs; defaults are fine).
+      # DAZY_NOTIFY_SMS_PROVIDER (stub; default is fine), WHATSAPP_TEMPLATE_LANG and
+      # WHATSAPP_DEFAULT_COUNTRY_CODE (defaults "en" / "91").

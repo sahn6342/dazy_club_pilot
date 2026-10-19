@@ -20,6 +20,6 @@ RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app /data
 USER app
 
 EXPOSE 8000
-# --proxy-headers/--forwarded-allow-ips: trust X-Forwarded-For from Render/Caddy so the
-# rate limiter keys on the real client IP instead of the proxy's.
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+# No --proxy-headers: uvicorn's "*" trust takes the LEFTMOST X-Forwarded-For entry, which a
+# client can forge. rate_limit.client_ip() reads the Nth-from-right entry (DAZY_PROXY_HOPS).
+CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

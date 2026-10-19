@@ -49,6 +49,7 @@ class ContactEnquiryRequest(BaseModel):
     contact: str = Field(min_length=1)
     interestedSport: str | None = None
     message: str | None = Field(default=None, max_length=2000)
+    turnstileToken: str | None = Field(default=None, max_length=2048)  # Cloudflare Turnstile response
 
     @field_validator("contact")
     @classmethod
@@ -74,6 +75,7 @@ class CorporateEnquiryRequest(BaseModel):
     preferredDate: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     preferredSport: str | None = None
     message: str | None = Field(default=None, max_length=2000)
+    turnstileToken: str | None = Field(default=None, max_length=2048)  # Cloudflare Turnstile response
 
     @field_validator("contact")
     @classmethod
@@ -114,6 +116,16 @@ class SlotDto(BaseModel):
     model_config = {"frozen": False}
 
 
+class OtpRequestBody(BaseModel):
+    contact: str = Field(min_length=1, max_length=254)
+    turnstileToken: str | None = Field(default=None, max_length=2048)
+
+
+class OtpVerifyBody(BaseModel):
+    contact: str = Field(min_length=1, max_length=254)
+    code: str = Field(pattern=r"^\d{6}$")
+
+
 class BookingRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     contact: str = Field(min_length=1)
@@ -126,6 +138,7 @@ class BookingRequest(BaseModel):
     players: int = Field(ge=1, le=12)  # public API field — mapped to party_size internally
     promoCode: str | None = Field(default=None, max_length=40)
     message: str | None = Field(default=None, max_length=2000)
+    turnstileToken: str | None = Field(default=None, max_length=2048)  # Cloudflare Turnstile response
 
     @model_validator(mode="after")
     def resolve_slot_ids(self) -> "BookingRequest":
@@ -493,7 +506,8 @@ class CourtCreate(BaseModel):
     venue_id: str = Field(min_length=1)
     sport: str = Field(min_length=1)
     name: str = Field(min_length=1, max_length=80)
-    capacity: int = Field(ge=1, le=100, default=1)
+    # One court = one booking per slot (enforced by uq_active_court_slot). Add more courts for parallel play.
+    capacity: int = Field(ge=1, le=1, default=1)
 
     @field_validator("sport")
     @classmethod
@@ -505,7 +519,7 @@ class CourtCreate(BaseModel):
 
 class CourtUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
-    capacity: int | None = Field(default=None, ge=1, le=100)
+    capacity: int | None = Field(default=None, ge=1, le=1)
     active: bool | None = None
 
 

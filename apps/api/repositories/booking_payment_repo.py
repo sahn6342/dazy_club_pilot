@@ -24,6 +24,7 @@ VERIFIED = "verified"          # paid and booking confirmed
 EXPIRED = "expired"            # booking timed out unpaid
 REFUNDED = "refunded"          # refunded via admin or auto-refund
 PAID_ORPHAN = "paid_orphan"    # paid after booking expired; refund failed, needs admin action
+AMOUNT_MISMATCH = "amount_mismatch"  # webhook amount != order amount; booking NOT confirmed, needs admin review
 
 
 class SqliteBookingPaymentRepository:
@@ -80,6 +81,25 @@ class SqliteBookingPaymentRepository:
                 )
                 .values(status="expired")
             )
+
+    def list_unsettled(self, older_than_iso: str, newer_than_iso: str) -> list[BookingPaymentDto]:
+        """Orders still awaiting a payment signal (created, or expired in case the
+        customer paid at the last second) inside the reconciliation window."""
+        with _session() as s:
+            rows = s.scalars(
+                select(BookingPaymentRow).where(
+                    BookingPaymentRow.status.in_([CREATED, EXPIRED]),
+                    BookingPaymentRow.createdAt < older_than_iso,
+                    BookingPaymentRow.createdAt > newer_than_iso,
+                )
+            ).all()
+            return [_to_model(r) for r in rows]
+
+    def set_status(self, provider_order_id: str, status: str) -> None:
+        with _session() as s:
+            row = s.scalar(select(BookingPaymentRow).where(BookingPaymentRow.providerOrderId == provider_order_id))
+            if row:
+                row.status = status
 
     def mark_late_payment(
         self, provider_order_id: str, provider_payment_id: str, signature: str | None, status: str

@@ -3,6 +3,9 @@ import type { Slot } from "@dazy/shared";
 const API = (import.meta as any).env?.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
 // API origin without /api/v1 — resolves relative /media image paths to absolute URLs.
+// Cloudflare Turnstile PUBLIC site key (build-time). Unset in local dev => widget hidden, API skips the check.
+export const TURNSTILE_SITE_KEY: string = (import.meta as any).env?.VITE_TURNSTILE_SITE_KEY ?? "";
+
 export const API_ORIGIN = API.replace(/\/api\/v1\/?$/, "");
 
 export function resolveImg(url: string | null | undefined): string {
@@ -59,6 +62,7 @@ export interface BookingPayload {
   promoCode?: string;
   message?: string;
   email?: string;
+  turnstileToken?: string;
 }
 
 export interface CheckoutConfig {
@@ -177,9 +181,14 @@ export async function lookupBooking(ref: string, contact?: string): Promise<Book
   return r.json();
 }
 
-export async function searchBookingsByContact(contact: string): Promise<BookingLookupResult[]> {
+export class OtpRequiredError extends Error {
+  constructor() { super("otp_required"); }
+}
+
+export async function searchBookingsByContact(contact: string, otpToken: string): Promise<BookingLookupResult[]> {
   const params = new URLSearchParams({ contact });
-  const r = await fetch(`${API}/bookings/search?${params}`);
+  const r = await fetch(`${API}/bookings/search?${params}`, { headers: { "X-OTP-Token": otpToken } });
+  if (r.status === 401 || r.status === 403) throw new OtpRequiredError();
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: "No bookings found." }));
     throw new Error(errorMessage(err, "No bookings found."));
@@ -187,11 +196,40 @@ export async function searchBookingsByContact(contact: string): Promise<BookingL
   return r.json();
 }
 
+/** Step 1: ask the API to send a one-time code (email, or WhatsApp for a phone number). */
+export async function requestOtp(contact: string, turnstileToken?: string): Promise<{ channel: "email" | "whatsapp" }> {
+  const r = await fetch(`${API}/otp/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contact, turnstileToken }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: "Could not send a code." }));
+    throw new Error(errorMessage(err, "Could not send a code."));
+  }
+  return r.json();
+}
+
+/** Step 2: exchange the code for a short-lived token that unlocks booking search for that contact. */
+export async function verifyOtp(contact: string, code: string): Promise<string> {
+  const r = await fetch(`${API}/otp/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contact, code }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: "That code is incorrect or has expired." }));
+    throw new Error(errorMessage(err, "That code is incorrect or has expired."));
+  }
+  return (await r.json()).otpToken;
+}
+
 export interface ContactPayload {
   name: string;
   contact: string;
   interestedSport?: string;
   message?: string;
+  turnstileToken?: string;
 }
 
 export async function submitContactEnquiry(payload: ContactPayload) {
@@ -213,6 +251,7 @@ export interface CorporatePayload {
   preferredDate?: string;
   preferredSport?: string;
   message?: string;
+  turnstileToken?: string;
 }
 
 export async function submitCorporateEnquiry(payload: CorporatePayload) {

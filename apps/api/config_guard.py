@@ -37,6 +37,10 @@ def config_problems() -> list[str]:
         problems.append("DAZY_PAYMENT_PROVIDER must be 'razorpay' (noop trusts the client and confirms unpaid bookings).")
     elif not os.environ.get("RAZORPAY_WEBHOOK_SECRET"):
         problems.append("RAZORPAY_WEBHOOK_SECRET must be set (webhooks are the source of truth for payments).")
+    if os.environ.get("DAZY_RATE_LIMIT_SCALE", "1") != "1":
+        problems.append("DAZY_RATE_LIMIT_SCALE must be unset/1 in production (it loosens every rate limit).")
+    if not os.environ.get("TURNSTILE_SECRET"):
+        problems.append("TURNSTILE_SECRET must be set (bot protection on booking, enquiry and OTP endpoints).")
     return problems
 
 

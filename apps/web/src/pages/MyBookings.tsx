@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { lookupBooking, searchBookingsByContact, SPORT_LABELS, type BookingLookupResult } from "../lib/api";
+import {
+  lookupBooking, searchBookingsByContact, requestOtp, verifyOtp, OtpRequiredError, TURNSTILE_SITE_KEY,
+  SPORT_LABELS, type BookingLookupResult,
+} from "../lib/api";
+import { Turnstile } from "../components/Turnstile";
 import { validateContact } from "../lib/validate";
 import { PaymentPanel } from "../components/PaymentPanel";
 import { PreOrderPanel } from "../components/PreOrderPanel";
@@ -33,6 +37,76 @@ export function MyBookings() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<BookingLookupResult | null>(null);
   const [resultList, setResultList] = useState<BookingLookupResult[]>([]);
+
+  // Contact-only search is gated by a one-time code (email, or WhatsApp for a phone number),
+  // so knowing someone's number is not enough to list their bookings.
+  const [otpStage, setOtpStage] = useState<"idle" | "code">("idle");
+  const [otpChannel, setOtpChannel] = useState<"email" | "whatsapp">("email");
+  const [otpContact, setOtpContact] = useState("");
+  const [otpToken, setOtpToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [tsToken, setTsToken] = useState<string | null>(null);
+  const [tsReset, setTsReset] = useState(0);
+
+  function resetOtp() {
+    setOtpStage("idle");
+    setOtpToken(null);
+    setOtpContact("");
+    setCode("");
+  }
+
+  async function runSearch(contactValue: string, token: string) {
+    try {
+      const list = await searchBookingsByContact(contactValue, token);
+      setResultList(list);
+      setStatus("list");
+    } catch (err: any) {
+      if (err instanceof OtpRequiredError) {
+        resetOtp(); // token expired: start over
+        setStatus("error");
+        setError("Your verification expired. Please request a new code.");
+      } else {
+        setStatus("error");
+        setError(err?.message ?? "No bookings found.");
+      }
+    }
+  }
+
+  async function sendCode() {
+    if (TURNSTILE_SITE_KEY && !tsToken) {
+      setStatus("error");
+      setError("Please complete the verification challenge first.");
+      return;
+    }
+    try {
+      const { channel } = await requestOtp(contact.trim(), tsToken ?? undefined);
+      setOtpChannel(channel);
+      setOtpContact(contact.trim());
+      setOtpStage("code");
+      setCode("");
+      setStatus("idle");
+    } catch (err: any) {
+      setStatus("error");
+      setError(err?.message ?? "Could not send a code.");
+    } finally {
+      setTsReset((n) => n + 1);
+    }
+  }
+
+  async function submitCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(code.trim())) { setError("Enter the 6-digit code."); setStatus("error"); return; }
+    setStatus("loading");
+    setError("");
+    try {
+      const token = await verifyOtp(otpContact, code.trim());
+      setOtpToken(token);
+      await runSearch(otpContact, token);
+    } catch (err: any) {
+      setStatus("error");
+      setError(err?.message ?? "That code is incorrect or has expired.");
+    }
+  }
 
   function validate(): boolean {
     const hasRef = ref.trim().length > 0;
@@ -69,10 +143,12 @@ export function MyBookings() {
 
     try {
       if (hasContact && !hasRef) {
-        // Contact only → list all bookings for this phone/email.
-        const list = await searchBookingsByContact(contact.trim());
-        setResultList(list);
-        setStatus("list");
+        // Contact only → list all bookings for this phone/email, after a one-time-code check.
+        if (otpToken && otpContact === contact.trim()) {
+          await runSearch(contact.trim(), otpToken);
+        } else {
+          await sendCode();
+        }
       } else {
         // Ref only, or ref + contact → single booking.
         const data = await lookupBooking(
@@ -127,7 +203,7 @@ export function MyBookings() {
             Phone or email <span className="muted" style={{ fontWeight: 400 }}>(optional)</span>
             <input
               value={contact}
-              onChange={(e) => { setContact(e.target.value); setContactError(""); }}
+              onChange={(e) => { setContact(e.target.value); setContactError(""); if (e.target.value.trim() !== otpContact) resetOtp(); }}
               placeholder="10-digit mobile or email"
               className={contactError ? "input-error" : ""}
             />
@@ -139,9 +215,35 @@ export function MyBookings() {
           Enter either — or both for a more specific result.
         </p>
 
-        <button className="button primary" type="submit" disabled={status === "loading"}>
-          {status === "loading" ? "Looking up…" : "Find my booking"}
+        {otpStage === "idle" && !ref.trim() && contact.trim() && <Turnstile onToken={setTsToken} resetKey={tsReset} />}
+
+        <button className="button primary" type="submit" disabled={status === "loading" || otpStage === "code"}>
+          {status === "loading" ? "Looking up…" : !ref.trim() && contact.trim() ? "Send me a code" : "Find my booking"}
         </button>
+
+        {otpStage === "code" && (
+          <div className="otp-step" data-testid="otp-step" style={{ marginTop: "1rem" }}>
+            <p className="muted" style={{ fontSize: "0.85rem" }}>
+              We sent a 6-digit code to your {otpChannel === "email" ? "email" : "WhatsApp"} ({otpContact}). It is valid for 10 minutes.
+            </p>
+            <label>
+              Verification code
+              <input
+                data-testid="otp-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="123456"
+              />
+            </label>
+            <button className="button primary" type="button" data-testid="otp-verify" onClick={submitCode} disabled={status === "loading"}>
+              Verify and show my bookings
+            </button>{" "}
+            <button className="button" type="button" onClick={resetOtp}>Use a different contact</button>
+          </div>
+        )}
 
         {status === "error" && (
           <p className="form-message error" data-testid="lookup-error">{error}</p>

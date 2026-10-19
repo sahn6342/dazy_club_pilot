@@ -23,6 +23,8 @@ from routes.enquiries import router as enquiries_router
 from routes.slots import router as slots_router
 from routes.bookings import router as bookings_router
 from routes.payments import router as payments_router
+from routes.internal import router as internal_router
+from routes.otp import router as otp_router
 from routes.promos import router as promos_router
 from routes.venue import router as venue_router
 from routes.preorders import router as preorders_router
@@ -100,6 +102,8 @@ app.include_router(enquiries_router, prefix=prefix)
 app.include_router(slots_router, prefix=prefix)
 app.include_router(bookings_router, prefix=prefix)
 app.include_router(payments_router, prefix=prefix)
+app.include_router(internal_router, prefix=prefix)
+app.include_router(otp_router, prefix=prefix)
 app.include_router(promos_router, prefix=prefix)
 app.include_router(venue_router, prefix=prefix)
 app.include_router(preorders_router, prefix=prefix)

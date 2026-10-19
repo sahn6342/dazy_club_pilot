@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from models import AdminLoginRequest, AdminToken
 from auth import create_access_token, verify_env_admin, verify_password
 from deps import user_repo
-from rate_limit import admin_login_limiter
+from rate_limit import admin_login_limiter, client_ip
 
 router = APIRouter()
 
@@ -14,8 +14,7 @@ def clear_login_attempts() -> None:
 
 @router.post("/admin/login", response_model=AdminToken)
 def login(request: AdminLoginRequest, req: Request):
-    client_ip = req.client.host if req.client else "unknown"
-    admin_login_limiter.check(client_ip)
+    admin_login_limiter.check(client_ip(req), "Too many login attempts. Try again later.")
 
     # Check env-var superadmin first
     if verify_env_admin(request.username, request.password):

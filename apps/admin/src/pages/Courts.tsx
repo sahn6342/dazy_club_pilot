@@ -21,7 +21,7 @@ const SPORT_LABELS: Record<string, string> = {
   pickleball: "Pickleball",
 };
 
-const blankForm = { sport: "cricket", name: "", capacity: "1" };
+const blankForm = { sport: "cricket", name: "" };
 
 export function Courts() {
   const toast = useToast();
@@ -34,7 +34,7 @@ export function Courts() {
   const [createError, setCreateError] = useState("");
 
   const [editId, setEditId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", capacity: "1" });
+  const [editForm, setEditForm] = useState({ name: "" });
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -50,8 +50,6 @@ export function Courts() {
   async function createCourt(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) { setCreateError("Name is required."); return; }
-    const capacity = parseInt(form.capacity, 10);
-    if (!capacity || capacity < 1) { setCreateError("Capacity must be ≥ 1."); return; }
     setCreating(true);
     setCreateError("");
     // Use venue_id from existing courts, fallback to "venue-dazy".
@@ -61,7 +59,6 @@ export function Courts() {
         venue_id: venueId,
         sport: form.sport,
         name: form.name.trim(),
-        capacity,
       });
       toast.success("Court created");
       setForm(blankForm);
@@ -77,20 +74,17 @@ export function Courts() {
 
   function startEdit(c: Court) {
     setEditId(c.id);
-    setEditForm({ name: c.name, capacity: String(c.capacity) });
+    setEditForm({ name: c.name });
     setEditError("");
   }
 
   async function saveEdit(courtId: string) {
     if (!editForm.name.trim()) { setEditError("Name is required."); return; }
-    const capacity = parseInt(editForm.capacity, 10);
-    if (!capacity || capacity < 1) { setEditError("Capacity must be ≥ 1."); return; }
     setSaving(true);
     setEditError("");
     try {
       await api.patch(`/admin/courts/${courtId}`, {
         name: editForm.name.trim(),
-        capacity,
       });
       toast.success("Court updated");
       setEditId(null);
@@ -160,18 +154,6 @@ export function Courts() {
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   />
                 </label>
-                <label style={{ flex: "0 0 100px" }}>
-                  Capacity
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    className="cms-textarea"
-                    style={{ marginTop: "0.25rem", width: "100%", padding: "0.45rem 0.65rem" }}
-                    value={form.capacity}
-                    onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))}
-                  />
-                </label>
               </div>
               {createError && <p className="field-error">{createError}</p>}
               <div>
@@ -198,7 +180,6 @@ export function Courts() {
                     <thead>
                       <tr>
                         <th>Name</th>
-                        <th>Capacity</th>
                         <th>Status</th>
                         <th>Actions</th>
                       </tr>
@@ -216,20 +197,6 @@ export function Courts() {
                               />
                             ) : (
                               c.name
-                            )}
-                          </td>
-                          <td>
-                            {editId === c.id ? (
-                              <input
-                                type="number"
-                                min="1"
-                                className="cms-textarea"
-                                style={{ padding: "0.3rem 0.5rem", width: 70 }}
-                                value={editForm.capacity}
-                                onChange={(e) => setEditForm((f) => ({ ...f, capacity: e.target.value }))}
-                              />
-                            ) : (
-                              c.capacity
                             )}
                           </td>
                           <td>

@@ -12,6 +12,13 @@ services:
     restart: unless-stopped
     environment:
       DAZY_ENV: ${DAZY_ENV:-}
+      TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
+      DAZY_NOTIFY_WHATSAPP_PROVIDER: ${DAZY_NOTIFY_WHATSAPP_PROVIDER:-whatsapp_stub}
+      WHATSAPP_CLOUD_TOKEN: ${WHATSAPP_CLOUD_TOKEN:-}
+      WHATSAPP_CLOUD_PHONE_ID: ${WHATSAPP_CLOUD_PHONE_ID:-}
+      WHATSAPP_OTP_TEMPLATE: ${WHATSAPP_OTP_TEMPLATE:-}
+      DAZY_INTERNAL_TOKEN: ${DAZY_INTERNAL_TOKEN:-}
+      DAZY_PROXY_HOPS: "1"  # Caddy is the one trusted proxy; rate limits key on the real client IP
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}

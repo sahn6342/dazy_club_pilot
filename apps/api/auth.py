@@ -82,6 +82,24 @@ def verify_print_token(token: str, invoice_id: str) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid print link.")
 
 
+_OTP_EXPIRES_MINUTES = 15
+
+
+def create_otp_token(contact: str) -> str:
+    """Proof that `contact` passed an OTP check. role="otp" keeps it out of every role check."""
+    payload = {
+        "sub": contact, "role": "otp", "purpose": "booking_search",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=_OTP_EXPIRES_MINUTES),
+    }
+    return jwt.encode(payload, _SECRET, algorithm=_ALGORITHM)
+
+
+def verify_otp_token(token: str, contact: str) -> None:
+    payload = _decode_token(token)
+    if payload.get("purpose") != "booking_search" or payload.get("sub") != contact:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Verification does not match this contact.")
+
+
 def _decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, _SECRET, algorithms=[_ALGORITHM])

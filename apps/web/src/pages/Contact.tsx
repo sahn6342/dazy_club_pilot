@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { launchSports } from "@dazy/shared";
-import { submitContactEnquiry, submitCorporateEnquiry, todayIso, getVenueInfo } from "../lib/api";
+import { Turnstile } from "../components/Turnstile";
+import { submitContactEnquiry, submitCorporateEnquiry, todayIso, getVenueInfo, TURNSTILE_SITE_KEY } from "../lib/api";
 import { validateName, validateContact, validateCompany, validateGroupSize } from "../lib/validate";
 
 type VenueInfo = { address: string; phone: string; email: string; hours: string; instagram: string; facebook: string };
@@ -117,6 +118,8 @@ function useField(initial = "") {
 
 function ContactForm() {
   const [status, setStatus] = useState<FormStatus>("idle");
+  const [tsToken, setTsToken] = useState<string | null>(null);
+  const [tsReset, setTsReset] = useState(0);
   const name = useField();
   const contact = useField();
 
@@ -131,6 +134,7 @@ function ContactForm() {
     name.onBlur(); contact.onBlur();
     if (validateName(name.value) || validateContact(contact.value)) return;
 
+    if (TURNSTILE_SITE_KEY && !tsToken) { setStatus("error"); return; }
     setStatus("submitting");
     const data = Object.fromEntries(new FormData(formEl));
     try {
@@ -139,6 +143,7 @@ function ContactForm() {
         contact: contact.value.trim(),
         interestedSport: String(data.interestedSport || ""),
         message: String(data.message || ""),
+        turnstileToken: tsToken ?? undefined,
       });
       setStatus("success");
       name.reset(); contact.reset();
@@ -146,6 +151,7 @@ function ContactForm() {
     } catch {
       setStatus("error");
     }
+    setTsReset((n) => n + 1);
   }
 
   return (
@@ -178,6 +184,7 @@ function ContactForm() {
 
       <label>Message <textarea name="message" rows={5} /></label>
 
+      <Turnstile onToken={setTsToken} resetKey={tsReset} />
       <button className="button primary" type="submit" disabled={status === "submitting"}>
         {status === "submitting" ? "Sending…" : "Send message"}
       </button>
@@ -190,6 +197,8 @@ function ContactForm() {
 
 function CorporateForm() {
   const [status, setStatus] = useState<FormStatus>("idle");
+  const [tsToken, setTsToken] = useState<string | null>(null);
+  const [tsReset, setTsReset] = useState(0);
   const contactName = useField();
   const company = useField();
   const contact = useField();
@@ -215,6 +224,7 @@ function CorporateForm() {
       validateGroupSize(Number(groupSize))
     ) return;
 
+    if (TURNSTILE_SITE_KEY && !tsToken) { setStatus("error"); return; }
     setStatus("submitting");
     const data = Object.fromEntries(new FormData(formEl));
     try {
@@ -227,6 +237,7 @@ function CorporateForm() {
         preferredDate: String(data.preferredDate || ""),
         preferredSport: String(data.preferredSport || ""),
         message: String(data.message || ""),
+        turnstileToken: tsToken ?? undefined,
       });
       setStatus("success");
       contactName.reset(); company.reset(); contact.reset();
@@ -235,6 +246,7 @@ function CorporateForm() {
     } catch {
       setStatus("error");
     }
+    setTsReset((n) => n + 1);
   }
 
   return (
@@ -294,6 +306,7 @@ function CorporateForm() {
 
       <label>Message <textarea name="message" rows={4} /></label>
 
+      <Turnstile onToken={setTsToken} resetKey={tsReset} />
       <button className="button primary" type="submit" disabled={status === "submitting"}>
         {status === "submitting" ? "Submitting…" : "Submit enquiry"}
       </button>

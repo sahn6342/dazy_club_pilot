@@ -2,7 +2,7 @@
 SQLAlchemy ORM models. Column names mirror Pydantic field names (camelCase) so
 row -> Pydantic conversion is a clean kwargs splat in each repository.
 """
-from sqlalchemy import String, Integer, Boolean, Text, ForeignKey, Numeric
+from sqlalchemy import String, Integer, Boolean, Text, ForeignKey, Numeric, Float
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db import Base
@@ -371,3 +371,23 @@ class AuditLogRow(Base):
     entityId: Mapped[str | None] = mapped_column(String, nullable=True)
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class OtpCodeRow(Base):
+    """Live one-time code per contact (HMAC only). See services/otp_service.py."""
+    __tablename__ = "otp_codes"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    contact: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    code_hash: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[float] = mapped_column(Float, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class RateLimitEventRow(Base):
+    """One row per counted attempt. DB-backed so limits survive restarts / free-tier
+    spin-downs and are shared across API instances."""
+    __tablename__ = "rate_limit_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    ts: Mapped[float] = mapped_column(Float, nullable=False)
