@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import select, delete as sa_delete, update as sa_update
+from sqlalchemy import select, delete as sa_delete, update as sa_update, func, or_
 
 from models import BookingRecord
 from repositories.base import BaseRepository
@@ -132,6 +132,24 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
     def clear(self) -> None:
         with _session() as s:
             s.execute(sa_delete(BookingRow))
+
+    def search_by_contact(self, contact: str) -> list[BookingRecord]:
+        """Primary rows where contact OR email matches (case-insensitive). Newest first, max 10."""
+        with _session() as s:
+            contact_lc = contact.strip().lower()
+            rows = s.scalars(
+                select(BookingRow)
+                .where(
+                    BookingRow.is_primary.is_(True),
+                    or_(
+                        func.lower(BookingRow.contact) == contact_lc,
+                        func.lower(BookingRow.email) == contact_lc,
+                    ),
+                )
+                .order_by(BookingRow.createdAt.desc())
+                .limit(10)
+            ).all()
+            return [_to_model(r) for r in rows]
 
     # ── slot-availability derivation helpers ──
     def exists_for_slot(self, slot_id: str) -> bool:

@@ -166,12 +166,23 @@ export interface BookingLookupResult {
   gstAmount?: number | null;
 }
 
-export async function lookupBooking(ref: string, contact: string): Promise<BookingLookupResult> {
-  const params = new URLSearchParams({ ref, contact });
+export async function lookupBooking(ref: string, contact?: string): Promise<BookingLookupResult> {
+  const params = new URLSearchParams({ ref });
+  if (contact) params.set("contact", contact);
   const r = await fetch(`${API}/bookings/lookup?${params}`);
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: "Booking not found." }));
     throw new Error(errorMessage(err, "Booking not found."));
+  }
+  return r.json();
+}
+
+export async function searchBookingsByContact(contact: string): Promise<BookingLookupResult[]> {
+  const params = new URLSearchParams({ contact });
+  const r = await fetch(`${API}/bookings/search?${params}`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: "No bookings found." }));
+    throw new Error(errorMessage(err, "No bookings found."));
   }
   return r.json();
 }

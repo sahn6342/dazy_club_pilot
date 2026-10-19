@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 from datetime import datetime, timezone, date as date_cls
 from fastapi import APIRouter, HTTPException, Request
@@ -12,6 +13,45 @@ from services.pricing_service import apply_promo, gst_components, PromoError
 from services.notification_service import notify_booking_confirmed, notify_booking_payment_pending
 
 router = APIRouter()
+
+_PHONE_RE = re.compile(r"^\d{10}$")
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
+
+
+def _validate_contact_str(contact: str) -> str | None:
+    v = contact.strip()
+    if not v:
+        return "Contact is required."
+    if not _PHONE_RE.match(v) and not _EMAIL_RE.match(v):
+        return "Enter a valid 10-digit mobile number or email address."
+    return None
+
+
+def _build_lookup_result(bookings: list, include_checkout: bool = True) -> BookingLookupResult:
+    primary = next((b for b in bookings if b.is_primary), bookings[0])
+    last = bookings[-1] if len(bookings) > 1 else primary
+    _gst_rate = primary.gst_rate_percent
+    _taxable, _gst_amt = gst_components(primary.price, _gst_rate) if (primary.price and _gst_rate) else (None, None)
+    result = BookingLookupResult(
+        bookingRef=primary.bookingRef,
+        name=primary.name,
+        status=primary.status,
+        sport=primary.sportSlug,
+        date=primary.date,
+        startTime=primary.startTime,
+        endTime=last.endTime,
+        slotCount=len(bookings),
+        price=primary.price,
+        paymentRequired=primary.status == "pending" and primary.paymentStatus != "paid",
+        gst_rate_percent=_gst_rate,
+        taxable_amount=_taxable,
+        gst_amount=_gst_amt,
+    )
+    if include_checkout and result.paymentRequired:
+        payment = booking_payment_repo.get_by_ref(primary.bookingRef)
+        if payment and payment.checkoutJson:
+            result.checkout = json.loads(payment.checkoutJson)
+    return result
 
 
 @router.post("/bookings", status_code=201)
@@ -181,11 +221,10 @@ def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest):
 
 
 @router.get("/bookings/lookup", response_model=BookingLookupResult)
-def lookup_booking(ref: str, contact: str, req: Request):
-    """Self-service resume/lookup — no login. Identity is the ref + matching
-    contact (same trust model as the café pre-order endpoint). Reuses the
-    payment order created at booking time so a customer resuming payment
-    never gets handed a second, orphaned Razorpay order."""
+def lookup_booking(ref: str, req: Request, contact: str | None = None):
+    """Self-service lookup. Contact is optional:
+    - With contact: strict identity check, checkout included (enables payment).
+    - Without contact: basic info only, checkout stripped (requires contact for payment)."""
     client_ip = req.client.host if req.client else "unknown"
     booking_lookup_limiter.check(client_ip, message="Too many lookup attempts. Try again later.")
 
@@ -194,29 +233,30 @@ def lookup_booking(ref: str, contact: str, req: Request):
         raise HTTPException(status_code=404, detail="Booking not found.")
     primary = next((b for b in bookings if b.is_primary), bookings[0])
 
-    if primary.contact.strip().lower() != contact.strip().lower():
-        raise HTTPException(status_code=404, detail="Booking not found.")
+    if contact is not None:
+        if primary.contact.strip().lower() != contact.strip().lower():
+            raise HTTPException(status_code=404, detail="Booking not found.")
+        return _build_lookup_result(bookings, include_checkout=True)
 
-    last = bookings[-1] if len(bookings) > 1 else primary
-    _gst_rate = primary.gst_rate_percent
-    _taxable, _gst_amt = gst_components(primary.price, _gst_rate) if (primary.price and _gst_rate) else (None, None)
-    result = BookingLookupResult(
-        bookingRef=primary.bookingRef,
-        name=primary.name,
-        status=primary.status,
-        sport=primary.sportSlug,
-        date=primary.date,
-        startTime=primary.startTime,
-        endTime=last.endTime,
-        slotCount=len(bookings),
-        price=primary.price,
-        paymentRequired=primary.status == "pending" and primary.paymentStatus != "paid",
-        gst_rate_percent=_gst_rate,
-        taxable_amount=_taxable,
-        gst_amount=_gst_amt,
-    )
-    if result.paymentRequired:
-        payment = booking_payment_repo.get_by_ref(ref)
-        if payment and payment.checkoutJson:
-            result.checkout = json.loads(payment.checkoutJson)
-    return result
+    return _build_lookup_result(bookings, include_checkout=False)
+
+
+@router.get("/bookings/search", response_model=list[BookingLookupResult])
+def search_bookings(contact: str, req: Request):
+    """Look up all bookings by phone or email. Returns up to 10 most recent."""
+    client_ip = req.client.host if req.client else "unknown"
+    booking_lookup_limiter.check(client_ip, message="Too many lookup attempts. Try again later.")
+
+    err = _validate_contact_str(contact)
+    if err:
+        raise HTTPException(status_code=422, detail=err)
+
+    primary_rows = booking_repo.search_by_contact(contact)
+    if not primary_rows:
+        raise HTTPException(status_code=404, detail="No bookings found for that contact.")
+
+    results = []
+    for primary in primary_rows:
+        all_rows = booking_repo.get_by_ref(primary.bookingRef)
+        results.append(_build_lookup_result(all_rows, include_checkout=False))
+    return results

@@ -786,6 +786,49 @@ summary:focus-visible {
   margin: 0;
 }
 
+.booking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.booking-list-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(216, 180, 86, 0.25);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.booking-list-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.status-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 20px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.status-pending  { color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
+.status-confirmed { color: #34d399; background: rgba(52, 211, 153, 0.12); }
+.status-cancelled { color: #f87171; background: rgba(248, 113, 113, 0.12); }
+
+@media (max-width: 480px) {
+  .booking-list-card { flex-direction: column; align-items: flex-start; }
+}
+
 .payment-panel {
   padding: 2rem;
   border: 1px solid rgba(216, 180, 86, 0.4);
