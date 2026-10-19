@@ -68,8 +68,8 @@ test.describe("Kiosk — order to GST-correct invoice print (Phase 2)", () => {
       await expect(page.locator(".item-grid")).toBeVisible({ timeout: 8_000 });
 
       // Add both mixed-rate items to the cart.
-      await page.locator(".item-card").filter({ hasText: "E2E Snack 5pct" }).getByRole("button", { name: "+ Add" }).click();
-      await page.locator(".item-card").filter({ hasText: "E2E Drink 18pct" }).getByRole("button", { name: "+ Add" }).click();
+      await page.locator(".item-card").filter({ hasText: "E2E Snack 5pct" }).getByRole("button", { name: "+ Add" }).first().click();
+      await page.locator(".item-card").filter({ hasText: "E2E Drink 18pct" }).getByRole("button", { name: "+ Add" }).first().click();
       await expect(page.locator(".cart-line")).toHaveCount(2);
 
       // Place the order.
@@ -90,6 +90,8 @@ test.describe("Kiosk — order to GST-correct invoice print (Phase 2)", () => {
       const popupPromise = context.waitForEvent("page");
       await page.getByRole("button", { name: "Print Receipt" }).click();
       const popup = await popupPromise;
+      // The window opens blank, then navigates to the short-lived signed print link.
+      await popup.waitForURL(/\/print\?t=/);
       await popup.waitForLoadState("domcontentloaded");
       const html = await popup.content();
 

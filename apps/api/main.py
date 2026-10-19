@@ -53,6 +53,8 @@ from routes.admin.cafe.tables import router as admin_cafe_tables_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from db import init_db, seed_if_empty
+    from config_guard import assert_production_config
+    assert_production_config()  # fail closed before touching the DB
     try:
         logger.info("=== startup: running migrations ===")
         init_db()

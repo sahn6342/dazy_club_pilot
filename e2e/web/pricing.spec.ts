@@ -81,7 +81,7 @@ async function mockSlots(page: Page, transform: (s: any) => any) {
 async function selectDate(page: Page, pillIdx: number, sport = "cricket") {
   const target = new Date();
   target.setDate(target.getDate() + pillIdx);
-  const dateStr = target.toISOString().slice(0, 10);
+  const dateStr = new Date(target.getTime() - target.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   const fetchDone = page.waitForResponse(
     (r) => r.url().includes("/api/v1/slots") && r.url().includes(dateStr) && r.url().includes(sport),
     { timeout: 10_000 }

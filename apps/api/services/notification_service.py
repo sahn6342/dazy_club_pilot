@@ -23,14 +23,15 @@ def send_and_log(ref_type: str, ref_id: str, channel: str, to: str, subject: str
 
 def _send_all_channels(booking, subject: str, email_body: str, whatsapp_body: str, sms_body: str, dedup: bool = False) -> None:
     """Fire all three channels independently. Each failure is isolated.
-    dedup=True skips channels that already have a 'sent' row for this booking id."""
+    dedup=True skips channels that already have a 'sent' "booking" row for this booking id.
+    Payment-pending notices are logged as "booking_pending" so they never suppress the confirmation."""
     if booking.email:
-        if not dedup or not notification_repo.has_sent(booking.id, "email"):
+        if not dedup or not notification_repo.has_sent(booking.id, "email", ref_type="booking"):
             send_and_log("booking", booking.id, "email", booking.email, subject, email_body, notification_provider)
     if booking.contact and "@" not in booking.contact:
-        if not dedup or not notification_repo.has_sent(booking.id, "sms"):
+        if not dedup or not notification_repo.has_sent(booking.id, "sms", ref_type="booking"):
             send_and_log("booking", booking.id, "sms", booking.contact, subject, sms_body, sms_provider)
-        if not dedup or not notification_repo.has_sent(booking.id, "whatsapp"):
+        if not dedup or not notification_repo.has_sent(booking.id, "whatsapp", ref_type="booking"):
             send_and_log("booking", booking.id, "whatsapp", booking.contact, subject, whatsapp_body, whatsapp_provider)
 
 
@@ -63,9 +64,9 @@ def notify_booking_payment_pending(booking_ref: str) -> None:
         subject, body = notification_templates.booking_payment_pending(primary)
         # Payment pending only sent to email (if present) and SMS — WhatsApp reserved for confirmation.
         if primary.email:
-            send_and_log("booking", primary.id, "email", primary.email, subject, body, notification_provider)
+            send_and_log("booking_pending", primary.id, "email", primary.email, subject, body, notification_provider)
         if primary.contact and "@" not in primary.contact:
-            send_and_log("booking", primary.id, "sms", primary.contact, subject, body, sms_provider)
+            send_and_log("booking_pending", primary.id, "sms", primary.contact, subject, body, sms_provider)
     except Exception:
         pass
 

@@ -23,7 +23,7 @@ def login(request: AdminLoginRequest, req: Request):
 
     # Check manager repo
     user = user_repo.get_by_username(request.username)
-    if user and verify_password(request.password, user.hashed_password):
+    if user and user.role == "manager" and verify_password(request.password, user.hashed_password):
         return AdminToken(access_token=create_access_token(request.username, role=user.role))
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")

@@ -52,8 +52,16 @@ export function PaymentModal({ order, onClose, onComplete }: PaymentModalProps) 
     if (e.target === e.currentTarget) onClose();
   }
 
-  function handlePrint() {
-    window.open(`${API_ORIGIN}/api/v1/cafe/invoices/${invoiceId}/print`, "_blank");
+  async function handlePrint() {
+    // Open the window synchronously (popup blockers), then point it at a short-lived signed URL.
+    const win = window.open("", "_blank");
+    try {
+      const { url } = await api.post<{ url: string }>(`/cafe/invoices/${invoiceId}/print-link`, {});
+      if (win) win.location.href = `${API_ORIGIN}${url}`;
+    } catch (e: unknown) {
+      win?.close();
+      setError(e instanceof Error ? e.message : "Could not open invoice.");
+    }
   }
 
   function handleDone() {

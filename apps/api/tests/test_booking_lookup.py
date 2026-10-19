@@ -50,6 +50,7 @@ def _book(slot, contact="9812399001"):
     body = {
         "name": "Lookup Test", "contact": contact, "sportSlug": slot["sportSlug"],
         "date": slot["date"], "startTime": slot["startTime"], "slotIds": [slot["id"]], "players": 1,
+        "email": contact if "@" in contact else None,
     }
     r = client.post("/api/v1/bookings", json=body)
     assert r.status_code == 201
@@ -114,11 +115,11 @@ def test_lookup_is_rate_limited():
 
 def test_priced_booking_sends_one_payment_pending_notification(fake_provider):
     slot = _get_priced_slot("cricket")
-    booking = _book(slot, contact="9812399004")
+    booking = _book(slot, contact="lookup4@example.com")
 
     assert len(fake_provider.calls) == 1
     to, subject, body = fake_provider.calls[0]
-    assert to == "9812399004"
+    assert to == "lookup4@example.com"
     assert booking["bookingRef"] in subject
     assert booking["bookingRef"] in body
     assert "/my-bookings?ref=" in body

@@ -40,7 +40,7 @@ def test_verify_payment_missing_signature_rejected(provider):
 
 
 def test_verify_webhook_correct_signature_extracts_order_id(provider):
-    body = json.dumps({"payload": {"payment": {"entity": {"order_id": "order_1", "id": "pay_1"}}}}).encode()
+    body = json.dumps({"event": "payment.captured", "payload": {"payment": {"entity": {"order_id": "order_1", "id": "pay_1"}}}}).encode()
     signature = hmac.new(b"webhook_secret", body, hashlib.sha256).hexdigest()
     result, order_id = provider.verify_webhook(body, signature)
     assert result.verified is True

@@ -43,10 +43,11 @@ def _create_free_promo() -> str:
     return code
 
 
-def _book(slot, promo_code=None, contact="9812345670"):
+def _book(slot, promo_code=None, contact="notify@example.com"):
     body = {
         "name": "Notify Test",
         "contact": contact,
+        "email": contact if "@" in contact else None,
         "sportSlug": slot["sportSlug"],
         "date": slot["date"],
         "startTime": slot["startTime"],
@@ -147,7 +148,7 @@ def test_confirmation_content_includes_booking_details(fake_provider):
     booking = _book(slot, promo_code=promo)
 
     to, subject, body = fake_provider.calls[0]
-    assert to == "9812345670"
+    assert to == "notify@example.com"
     assert booking["bookingRef"] in subject
     assert booking["bookingRef"] in body
     assert slot["sportSlug"] in body

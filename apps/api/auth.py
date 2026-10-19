@@ -1,3 +1,4 @@
+import hmac
 import os
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
@@ -50,8 +51,35 @@ def create_cashier_token(username: str, role: str = "cashier") -> str:
 
 def verify_env_admin(username: str, password: str) -> bool:
     expected_user = os.environ.get("ADMIN_USERNAME", "admin")
-    expected_pass = os.environ.get("ADMIN_PASSWORD", "admin")
-    return username == expected_user and password == expected_pass
+    user_ok = hmac.compare_digest(username.encode(), expected_user.encode())
+    expected_hash = os.environ.get("ADMIN_PASSWORD_HASH")
+    if expected_hash:
+        # Preferred in production: only a bcrypt hash of the password lives in the env.
+        pass_ok = verify_password(password, expected_hash)
+    else:
+        pass_ok = hmac.compare_digest(password.encode(), os.environ.get("ADMIN_PASSWORD", "admin").encode())
+    return user_ok and pass_ok
+
+
+_PRINT_EXPIRES_SECONDS = 120
+
+
+def create_print_token(invoice_id: str) -> str:
+    """Short-lived, single-invoice token for the browser print window (which can't
+    send an Authorization header). role="print" keeps it out of every role check."""
+    payload = {
+        "sub": invoice_id,
+        "role": "print",
+        "purpose": "invoice_print",
+        "exp": datetime.now(timezone.utc) + timedelta(seconds=_PRINT_EXPIRES_SECONDS),
+    }
+    return jwt.encode(payload, _SECRET, algorithm=_ALGORITHM)
+
+
+def verify_print_token(token: str, invoice_id: str) -> None:
+    payload = _decode_token(token)
+    if payload.get("purpose") != "invoice_print" or payload.get("sub") != invoice_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid print link.")
 
 
 def _decode_token(token: str) -> dict:
@@ -69,6 +97,9 @@ def get_current_admin(
     """Returns {"sub": username, "role": "admin"|"manager"}. Accepts both roles."""
     payload = _decode_token(credentials.credentials)
     role = payload.get("role", "admin")
+    if role not in ("admin", "manager"):
+        # Cashier/kitchen kiosk tokens must never reach back-office routes.
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
     if role == "manager":
         # Verify the manager account still exists (guards against deleted-token reuse).
         from repositories.user_repo import SqliteUserRepository

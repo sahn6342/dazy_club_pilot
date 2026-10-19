@@ -11,9 +11,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
+      DAZY_ENV: ${DAZY_ENV:-}
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
       DAZY_CORS_ORIGINS: https://${WEB_DOMAIN},https://${ADMIN_DOMAIN},https://${KIOSK_DOMAIN}
       # Payment adapter — defaults keep a keyless deploy bootable in dev/no-op mode.
       DAZY_PAYMENT_PROVIDER: ${DAZY_PAYMENT_PROVIDER:-noop}

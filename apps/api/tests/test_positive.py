@@ -159,21 +159,21 @@ def test_booking_with_message_stored(client, auth_headers):
         "date": slot["date"], "startTime": slot["startTime"],
         "players": 1, "message": "Please confirm ASAP.",
     })
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     assert bookings[0]["message"] == "Please confirm ASAP."
 
 
 def test_booking_party_size_stored(client, auth_headers):
     """party_size is persisted correctly."""
     _book(client, players=5)
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     assert bookings[0]["party_size"] == 5
 
 
 def test_booking_links_correct_customer(client, auth_headers):
     """Booking.customer_id references the created customer."""
     _book(client, name="Priya K", contact="9222222222")
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     customers = client.get("/api/v1/admin/customers", headers=auth_headers).json()
     assert bookings[0]["customer_id"] == customers[0]["id"]
     assert customers[0]["phone"] == "9222222222"
@@ -183,7 +183,7 @@ def test_multiple_bookings_different_sports(client, auth_headers):
     """Book one slot each for cricket and badminton — both appear in admin list."""
     _book(client, sport="cricket", contact="9300000001")
     _book(client, sport="badminton", contact="9300000002")
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     assert len(bookings) == 2
     sports = {b["sportSlug"] for b in bookings}
     assert sports == {"cricket", "badminton"}
@@ -195,8 +195,8 @@ def test_booking_filter_by_sport(client, auth_headers):
     _book(client, sport="pickleball", contact="9400000002")
     r = client.get("/api/v1/admin/bookings?sport=cricket", headers=auth_headers)
     assert r.status_code == 200
-    assert all(b["sportSlug"] == "cricket" for b in r.json())
-    assert len(r.json()) == 1
+    assert all(b["sportSlug"] == "cricket" for b in r.json()["items"])
+    assert len(r.json()["items"]) == 1
 
 
 def test_booking_filter_by_date(client, auth_headers):
@@ -204,21 +204,21 @@ def test_booking_filter_by_date(client, auth_headers):
     day1, day2 = _offset(1), _offset(2)
     _book(client, day=day1, contact="9500000001")
     _book(client, day=day2, contact="9500000002")
-    r = client.get(f"/api/v1/admin/bookings?date={day1}", headers=auth_headers)
-    assert all(b["date"] == day1 for b in r.json())
-    assert len(r.json()) == 1
+    r = client.get(f"/api/v1/admin/bookings?date_from={day1}&date_to={day1}", headers=auth_headers)
+    assert all(b["date"] == day1 for b in r.json()["items"])
+    assert len(r.json()["items"]) == 1
 
 
 def test_booking_filter_by_status(client, auth_headers):
     """Filter by pending returns only pending bookings."""
     _book(client, contact="9600000001")
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     bid = bookings[0]["id"]
     client.patch(f"/api/v1/admin/bookings/{bid}", json={"status": "confirmed"}, headers=auth_headers)
     _book(client, sport="badminton", contact="9600000002")
 
-    pending = client.get("/api/v1/admin/bookings?status=pending", headers=auth_headers).json()
-    confirmed = client.get("/api/v1/admin/bookings?status=confirmed", headers=auth_headers).json()
+    pending = client.get("/api/v1/admin/bookings?status=pending", headers=auth_headers).json()["items"]
+    confirmed = client.get("/api/v1/admin/bookings?status=confirmed", headers=auth_headers).json()["items"]
     assert all(b["status"] == "pending" for b in pending)
     assert all(b["status"] == "confirmed" for b in confirmed)
     assert len(pending) == 1 and len(confirmed) == 1
@@ -228,7 +228,7 @@ def test_full_booking_lifecycle(client, auth_headers):
     """pending → confirmed → completed; slot freed only after terminal state."""
     day = _future()
     result, slot = _book(client, day=day)
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     bid = bookings[0]["id"]
 
     # pending: slot blocked
@@ -253,7 +253,7 @@ def test_booking_slot_freed_on_cancel(client, auth_headers):
     """Cancel frees the slot immediately."""
     day = _future()
     _, slot = _book(client, day=day)
-    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()[0]["id"]
+    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"][0]["id"]
     client.patch(f"/api/v1/admin/bookings/{bid}", json={"status": "cancelled"}, headers=auth_headers)
     slots = client.get(f"/api/v1/slots?sport=cricket&date={day}").json()
     assert next(s for s in slots if s["id"] == slot["id"])["available"] is True
@@ -263,7 +263,7 @@ def test_booking_slot_freed_on_no_show(client, auth_headers):
     """no_show (via confirmed) frees the slot."""
     day = _future()
     _, slot = _book(client, day=day)
-    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()[0]["id"]
+    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"][0]["id"]
     client.patch(f"/api/v1/admin/bookings/{bid}", json={"status": "confirmed"}, headers=auth_headers)
     client.patch(f"/api/v1/admin/bookings/{bid}", json={"status": "no_show"}, headers=auth_headers)
     slots = client.get(f"/api/v1/slots?sport=cricket&date={day}").json()
@@ -344,11 +344,10 @@ def test_multiple_bookings_same_customer_one_record(client, auth_headers):
     """Repeated bookings by same contact produce exactly one customer."""
     _book(client, sport="cricket",   contact="9900000002", name="Rohan P")
     _book(client, sport="badminton", contact="9900000002", name="Rohan P")
-    _book(client, sport="pickleball",contact="9900000002", name="Rohan P")
     customers = client.get("/api/v1/admin/customers", headers=auth_headers).json()
     assert len(customers) == 1
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
-    assert len(bookings) == 3
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
+    assert len(bookings) == 2  # a 3rd unpaid booking is refused: see test_phase1_abuse.py
     assert all(b["customer_id"] == customers[0]["id"] for b in bookings)
 
 

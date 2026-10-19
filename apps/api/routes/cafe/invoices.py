@@ -1,10 +1,11 @@
 from collections import defaultdict
+from html import escape as esc
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from brand import BRAND_NAME
 
-from auth import get_current_admin, get_current_cashier
+from auth import get_current_admin, get_current_cashier, create_print_token, verify_print_token
 from deps import invoice_repo, cafe_settings_repo, order_repo, payment_repo
 from models import InvoiceDto, InvoiceLineDto
 
@@ -26,8 +27,19 @@ def get_invoice(invoice_id: str, _=Depends(get_current_cashier)):
     return _invoice_dto(invoice_id)
 
 
+@router.post("/cafe/invoices/{invoice_id}/print-link")
+def invoice_print_link(invoice_id: str, _=Depends(get_current_cashier)):
+    """Mint a 2-minute signed URL for the print window (opened via window.open, so no Bearer header)."""
+    if not invoice_repo.get_by_id(invoice_id):
+        raise HTTPException(status_code=404, detail="Invoice not found.")
+    return {"url": f"/api/v1/cafe/invoices/{invoice_id}/print?t={create_print_token(invoice_id)}"}
+
+
 @router.get("/cafe/invoices/{invoice_id}/print", response_class=HTMLResponse)
-def print_invoice(invoice_id: str):
+def print_invoice(invoice_id: str, t: str | None = None):
+    if not t:
+        raise HTTPException(status_code=401, detail="Print link required.")
+    verify_print_token(t, invoice_id)
     inv = invoice_repo.get_by_id(invoice_id)
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found.")
@@ -37,19 +49,19 @@ def print_invoice(invoice_id: str):
     payments = payment_repo.get_by_order(inv.order_id) if order else []
 
     # ── Business info ──
-    biz_name = settings.legalName or f"{BRAND_NAME} Cafe"
-    gstin = settings.gstin or ""
-    fssai = settings.fssaiNumber or ""
-    address = settings.addressLine or ""
-    city = settings.city or ""
-    footer_note = settings.footerNote or "Thank you! Visit again."
+    biz_name = esc(settings.legalName or f"{BRAND_NAME} Cafe")
+    gstin = esc(settings.gstin or "")
+    fssai = esc(settings.fssaiNumber or "")
+    address = esc(settings.addressLine or "")
+    city = esc(settings.city or "")
+    footer_note = esc(settings.footerNote or "Thank you! Visit again.")
 
     # ── Line items HTML ──
     lines_html = ""
     for ln in lines:
         lines_html += f"""
         <tr>
-          <td>{ln.description}</td>
+          <td>{esc(ln.description)}</td>
           <td class="r">{float(ln.qty):.2f}</td>
           <td class="r">{float(ln.rate):.2f}</td>
           <td class="r">{float(ln.gstRatePercent):.0f}%</td>

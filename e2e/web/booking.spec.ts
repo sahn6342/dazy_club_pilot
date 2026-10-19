@@ -55,7 +55,7 @@ async function selectDate(
 ) {
   const target = new Date();
   target.setDate(target.getDate() + pillIdx);
-  const dateStr = target.toISOString().slice(0, 10);
+  const dateStr = new Date(target.getTime() - target.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
   const slotsFetch = page.waitForResponse(
     (r) =>
@@ -121,7 +121,7 @@ test.describe("Book page — slot selection", () => {
   test("switching sport tab reloads slots", async ({ page }) => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const dateStr = tomorrow.toISOString().slice(0, 10);
+    const dateStr = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
     const newFetch = page.waitForResponse(
       (r) => r.url().includes("/api/v1/slots") && r.url().includes(dateStr),
@@ -180,7 +180,7 @@ test.describe("Book page — successful booking", () => {
     await page.goto("/book");
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const dateStr = tomorrow.toISOString().slice(0, 10);
+    const dateStr = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     const badFetch = page.waitForResponse(
       (r) => r.url().includes("/api/v1/slots") && r.url().includes(dateStr),
       { timeout: 10_000 }
@@ -294,7 +294,7 @@ test.describe("Book page — online prepay", () => {
     } finally {
       if (ref) {
         const tok = await token(request);
-        const list = await (await request.get(`${API}/admin/bookings`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+        const list = (await (await request.get(`${API}/admin/bookings?limit=100`, { headers: { Authorization: `Bearer ${tok}` } })).json()).items;
         const booking = list.find((b: any) => b.bookingRef === ref);
         if (booking) await deleteBooking(request, booking.id);
       }
@@ -328,7 +328,7 @@ test.describe("Book page — online prepay", () => {
     } finally {
       if (ref) {
         const tok = await token(request);
-        const list = await (await request.get(`${API}/admin/bookings`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+        const list = (await (await request.get(`${API}/admin/bookings?limit=100`, { headers: { Authorization: `Bearer ${tok}` } })).json()).items;
         const booking = list.find((b: any) => b.bookingRef === ref);
         if (booking) await deleteBooking(request, booking.id);
       }
@@ -388,7 +388,7 @@ test.describe("Book page — café pre-order", () => {
       await expect(page.getByTestId("preorder-done")).toContainText("₹84.00"); // 80 + 5% tax
     } finally {
       if (ref) {
-        const list = await (await request.get(`${API}/admin/bookings`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+        const list = (await (await request.get(`${API}/admin/bookings?limit=100`, { headers: { Authorization: `Bearer ${tok}` } })).json()).items;
         const booking = list.find((b: any) => b.bookingRef === ref);
         if (booking) await deleteBooking(request, booking.id);
       }

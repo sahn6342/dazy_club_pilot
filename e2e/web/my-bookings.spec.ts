@@ -16,7 +16,7 @@ async function findAvailableSlot(request: APIRequestContext, sport: string) {
   for (let i = 0; i <= 6; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     const slots = await (await request.get(`${API}/slots?sport=${sport}&date=${dateStr}`)).json();
     const slot = slots.find((s: any) => s.available && s.finalPrice);
     if (slot) return slot;
@@ -47,7 +47,7 @@ test.describe("Book page — self-service booking lookup", () => {
       await expect(page.getByTestId("payment-amount")).toContainText(String(created.price));
     } finally {
       const tok = await token(request);
-      const list = await (await request.get(`${API}/admin/bookings`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+      const list = (await (await request.get(`${API}/admin/bookings?limit=100`, { headers: { Authorization: `Bearer ${tok}` } })).json()).items;
       const booking = list.find((b: any) => b.bookingRef === created.bookingRef);
       if (booking) await deleteBooking(request, booking.id);
     }
@@ -73,7 +73,7 @@ test.describe("Book page — self-service booking lookup", () => {
       await expect(page.locator(".payment-panel")).not.toBeVisible();
     } finally {
       const tok = await token(request);
-      const list = await (await request.get(`${API}/admin/bookings`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+      const list = (await (await request.get(`${API}/admin/bookings?limit=100`, { headers: { Authorization: `Bearer ${tok}` } })).json()).items;
       const booking = list.find((b: any) => b.bookingRef === created.bookingRef);
       if (booking) await deleteBooking(request, booking.id);
     }

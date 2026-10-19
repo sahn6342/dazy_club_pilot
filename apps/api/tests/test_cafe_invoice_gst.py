@@ -150,6 +150,13 @@ def test_issue_invoice_end_to_end_still_works_after_atomicity_fix():
 
 # ── Printable receipt: FSSAI, rate-wise summary, title switch ──────────────
 
+def _get_print(invoice_id, cashier_headers):
+    """Print window is opened with a short-lived signed link, not a Bearer header."""
+    link = client.post(f"/api/v1/cafe/invoices/{invoice_id}/print-link", headers=cashier_headers)
+    assert link.status_code == 200, link.text
+    return client.get(link.json()["url"])
+
+
 def test_print_shows_fssai_rate_summary_and_tax_invoice_title():
     cashier_headers = _cashier_headers()
     r = client.put(
@@ -168,7 +175,7 @@ def test_print_shows_fssai_rate_summary_and_tax_invoice_title():
         ])
         invoice = _issue_invoice(order["id"], cashier_headers)
 
-        r = client.get(f"/api/v1/cafe/invoices/{invoice['id']}/print")
+        r = _get_print(invoice["id"], cashier_headers)
         assert r.status_code == 200
         html = r.text
         assert "FSSAI: 12345678901234" in html
@@ -197,7 +204,7 @@ def test_print_shows_bill_of_supply_when_unregistered():
         invoice = _issue_invoice(order["id"], cashier_headers)
         assert invoice["invoiceType"] == "bill_of_supply"
 
-        r = client.get(f"/api/v1/cafe/invoices/{invoice['id']}/print")
+        r = _get_print(invoice["id"], cashier_headers)
         assert r.status_code == 200
         assert "BILL OF SUPPLY" in r.text
     finally:

@@ -37,12 +37,18 @@ projects:
       - api.dazyclub.com
       autoDeployTrigger: commit
       envVars:
+      # --- Runtime mode: production makes the API refuse to boot on unsafe config
+      # (default JWT secret / admin creds, noop payments). Not a secret, so value is tracked.
+      - key: DAZY_ENV
+        value: production
       # --- Auth (MUST be non-default in production) ---
       - key: JWT_SECRET            # random 32+ chars; changing it logs everyone out
         sync: false
       - key: ADMIN_USERNAME        # superadmin login (default "admin")
         sync: false
-      - key: ADMIN_PASSWORD        # superadmin password (default "admin")
+      - key: ADMIN_PASSWORD        # superadmin password (default "admin"); use ADMIN_PASSWORD_HASH instead if possible
+        sync: false
+      - key: ADMIN_PASSWORD_HASH   # optional bcrypt hash; when set it replaces ADMIN_PASSWORD
         sync: false
       # --- Database / storage ---
       - key: DAZY_DB_URL           # Neon pooled Postgres URL, ends with ?sslmode=require

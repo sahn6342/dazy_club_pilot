@@ -11,6 +11,7 @@ from rate_limit import booking_lookup_limiter
 from services.availability_service import find_slot
 from services.pricing_service import apply_promo, gst_components, PromoError
 from services.notification_service import notify_booking_confirmed, notify_booking_payment_pending
+from services.payment_confirmation import confirm_verified_payment, LATE_REFUNDED
 
 router = APIRouter()
 
@@ -139,10 +140,11 @@ def create_booking(request: BookingRequest):
             raise HTTPException(status_code=503, detail="Payment gateway unavailable — please try again.")
 
     try:
-        for rec in records:
-            booking_repo.create(rec)
+        booking_repo.create_many(records)  # one transaction: all slots or none
     except IntegrityError:
         # Partial unique index uq_active_court_slot fired on one of the slots.
+        # The provider order made above is simply abandoned: Razorpay has no cancel-order API,
+        # and the client never receives its checkout payload, so it cannot be paid.
         if applied_promo:
             promo_repo.decrement_use(applied_promo)
         raise HTTPException(status_code=409, detail="One or more slots are unavailable (booking conflict).")
@@ -214,9 +216,16 @@ def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest):
     if not verification.verified:
         raise HTTPException(status_code=400, detail=verification.reason or "Payment verification failed.")
 
-    booking_payment_repo.mark_verified(stored_payment.providerOrderId, verification.providerPaymentId, body.signature)
-    booking_repo.confirm_payment_by_ref(booking_ref)
-    notify_booking_confirmed(booking_ref)
+    result = confirm_verified_payment(
+        booking_ref, stored_payment.providerOrderId, verification.providerPaymentId, body.signature
+    )
+    if not result.booking_confirmed:
+        detail = (
+            "This booking expired before payment completed. Your payment has been refunded."
+            if result.outcome == LATE_REFUNDED
+            else "This booking expired before payment completed. Contact support for a refund."
+        )
+        raise HTTPException(status_code=409, detail=detail)
     return {"status": "confirmed", "paymentStatus": "paid"}
 
 

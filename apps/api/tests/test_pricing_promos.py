@@ -213,7 +213,7 @@ def test_free_slot_with_promo_no_error(client, auth_headers):
 
 def test_admin_bookings_exposes_price_and_promo(client, auth_headers):
     _book(client, "cricket", _future(), promo="WELCOME10")
-    rows = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    rows = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     assert rows
     row = rows[0]
     assert "price" in row and "promo_code" in row

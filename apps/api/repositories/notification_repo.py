@@ -31,16 +31,17 @@ class SqliteNotificationRepository:
             s.flush()
             return _to_model(row)
 
-    def has_sent(self, ref_id: str, channel: str) -> bool:
-        """True if a 'sent' notification already exists for this ref_id + channel."""
+    def has_sent(self, ref_id: str, channel: str, ref_type: str | None = None) -> bool:
+        """True if a 'sent' notification already exists for this ref_id + channel (+ ref_type)."""
         with _session() as s:
-            return s.scalar(
-                select(NotificationMessageRow.id).where(
-                    NotificationMessageRow.refId == ref_id,
-                    NotificationMessageRow.channel == channel,
-                    NotificationMessageRow.status == "sent",
-                ).limit(1)
-            ) is not None
+            stmt = select(NotificationMessageRow.id).where(
+                NotificationMessageRow.refId == ref_id,
+                NotificationMessageRow.channel == channel,
+                NotificationMessageRow.status == "sent",
+            )
+            if ref_type:
+                stmt = stmt.where(NotificationMessageRow.refType == ref_type)
+            return s.scalar(stmt.limit(1)) is not None
 
     def get_all(self, ref_type: str | None = None, ref_id: str | None = None) -> list[NotificationMessageDto]:
         with _session() as s:

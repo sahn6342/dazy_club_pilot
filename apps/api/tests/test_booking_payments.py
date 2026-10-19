@@ -66,7 +66,7 @@ def test_free_booking_confirms_immediately_no_payment(client, auth_headers):
     assert result["paymentRequired"] is False
     assert "checkout" not in result
 
-    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     booking = next(b for b in admin_list if b["bookingRef"] == result["bookingRef"])
     assert booking["paymentStatus"] == "paid"
 
@@ -85,7 +85,7 @@ def test_payment_verify_confirms_booking(client, auth_headers):
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "confirmed"
 
-    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     booking = next(b for b in admin_list if b["bookingRef"] == ref)
     assert booking["status"] == "confirmed"
     assert booking["paymentStatus"] == "paid"
@@ -124,7 +124,7 @@ def test_webhook_confirms_booking(client, auth_headers):
     }))
     assert r.status_code == 200, r.text
 
-    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     booking = next(b for b in admin_list if b["bookingRef"] == ref)
     assert booking["status"] == "confirmed"
     assert booking["paymentStatus"] == "paid"
@@ -207,14 +207,14 @@ def test_refund_paid_booking_frees_slot(client, auth_headers):
         "providerOrderId": result["checkout"]["providerOrderId"], "providerPaymentId": "noop_pay_refundme",
     })
 
-    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     booking_id = next(b for b in admin_list if b["bookingRef"] == ref)["id"]
 
     r = client.post(f"/api/v1/admin/bookings/{booking_id}/refund", json={}, headers=auth_headers)
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "refunded"
 
-    admin_list2 = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    admin_list2 = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     booking2 = next(b for b in admin_list2 if b["bookingRef"] == ref)
     assert booking2["paymentStatus"] == "refunded"
     assert booking2["status"] == "cancelled"
@@ -229,7 +229,7 @@ def test_refund_rejects_unpaid_booking(client, auth_headers):
     result = _book(client, slot)  # still pending/unpaid — never verified
     ref = result["bookingRef"]
 
-    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    admin_list = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     booking_id = next(b for b in admin_list if b["bookingRef"] == ref)["id"]
 
     r = client.post(f"/api/v1/admin/bookings/{booking_id}/refund", json={}, headers=auth_headers)

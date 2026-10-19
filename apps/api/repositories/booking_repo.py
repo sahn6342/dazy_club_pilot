@@ -56,6 +56,15 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
             s.flush()
             return _to_model(row)
 
+    def create_many(self, items: list[BookingRecord]) -> list[BookingRecord]:
+        """Insert all rows in ONE transaction: if any row violates the unique-slot
+        index (IntegrityError), none are persisted."""
+        with _session() as s:
+            rows = [BookingRow(**item.model_dump()) for item in items]
+            s.add_all(rows)
+            s.flush()
+            return [_to_model(r) for r in rows]
+
     def update(self, id: str, data: dict) -> Optional[BookingRecord]:
         with _session() as s:
             row = s.get(BookingRow, id)
@@ -81,14 +90,27 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
             rows = s.scalars(select(BookingRow).where(BookingRow.bookingRef == booking_ref)).all()
             return [_to_model(r) for r in rows]
 
-    def confirm_payment_by_ref(self, booking_ref: str) -> None:
-        """Payment verified — confirm all rows sharing this ref."""
+    def confirm_payment_by_ref(self, booking_ref: str) -> int:
+        """Payment verified — mark rows sharing this ref paid (pending rows also
+        become confirmed). Returns rows updated; 0 means the booking is cancelled
+        or already paid, so a late payment must NOT resurrect it."""
         with _session() as s:
-            s.execute(
+            pending = s.execute(
                 sa_update(BookingRow)
-                .where(BookingRow.bookingRef == booking_ref)
+                .where(BookingRow.bookingRef == booking_ref, BookingRow.status == "pending")
                 .values(status="confirmed", paymentStatus="paid")
-            )
+            ).rowcount
+            # Admin may have confirmed/completed it manually before the payment landed.
+            manual = s.execute(
+                sa_update(BookingRow)
+                .where(
+                    BookingRow.bookingRef == booking_ref,
+                    BookingRow.status.in_(["confirmed", "completed"]),
+                    BookingRow.paymentStatus == "unpaid",
+                )
+                .values(paymentStatus="paid")
+            ).rowcount
+            return pending + manual
 
     def refund_by_ref(self, booking_ref: str) -> None:
         """Refund issued — mark refunded and cancel (frees the slot)."""
@@ -116,7 +138,11 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
             refs = [r.bookingRef for r in stale]
             s.execute(
                 sa_update(BookingRow)
-                .where(BookingRow.bookingRef.in_(refs))
+                .where(
+                    BookingRow.bookingRef.in_(refs),
+                    BookingRow.status == "pending",
+                    BookingRow.paymentStatus == "unpaid",
+                )
                 .values(status="cancelled")
             )
             return [_to_model(r) for r in stale]

@@ -82,7 +82,7 @@ def test_double_booking_rejected(client):
 def test_admin_list_bookings_empty(client, auth_headers):
     r = client.get("/api/v1/admin/bookings", headers=auth_headers)
     assert r.status_code == 200
-    assert r.json() == []
+    assert r.json()["items"] == []
 
 
 def test_admin_list_bookings_after_booking(client, auth_headers):
@@ -90,7 +90,7 @@ def test_admin_list_bookings_after_booking(client, auth_headers):
     _book(client, slot)
     r = client.get("/api/v1/admin/bookings", headers=auth_headers)
     assert r.status_code == 200
-    assert len(r.json()) == 1
+    assert len(r.json()["items"]) == 1
 
 
 def test_admin_filter_bookings_by_status(client, auth_headers):
@@ -98,14 +98,14 @@ def test_admin_filter_bookings_by_status(client, auth_headers):
     _book(client, slot)
     r = client.get("/api/v1/admin/bookings?status=pending", headers=auth_headers)
     assert r.status_code == 200
-    for b in r.json():
+    for b in r.json()["items"]:
         assert b["status"] == "pending"
 
 
 def test_admin_confirm_booking(client, auth_headers):
     slot = _get_available_slot(client)
     _book(client, slot)
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     bid = bookings[0]["id"]
     r = client.patch(f"/api/v1/admin/bookings/{bid}", json={"status": "confirmed"}, headers=auth_headers)
     assert r.status_code == 200
@@ -115,7 +115,7 @@ def test_admin_confirm_booking(client, auth_headers):
 def test_admin_cancel_booking(client, auth_headers):
     slot = _get_available_slot(client)
     _book(client, slot)
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     bid = bookings[0]["id"]
     r = client.patch(f"/api/v1/admin/bookings/{bid}", json={"status": "cancelled"}, headers=auth_headers)
     assert r.status_code == 200
@@ -125,7 +125,7 @@ def test_admin_cancel_booking(client, auth_headers):
 def test_admin_invalid_status_rejected(client, auth_headers):
     slot = _get_available_slot(client)
     _book(client, slot)
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     bid = bookings[0]["id"]
     r = client.patch(f"/api/v1/admin/bookings/{bid}", json={"status": "deleted"}, headers=auth_headers)
     assert r.status_code == 422
@@ -142,7 +142,7 @@ def test_booking_exposes_party_size(client, auth_headers):
     """BookingRecord now carries party_size (not players)."""
     slot = _get_available_slot(client)
     _book(client, slot, overrides={"players": 3})
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     assert bookings[0]["party_size"] == 3
 
 
@@ -150,7 +150,7 @@ def test_cancelled_booking_slot_reopens(client, auth_headers):
     """Capacity-aware: cancel re-opens the slot so it can be rebooked."""
     slot = _get_available_slot(client)
     _book(client, slot)
-    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()[0]["id"]
+    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"][0]["id"]
     client.patch(f"/api/v1/admin/bookings/{bid}", json={"status": "cancelled"}, headers=auth_headers)
     # Re-book the same slot — must succeed now
     r = _book(client, slot)

@@ -227,7 +227,7 @@ def test_cancelled_booking_reopens_slot(client, auth_headers):
     Cancelled bookings are excluded from the occupied sum, so under_capacity flips back True."""
     slot = _get_available_slot(client)
     _book(client, slot)
-    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()[0]["id"]
+    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"][0]["id"]
     client.patch(f"/api/v1/admin/bookings/{bid}", json={"status": "cancelled"}, headers=auth_headers)
     slots = client.get(f"/api/v1/slots?sport=cricket&date={_date_offset(1)}").json()
     found = next((s for s in slots if s["id"] == slot["id"]), None)
@@ -480,7 +480,7 @@ def test_admin_bookings_filter_nonexistent_status(client, auth_headers):
     """Unknown status value returns empty (no match) rather than error."""
     r = client.get("/api/v1/admin/bookings?status=nonexistent", headers=auth_headers)
     assert r.status_code == 200
-    assert r.json() == []
+    assert r.json()["items"] == []
 
 
 def test_admin_enquiries_filter_nonexistent_type(client, auth_headers):
@@ -517,5 +517,5 @@ def test_booking_persists_court_id(client, auth_headers):
         "sportSlug": "badminton", "date": slot["date"], "startTime": slot["startTime"], "players": 2,
     })
     assert r.status_code in (200, 201)
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     assert bookings[0]["court_id"] == "court-badminton"

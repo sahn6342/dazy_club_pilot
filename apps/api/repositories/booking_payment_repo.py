@@ -18,6 +18,14 @@ def _to_model(row: BookingPaymentRow) -> BookingPaymentDto:
     )
 
 
+# booking_payments.status lifecycle
+CREATED = "created"            # order made, awaiting payment
+VERIFIED = "verified"          # paid and booking confirmed
+EXPIRED = "expired"            # booking timed out unpaid
+REFUNDED = "refunded"          # refunded via admin or auto-refund
+PAID_ORPHAN = "paid_orphan"    # paid after booking expired; refund failed, needs admin action
+
+
 class SqliteBookingPaymentRepository:
     def create(
         self, booking_ref: str, provider: str, provider_order_id: str, amount: float,
@@ -27,7 +35,7 @@ class SqliteBookingPaymentRepository:
             row = BookingPaymentRow(
                 id=str(uuid.uuid4()), bookingRef=booking_ref, provider=provider,
                 providerOrderId=provider_order_id, providerPaymentId=None,
-                amount=amount, status="created", checkoutJson=checkout_json,
+                amount=amount, status=CREATED, checkoutJson=checkout_json,
                 createdAt=datetime.now(timezone.utc).isoformat(),
             )
             s.add(row)
@@ -68,10 +76,24 @@ class SqliteBookingPaymentRepository:
                 sa_update(BookingPaymentRow)
                 .where(
                     BookingPaymentRow.bookingRef.in_(booking_refs),
-                    BookingPaymentRow.status == "pending",
+                    BookingPaymentRow.status == CREATED,
                 )
                 .values(status="expired")
             )
+
+    def mark_late_payment(
+        self, provider_order_id: str, provider_payment_id: str, signature: str | None, status: str
+    ) -> Optional[BookingPaymentDto]:
+        """Record a payment that arrived after the booking was no longer pending."""
+        with _session() as s:
+            row = s.scalar(select(BookingPaymentRow).where(BookingPaymentRow.providerOrderId == provider_order_id))
+            if not row:
+                return None
+            row.status = status
+            row.providerPaymentId = provider_payment_id
+            row.signature = signature
+            s.flush()
+            return _to_model(row)
 
     def mark_refunded(self, booking_ref: str) -> None:
         with _session() as s:

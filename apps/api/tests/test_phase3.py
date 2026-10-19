@@ -57,7 +57,7 @@ def test_different_contacts_create_separate_customers(client, auth_headers):
 def test_booking_record_has_customer_id(client, auth_headers):
     slot = _get_available_slot(client)
     _book(client, slot, contact="9000000005")
-    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    bookings = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     customers = client.get("/api/v1/admin/customers", headers=auth_headers).json()
     assert bookings[0]["customer_id"] == customers[0]["id"]
 
@@ -72,7 +72,7 @@ def test_customers_requires_auth(client):
 def _book_and_get_id(client, auth_headers, sport="cricket"):
     slot = _get_available_slot(client, sport=sport)
     _book(client, slot)
-    return client.get("/api/v1/admin/bookings", headers=auth_headers).json()[0]["id"]
+    return client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"][0]["id"]
 
 
 def _patch(client, auth_headers, bid, status):
@@ -165,7 +165,7 @@ def test_no_show_frees_slot(client, auth_headers):
     """no_show status is excluded from capacity, so slot becomes available again."""
     slot = _get_available_slot(client)
     _book(client, slot)
-    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()[0]["id"]
+    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"][0]["id"]
     _patch(client, auth_headers, bid, "confirmed")
     _patch(client, auth_headers, bid, "no_show")
     slots = client.get(f"/api/v1/slots?sport={slot['sportSlug']}&date={_offset(1)}").json()
@@ -180,7 +180,7 @@ def test_delete_booking_removes_it(client, auth_headers):
     bid = _book_and_get_id(client, auth_headers)
     r = client.delete(f"/api/v1/admin/bookings/{bid}", headers=auth_headers)
     assert r.status_code == 204
-    remaining = client.get("/api/v1/admin/bookings", headers=auth_headers).json()
+    remaining = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"]
     assert all(b["id"] != bid for b in remaining)
 
 
@@ -188,7 +188,7 @@ def test_delete_booking_frees_slot(client, auth_headers):
     """Deleting a booking releases its slot capacity."""
     slot = _get_available_slot(client)
     _book(client, slot)
-    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()[0]["id"]
+    bid = client.get("/api/v1/admin/bookings", headers=auth_headers).json()["items"][0]["id"]
     client.delete(f"/api/v1/admin/bookings/{bid}", headers=auth_headers)
     slots = client.get(f"/api/v1/slots?sport={slot['sportSlug']}&date={_offset(1)}").json()
     found = next((s for s in slots if s["id"] == slot["id"]), None)
