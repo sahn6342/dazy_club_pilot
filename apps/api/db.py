@@ -8,7 +8,7 @@ from contextlib import contextmanager
 
 from brand import BRAND_NAME
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 logging.basicConfig(
@@ -32,6 +32,14 @@ else:
     _connect_args = {"options": "-c lock_timeout=15000"}
 # pool_pre_ping: Neon suspends idle compute and drops connections; test on checkout and reconnect.
 engine = create_engine(DB_URL, connect_args=_connect_args, pool_pre_ping=True, pool_recycle=300)
+if DB_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _sqlite_enforce_foreign_keys(dbapi_conn, _record):
+        # SQLite ignores FOREIGN KEY clauses unless this is switched on per connection; Postgres always enforces.
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
+
 SessionLocal = sessionmaker(
     bind=engine,
     autoflush=False,
@@ -71,6 +79,12 @@ def init_db() -> None:
     with engine.connect() as conn:
         cfg.attributes["connection"] = conn
         command.upgrade(cfg, "head")
+        if DB_URL.startswith("sqlite"):
+            # Migrations run on alembic's own connection (enforcement off so tables can be rebuilt);
+            # make sure they left no dangling references behind.
+            bad = conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+            if bad:
+                logging.getLogger("db").error("Foreign key violations after migration: %s", bad[:10])
 
 
 # CMS seed (moved from deps.py)

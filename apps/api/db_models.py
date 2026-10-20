@@ -63,8 +63,10 @@ class BookingRow(Base):
     __tablename__ = "bookings"
     id: Mapped[str] = mapped_column(String, primary_key=True)
     bookingRef: Mapped[str] = mapped_column(String, index=True, nullable=False)
-    customer_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)  # soft FK to customers.id
-    court_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)  # FK to courts.id (not enforced on SQLite)
+    customer_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("customers.id", name="fk_bookings_customer", ondelete="SET NULL"), index=True, nullable=True)
+    court_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("courts.id", name="fk_bookings_court", ondelete="RESTRICT"), index=True, nullable=True)
     slotId: Mapped[str] = mapped_column(String, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     contact: Mapped[str] = mapped_column(String, nullable=False)
@@ -268,8 +270,11 @@ class OrderRow(Base):
     orderNo: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     orderType: Mapped[str] = mapped_column(String, nullable=False)
     table_id: Mapped[str | None] = mapped_column(String, ForeignKey("cafe_tables.id"), nullable=True)
-    customer_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    booking_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)  # soft FK to bookings.id (pre-order)
+    customer_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("customers.id", name="fk_orders_customer", ondelete="SET NULL"), nullable=True)
+    # pre-order link; an order is a financial record and outlives its booking, hence SET NULL
+    booking_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("bookings.id", name="fk_orders_booking", ondelete="SET NULL"), index=True, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="open")
     subtotal: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     discountAmount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)

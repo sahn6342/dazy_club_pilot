@@ -251,7 +251,7 @@ Only **email** is real (SMTP). SMS and WhatsApp are stubs that print. With `cons
 
 ## 5. Data model
 
-Dates/times are stored as strings (ISO UTC timestamps, `YYYY-MM-DD`, `HH:MM`). 19 Alembic migrations in `apps/api/alembic/versions`.
+Dates/times are stored as strings (ISO UTC timestamps, `YYYY-MM-DD`, `HH:MM`). 26 Alembic migrations in `apps/api/alembic/versions`.
 
 | Group | Tables |
 |---|---|
@@ -261,7 +261,28 @@ Dates/times are stored as strings (ISO UTC timestamps, `YYYY-MM-DD`, `HH:MM`). 1
 | Café | `cafe_settings`, `menu_categories`, `menu_items`, `cafe_tables`, `orders`, `order_items`, `kots`, `payments`, `invoices`, `invoice_lines`, `invoice_sequences` |
 | Access and ops | `users` (with `token_version`), `revoked_tokens`, `rate_limit_events`, `otp_codes`, `audit_log` |
 
-`bookings` highlights: one row per slot; the primary row (`is_primary`) carries price, promo, message, email and GST rate; `status` (pending, confirmed, completed, cancelled, no_show); `paymentStatus` (unpaid, paid, partially_refunded, refunded); `court_id` and `customer_id` are soft foreign keys. `booking_payments.status`: created, verified, expired, partially_refunded, refunded (plus `paid_orphan` and `amount_mismatch`, see 4.1); `booking_payments.refunded_amount` is the running refunded total.
+`bookings` highlights: one row per slot; the primary row (`is_primary`) carries price, promo, message, email and GST rate; `status` (pending, confirmed, completed, cancelled, no_show); `paymentStatus` (unpaid, paid, partially_refunded, refunded); `court_id` and `customer_id` are real foreign keys (see below). `booking_payments.status`: created, verified, expired, partially_refunded, refunded (plus `paid_orphan` and `amount_mismatch`, see 4.1); `booking_payments.refunded_amount` is the running refunded total.
+
+**Foreign keys.** Every relationship that used to be a bare id column is now a constraint, so a dangling reference is impossible instead of merely unlikely:
+
+| Constraint | On parent delete | Why |
+|---|---|---|
+| `bookings.court_id` → `courts.id` | RESTRICT | A court with bookings can only be deactivated (which is all the admin UI does) |
+| `bookings.customer_id` → `customers.id` | SET NULL | Removing a customer must not remove their bookings |
+| `orders.customer_id` → `customers.id` | SET NULL | Café orders are financial records |
+| `orders.booking_id` → `bookings.id` | SET NULL | A pre-order outlives a purged booking |
+
+SQLite ignores FOREIGN KEY clauses unless told otherwise, so `db.py` runs `PRAGMA foreign_keys=ON` on every connection (dev, tests and the Docker/SQLite deployment behave like Postgres). `booking_payments.bookingRef`, `notification_messages.refId` and `audit_log.entityId` stay unconstrained on purpose: a booking ref is shared by several rows, and the logs must outlive what they describe.
+
+**Deploying the foreign-key migration (`o8p9q0r1s2t3`).** It repairs orphans itself and never deletes a row: dangling customer/booking links become NULL, and a booking whose court is gone is pointed at its sport's only court (or NULL when the sport has several courts, so nothing is guessed). To see exactly what it will touch before it runs, point the dry-run at the real database:
+
+```bash
+cd apps/api
+DAZY_DB_URL=<neon url> uv run python scripts/check_fk_orphans.py            # report only, exit 1 if orphans exist
+DAZY_DB_URL=<neon url> uv run python scripts/check_fk_orphans.py --repair   # optional: apply the same repair now
+```
+
+On PostgreSQL the migration is four `ALTER TABLE ... ADD CONSTRAINT` statements (a brief lock on `bookings`, `orders`, `courts`, `customers`); on SQLite it rebuilds the two tables and recreates the partial unique slot index and the `lower(email)` index by hand (a test asserts both survive). `init_db()` finishes with `PRAGMA foreign_key_check` on SQLite and logs any violation. The migration is verified on SQLite with seeded dirty data in `tests/test_foreign_keys.py`; the identical scenario runs on PostgreSQL when `DAZY_TEST_PG_URL` points at a throwaway database (its name must contain `test`; the schema is wiped), and **that has not been run against Postgres yet**: do it, or take a Neon branch copy and run the dry-run script there, before the first production deploy that includes it.
 
 ---
 
@@ -515,7 +536,7 @@ Behaviour:
 Ops and quality:
 
 - Media: R2 adapter is built and tested against a fake S3 client only; it has not been run against a real bucket yet.
-- Tests run on SQLite only, never Postgres; café tables are not reset between tests; Playwright not in CI; no frontend unit tests.
+- Tests run on SQLite only by default (`DAZY_TEST_PG_URL` enables the Postgres migration test; no CI job sets it yet); café tables are not reset between tests; Playwright not in CI; no frontend unit tests.
 - Last recorded Playwright failure: `web-pricing … promo … shows inline error on submit`.
 - Doc drift: README says React 18 (code: 19); `e2e/E2E-BIBLE.md` predates the kiosk project; `docs/Launch-Plan.md` rejects Render while production uses it.
 - The DB engine uses `pool_pre_ping` and `pool_recycle=300` so Neon-suspended connections reconnect.
