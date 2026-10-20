@@ -20,6 +20,10 @@ services:
       DAZY_COOKIE_SAMESITE: ${DAZY_COOKIE_SAMESITE:-lax}
       DAZY_COOKIE_DOMAIN: ${DAZY_COOKIE_DOMAIN:-}
       ADMIN_SESSION_EPOCH: ${ADMIN_SESSION_EPOCH:-0}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENV: ${SENTRY_ENV:-}
+      DAZY_LOG_FORMAT: ${DAZY_LOG_FORMAT:-}
+      DAZY_LOG_LEVEL: ${DAZY_LOG_LEVEL:-INFO}
       DAZY_INTERNAL_TOKEN: ${DAZY_INTERNAL_TOKEN:-}
       DAZY_PROXY_HOPS: "1"  # Caddy is the one trusted proxy; rate limits key on the real client IP
       JWT_SECRET: ${JWT_SECRET}

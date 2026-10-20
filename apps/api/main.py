@@ -4,7 +4,11 @@ import sys
 import traceback
 from contextlib import asynccontextmanager
 
+import time
+import uuid
+
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from brand import BRAND_NAME
 
 logger = logging.getLogger(__name__)
@@ -72,7 +76,24 @@ async def lifespan(app: FastAPI):
     yield
 
 
+from logging_config import request_id_var
+from observability import init_sentry, tag_request
+from rate_limit import client_ip
+
+init_sentry()  # no-op unless SENTRY_DSN is set
+
 app = FastAPI(title=f"{BRAND_NAME} API", version="0.1.0", lifespan=lifespan)
+access_log = logging.getLogger("access")
+_REQUEST_ID_OK = __import__("re").compile(r"^[A-Za-z0-9._-]{8,64}$")
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(request, exc):
+    """Last resort: log the traceback with the request id, answer with a generic body that carries it."""
+    rid = request.scope.get("request_id", "-")
+    logger.error("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc, extra={"request_id": rid})
+    return JSONResponse(status_code=500, content={"detail": "Internal server error.", "requestId": rid},
+                        headers={"X-Request-ID": rid})
 
 # Serve uploaded media (gallery images) read-only at /media.
 ensure_media_dirs()
@@ -177,3 +198,30 @@ app.include_router(admin_cafe_tables_router, prefix=prefix)
 @app.get("/")
 def root():
     return {"app": f"{BRAND_NAME} API", "docs": "/docs", "health": "/api/v1/health"}
+
+
+@app.middleware("http")
+async def request_context(request, call_next):
+    """Outermost layer: give every request an id (a sane client-supplied X-Request-ID is kept so a
+    Cloudflare/Worker id can be followed through), echo it back, and write one access line per request
+    with method, path (never the query string: it can hold contact details), status, duration and client IP."""
+    incoming = request.headers.get("x-request-id", "")
+    rid = incoming if _REQUEST_ID_OK.match(incoming) else uuid.uuid4().hex
+    request.scope["request_id"] = rid
+    token = request_id_var.set(rid)
+    tag_request(rid)
+    start = time.perf_counter()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        response.headers["X-Request-ID"] = rid
+        return response
+    finally:
+        path = request.url.path
+        level = logging.DEBUG if path in ("/api/v1/health", "/api/v1/health/ready") and status < 400 else logging.INFO
+        access_log.log(level, "%s %s -> %s", request.method, path, status, extra={
+            "method": request.method, "path": path, "status": status,
+            "duration_ms": round((time.perf_counter() - start) * 1000, 1), "ip": client_ip(request),
+        })
+        request_id_var.reset(token)

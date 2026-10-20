@@ -107,6 +107,18 @@ projects:
         sync: false
       - key: ADMIN_SESSION_EPOCH   # integer; bump it to sign out every env-admin session at once (default 0)
         sync: false
+      # --- Observability. Logs are JSON lines in production (DAZY_LOG_FORMAT=text to override), one access line
+      # per request with its request id; the id is also returned in the X-Request-ID header and in 500 bodies.
+      # Render health check below stays on the cheap /health; point an EXTERNAL uptime monitor (UptimeRobot,
+      # Better Stack, ...) at /api/v1/health/ready every ~5 min: it checks the DB and that the schema is at head.
+      - key: SENTRY_DSN            # optional; errors are only reported when set (PII scrubbed before sending)
+        sync: false
+      - key: SENTRY_ENV            # optional, defaults to DAZY_ENV
+        sync: false
+      - key: SENTRY_TRACES_SAMPLE_RATE  # optional 0..1, default 0 (no performance tracing)
+        sync: false
+      - key: DAZY_LOG_LEVEL        # optional, default INFO
+        sync: false
       # --- Scheduler: an external cron POSTs /api/v1/internal/sweep with header X-Internal-Token ---
       - key: DAZY_INTERNAL_TOKEN   # random 32+ chars; endpoint is disabled (404) when unset
         sync: false

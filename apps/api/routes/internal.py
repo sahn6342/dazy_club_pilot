@@ -6,6 +6,7 @@ import os
 
 from fastapi import APIRouter, Header, HTTPException
 
+from observability import record_sweep
 from services.availability_service import _sweep_stale_pending
 from services.reconciliation import reconcile_unsettled_payments
 
@@ -21,4 +22,5 @@ def sweep(x_internal_token: str | None = Header(default=None)):
         raise HTTPException(status_code=401, detail="Invalid token.")
     expired = _sweep_stale_pending()
     reconciled = reconcile_unsettled_payments()
+    record_sweep(expired, reconciled)
     return {"expired": expired, "reconciled": reconciled}

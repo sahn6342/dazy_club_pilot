@@ -4,6 +4,8 @@ Production deploy is a single Docker Compose stack: FastAPI (`api`), three stati
 
 Full setup, env vars, backups, and the demo-content-removal + smoke-test steps: **[docs/Docker-Deployment.md](../docs/Docker-Deployment.md)**.
 
+**Scheduler:** [`infra/cron-worker/`](cron-worker/README.md) is a Cloudflare Worker that calls the API's `/internal/sweep` (booking expiry + payment reconciliation) and `/health/ready` every 5 minutes.
+
 Future infrastructure (see `docs/Roadmap.md` / `docs/Detailed-Roadmap.md`):
 - PostgreSQL — swap `DAZY_DB_URL`, zero code changes (repository pattern).
 - Redis for slot locking at higher concurrency.

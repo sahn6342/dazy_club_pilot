@@ -11,10 +11,9 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+from logging_config import configure_logging
+
+configure_logging()  # JSON lines in production, readable text locally; every line carries the request id
 
 # Loaded here (earliest config-reading module) so DAZY_*/RAZORPAY_*/SMTP_* env
 # vars from apps/api/.env are visible before any other module's `os.environ.get`
@@ -75,6 +74,7 @@ def init_db() -> None:
     cfg = Config(os.path.join(_BASE_DIR, "alembic.ini"))
     cfg.set_main_option("script_location", os.path.join(_BASE_DIR, "alembic"))
     cfg.set_main_option("sqlalchemy.url", DB_URL)
+    cfg.attributes["configure_logger"] = False  # keep the app's logging setup (see alembic/env.py)
     # Use the module-level engine so lock_timeout / connect_args apply to migration queries too.
     with engine.connect() as conn:
         cfg.attributes["connection"] = conn

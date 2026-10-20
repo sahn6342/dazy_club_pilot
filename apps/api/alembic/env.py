@@ -14,8 +14,12 @@ import db_models  # noqa: E402,F401 — registers all tables on Base.metadata
 config = context.config
 config.set_main_option("sqlalchemy.url", DB_URL)
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# alembic.ini's [loggers] section REPLACES the root handlers and disables every logger that already exists.
+# When the API runs migrations at startup (db.init_db) that would silently kill the application's own
+# logging (JSON format, request ids, every module logger), so init_db sets configure_logger=False.
+# The alembic CLI keeps its normal console logging.
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

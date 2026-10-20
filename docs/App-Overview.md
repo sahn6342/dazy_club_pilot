@@ -294,7 +294,9 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /health`, `GET /sports`, `GET /venue`, `GET /gallery`, `GET /menu` | Info and content |
+| `GET /health` | Liveness only (cheap, never touches the DB; what Render checks) |
+| `GET /health/ready` | Readiness for an uptime monitor: DB answers and the schema is at the migration head, else 503 `{status:"degraded"}` with no internals. Also shows when the scheduler last ran (`sweep.lastRunAt`/`ageSeconds`, in-memory, resets on restart) |
+| `GET /sports`, `GET /venue`, `GET /gallery`, `GET /menu` | Info and content |
 | `GET /testimonials`, `GET /notifications` | Static seed data (not DB-backed) |
 | `GET /slots?sport&date` | Computed availability |
 | `GET /promos/validate?code&sport&amount` | Validate promo without redeeming |
@@ -394,6 +396,14 @@ Frontends have no unit tests; lint/format scripts are placeholders.
 
 `render.yaml` (exported from Render, then completed) lists every env var by name; values are never stored in it (`sync: false`), so enter them in the Render dashboard. **Rule: a new env var in code means adding it to both `render.yaml` and `.env.example` in the same change.** Cloudflare has no config file in the repo, so its build settings above are entered by hand; the Neon project and the Razorpay webhook are also dashboard-only.
 
+### 9.1a Observability and scheduling
+
+- **Request ids.** Every request gets an id (a sane client-supplied `X-Request-ID` is kept, so the cron worker's `cron-<uuid>` can be followed). It is returned in the `X-Request-ID` header and in 500 bodies (`{"detail":"Internal server error.","requestId":...}`), stamped on every log line, and tagged on Sentry events. When a customer reports a failure, take the id from the response (or the access line) and grep the logs for it.
+- **Logs.** JSON lines on stdout in production (`ts`, `level`, `logger`, `msg`, `request_id`, plus fields such as `method`, `path`, `status`, `duration_ms`, `ip`), readable text locally; `DAZY_LOG_FORMAT` / `DAZY_LOG_LEVEL` override. One access line per request (health checks only at DEBUG). The **query string is never logged** (lookup URLs carry contact details); extras with names like password/token/otp are redacted. The notification stubs no longer `print`; in production they log only a masked recipient and "NOT delivered", never the body (which can hold an OTP code). Logging survives the startup migrations: alembic's `fileConfig` used to replace the root handlers and disable every already-created logger when the API migrated on boot, which silenced the application's own logs in production (fixed in `alembic/env.py`; the alembic CLI keeps its console output).
+- **Errors (Sentry).** Off unless `SENTRY_DSN` is set. When on: no default PII, no request bodies, no local variables, tracing off unless `SENTRY_TRACES_SAMPLE_RATE` is set; cookies, auth/OTP/internal/signature headers, IP headers and query strings are dropped, and emails, phone numbers and JWTs are masked in every remaining string. One event per unhandled exception (ERROR logs do not create a second one). Release defaults to Render's commit SHA.
+- **Health.** Point an external monitor (UptimeRobot, Better Stack...) at `GET /api/v1/health/ready` every 5 minutes and alert on non-200: it catches a dead database and a deploy whose migrations did not run. Keep Render's own health check on `/api/v1/health`.
+- **Scheduler.** `infra/cron-worker/` (Cloudflare Worker, cron every 5 min) calls `/internal/sweep` and `/health/ready`; it fails loudly on any error. Setup, secret and the Neon compute-hours trade-off are in its README.
+
 Checklist when something breaks in prod:
 
 - Every Cloudflare frontend origin must be in `DAZY_CORS_ORIGINS` on Render (comma-separated, no trailing slash).
@@ -466,6 +476,9 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | `DAZY_COOKIE_DOMAIN` | — | Optional cookie `Domain` (e.g. `.dazyclub.com`); unset binds the cookie to the API host | no |
 | `DAZY_COOKIE_SECURE` | on in production | `1`/`0` override for the cookie `Secure` flag | no |
 | `ADMIN_SESSION_EPOCH` | `0` | Integer; bump it to revoke every env-admin session | no |
+| `SENTRY_DSN` | — | Enables Sentry error reporting (scrubbed, see 9.1a). Unset = off | yes |
+| `SENTRY_ENV`, `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE` | `DAZY_ENV` / `RENDER_GIT_COMMIT` / `0` | Sentry environment, release and performance sampling (0..1) | no |
+| `DAZY_LOG_FORMAT`, `DAZY_LOG_LEVEL` | json in production else text / `INFO` | Log format (`json`\|`text`) and level | no |
 | `DAZY_INTERNAL_TOKEN` | — | Secret for `POST /internal/sweep`; endpoint disabled when unset | yes |
 | `DAZY_RATE_LIMIT_SCALE` | `1` | Multiplies every rate limit. E2E only; production refuses to boot unless it is 1 | no |
 | `SMTP_HOST` | — | SMTP server host | no |
@@ -525,6 +538,7 @@ Security and config:
 
 Behaviour:
 
+- Observability is built but not yet proven in production: Sentry has only been exercised with an in-memory transport, the Cloudflare cron worker only by its unit tests (not deployed), and `/health/ready` is only as good as the monitor you point at it. Logs are not shipped anywhere beyond what Render keeps.
 - Admin pagination is offset-based: fine for a venue's volume, but very deep pages scan; switch to keyset paging if one venue grows to millions of bookings. The audit log, notification log and gallery lists are not paged yet.
 - No customer self-cancel. Refunds are admin-driven (policy suggestion + override). A crash between the provider refund and saving state leaves the amount reserved (so it can never be refunded twice) and logs `REFUND ISSUED BUT STATE NOT SAVED` for manual reconciliation. Refunds are not yet retried automatically, and the provider has no idempotency key on refund calls.
 - Pending-booking expiry also runs from `POST /internal/sweep`, but only if you actually schedule that cron. Without it, expiry still only happens when slots are read (payment rows now flip `created` → `expired`; migration `h1i2j3k4l5m6` backfilled old rows).

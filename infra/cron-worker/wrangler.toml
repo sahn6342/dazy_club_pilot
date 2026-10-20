@@ -1,0 +1,15 @@
+# Deploy:  cd infra/cron-worker && npx wrangler deploy
+# Secret:  npx wrangler secret put INTERNAL_TOKEN     (same value as DAZY_INTERNAL_TOKEN on the API)
+name = "dazy-club-sweep"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+workers_dev = false          # nothing is served over HTTP; the worker only runs on its cron trigger
+
+[vars]
+API_BASE = "https://api.dazyclub.com"   # no path, no trailing slash needed
+
+[triggers]
+# Every 5 minutes. The API expires a pending booking after 15 minutes and reconciles payments older than
+# 2 minutes, so 5 is plenty. NOTE: any query every <5 min keeps a Neon compute awake (no scale-to-zero);
+# to let it sleep overnight restrict the hours (UTC), e.g. "*/5 0-16 * * *" = 05:30-22:30 IST.
+crons = ["*/5 * * * *"]

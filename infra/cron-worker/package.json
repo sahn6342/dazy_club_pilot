@@ -1,0 +1,12 @@
+{
+  "name": "@dazy/cron-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Cloudflare Worker cron trigger for POST /api/v1/internal/sweep",
+  "scripts": {
+    "test": "node --test src/",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev --test-scheduled"
+  }
+}
