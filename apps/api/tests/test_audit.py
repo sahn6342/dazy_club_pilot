@@ -125,8 +125,7 @@ def test_failed_refund_is_recorded(client, auth_headers, monkeypatch):
     client.post(f"/api/v1/bookings/{b['bookingRef']}/payment/verify", json={
         "providerOrderId": b["checkout"]["providerOrderId"], "providerPaymentId": "noop_pay_audit"})
     bid = _admin_booking(client, auth_headers, b["bookingRef"])["id"]
-    import routes.admin.bookings as rb
-    monkeypatch.setattr(rb.payment_provider, "refund", lambda *a, **k: False)
+    monkeypatch.setattr(deps.payment_provider, "refund", lambda *a, **k: False)
     assert client.post(f"/api/v1/admin/bookings/{bid}/refund", json={}, headers=auth_headers).status_code == 502
     assert len(_by_action("booking.refund_failed")) == 1 and _by_action("booking.refund") == []
 

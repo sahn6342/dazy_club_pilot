@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { StatusBadge } from "../components/StatusBadge";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { RefundDialog, type RefundTarget } from "../components/RefundDialog";
 
 type Booking = {
   id: string; bookingRef: string; name: string; contact: string;
@@ -18,6 +19,11 @@ const STATUS_MSG: Record<string, string> = {
   cancelled: "Booking cancelled",
   no_show: "Marked as no-show",
 };
+
+const PAYMENT_LABEL: Record<string, string> = {
+  paid: "Paid", partially_refunded: "Partly refunded", refunded: "Refunded",
+};
+const isPaid = (b: { paymentStatus: string }) => b.paymentStatus === "paid" || b.paymentStatus === "partially_refunded";
 
 const EMPTY_FILTER = { sport: "", status: "", date_from: "", date_to: "" };
 const PAGE_SIZE = 10;
@@ -93,6 +99,12 @@ export function Bookings() {
       setSortBy(col);
       setSortDir("desc");
     }
+  }
+
+  const [refundFor, setRefundFor] = useState<{ b: RefundTarget; mode: "cancel" | "refund" } | null>(null);
+
+  function openRefund(b: Booking, mode: "cancel" | "refund") {
+    setRefundFor({ b: { id: b.id, bookingRef: b.bookingRef, name: b.name, date: b.date, startTime: b.startTime }, mode });
   }
 
   async function setStatus(id: string, status: string) {
@@ -234,7 +246,14 @@ export function Bookings() {
                           {b.promo_code && <small className="muted"> ({b.promo_code})</small>}
                         </td>
                         <td>{b.gst_rate_percent != null ? `${b.gst_rate_percent}%` : "—"}</td>
-                        <td><StatusBadge status={b.status} /></td>
+                        <td>
+                          <StatusBadge status={b.status} />
+                          {PAYMENT_LABEL[b.paymentStatus] && (
+                            <small className="muted" data-testid={`pay-${b.bookingRef}`} style={{ display: "block" }}>
+                              {PAYMENT_LABEL[b.paymentStatus]}
+                            </small>
+                          )}
+                        </td>
                         <td>
                           <div className="action-row" style={{ whiteSpace: "nowrap" }}>
                             {b.status === "pending" && (
@@ -247,7 +266,13 @@ export function Bookings() {
                               <button className="btn-action cancel" onClick={() => setStatus(b.id, "no_show")}>No-show</button>
                             )}
                             {(b.status === "pending" || b.status === "confirmed") && (
-                              <button className="btn-action cancel" onClick={() => setStatus(b.id, "cancelled")}>Cancel</button>
+                              // Paid bookings go through the refund dialog so a cancellation can never silently keep the money.
+                              <button className="btn-action cancel" data-testid={`cancel-${b.bookingRef}`}
+                                onClick={() => (isPaid(b) ? openRefund(b, "cancel") : setStatus(b.id, "cancelled"))}>Cancel</button>
+                            )}
+                            {isPaid(b) && (
+                              <button className="btn-action secondary" data-testid={`refund-${b.bookingRef}`}
+                                onClick={() => openRefund(b, "refund")}>Refund</button>
                             )}
                           </div>
                         </td>
@@ -268,6 +293,14 @@ export function Bookings() {
           )}
         </div>
       </div>
+      {refundFor && (
+        <RefundDialog
+          booking={refundFor.b}
+          mode={refundFor.mode}
+          onClose={() => setRefundFor(null)}
+          onDone={(message) => { setRefundFor(null); setReloadKey((k) => k + 1); toast.success(message); }}
+        />
+      )}
     </div>
   );
 }

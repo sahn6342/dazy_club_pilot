@@ -85,15 +85,16 @@ def notify_booking_cancelled(booking_ref: str) -> None:
         pass
 
 
-def notify_booking_refunded(booking_ref: str) -> None:
+def notify_booking_refunded(booking_ref: str, amount: float | None = None, cancelled: bool = True, partial: bool = False) -> None:
     """Fires when a refund is issued via the admin panel."""
     try:
         bookings = booking_repo.get_by_ref(booking_ref)
         if not bookings:
             return
         primary = next((b for b in bookings if b.is_primary), bookings[0])
-        subject, email_body = notification_templates.booking_refunded(primary)
-        sms_body = f"Refund for booking {primary.bookingRef} is being processed. — {primary.sportSlug}"
+        subject, email_body = notification_templates.booking_refunded(primary, amount=amount, cancelled=cancelled, partial=partial)
+        shown = f"Rs. {amount:.2f} " if amount is not None else ""
+        sms_body = f"Refund {shown}for booking {primary.bookingRef} is being processed. — {primary.sportSlug}"
         _send_all_channels(primary, subject, email_body, email_body, sms_body)
     except Exception:
         pass

@@ -238,7 +238,14 @@ class BookingPaymentVerifyRequest(BaseModel):
 
 
 class BookingRefundRequest(BaseModel):
-    reason: str | None = None
+    reason: str | None = Field(default=None, max_length=500)
+    amount: float | None = Field(default=None, gt=0, le=1_000_000)  # None = everything still refundable
+
+
+class CancelRefundRequest(BaseModel):
+    """amount None = refund what the cancellation policy says; 0 = cancel without refund."""
+    amount: float | None = Field(default=None, ge=0, le=1_000_000)
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class BookingPaymentDto(BaseModel):
@@ -251,6 +258,7 @@ class BookingPaymentDto(BaseModel):
     status: str
     checkoutJson: str | None = None
     createdAt: str
+    refundedAmount: float = 0.0
 
     model_config = {"from_attributes": True}
 

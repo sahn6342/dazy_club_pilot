@@ -77,13 +77,20 @@ def booking_cancelled(booking: BookingRecord) -> tuple[str, str]:
     return subject, body
 
 
-def booking_refunded(booking: BookingRecord) -> tuple[str, str]:
-    """Returns (subject, body) for a refunded booking."""
-    amount = f"Rs. {booking.price:.2f}" if booking.price is not None else "Rs. 0.00"
-    subject = f"Refund processed — {booking.bookingRef}"
+def booking_refunded(booking: BookingRecord, amount: float | None = None, cancelled: bool = True, partial: bool = False) -> tuple[str, str]:
+    """Returns (subject, body) for a refunded booking. `amount` is what was refunded this time
+    (defaults to the booking price); `cancelled` says whether the booking was cancelled too."""
+    value = amount if amount is not None else (booking.price or 0.0)
+    amount = f"Rs. {value:.2f}"
+    subject = f"{'Booking cancelled, refund' if cancelled else 'Refund'} processed — {booking.bookingRef}"
+    lead = (
+        f"Your booking {booking.bookingRef} has been cancelled and a {'partial ' if partial else ''}refund of {amount} has been processed."
+        if cancelled
+        else f"A {'partial ' if partial else ''}refund of {amount} has been processed for booking {booking.bookingRef}; your booking stays active."
+    )
     body = (
         f"Hi {booking.name},\n\n"
-        f"A refund of {amount} has been processed for booking {booking.bookingRef}.\n\n"
+        f"{lead}\n\n"
         f"Sport: {booking.sportSlug}\n"
         f"Date: {booking.date}\n"
         f"Time: {booking.startTime}-{booking.endTime}\n\n"

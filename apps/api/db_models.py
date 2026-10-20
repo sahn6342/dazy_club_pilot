@@ -97,6 +97,8 @@ class BookingPaymentRow(Base):
     signature: Mapped[str | None] = mapped_column(String, nullable=True)
     checkoutJson: Mapped[str | None] = mapped_column(Text, nullable=True)
     createdAt: Mapped[str] = mapped_column(String, nullable=False)
+    # Running total refunded (supports partial refunds). Reserved BEFORE calling the provider.
+    refunded_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0, server_default="0")
 
 
 class NotificationMessageRow(Base):

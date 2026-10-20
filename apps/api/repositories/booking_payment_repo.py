@@ -14,7 +14,7 @@ def _to_model(row: BookingPaymentRow) -> BookingPaymentDto:
         id=row.id, bookingRef=row.bookingRef, provider=row.provider,
         providerOrderId=row.providerOrderId, providerPaymentId=row.providerPaymentId,
         amount=float(row.amount), status=row.status, checkoutJson=row.checkoutJson,
-        createdAt=row.createdAt,
+        createdAt=row.createdAt, refundedAmount=float(row.refunded_amount or 0),
     )
 
 
@@ -22,7 +22,8 @@ def _to_model(row: BookingPaymentRow) -> BookingPaymentDto:
 CREATED = "created"            # order made, awaiting payment
 VERIFIED = "verified"          # paid and booking confirmed
 EXPIRED = "expired"            # booking timed out unpaid
-REFUNDED = "refunded"          # refunded via admin or auto-refund
+REFUNDED = "refunded"          # refunded in full via admin or auto-refund
+PARTIALLY_REFUNDED = "partially_refunded"  # some, not all, of the payment refunded
 PAID_ORPHAN = "paid_orphan"    # paid after booking expired; refund failed, needs admin action
 AMOUNT_MISMATCH = "amount_mismatch"  # webhook amount != order amount; booking NOT confirmed, needs admin review
 
@@ -114,6 +115,29 @@ class SqliteBookingPaymentRepository:
             row.signature = signature
             s.flush()
             return _to_model(row)
+
+    def reserve_refund(self, payment_id: str, amount: float) -> bool:
+        """Atomically add `amount` to refunded_amount iff it still fits within what was paid.
+        One conditional UPDATE, so concurrent refunds cannot jointly exceed the payment."""
+        with _session() as s:
+            result = s.execute(
+                sa_update(BookingPaymentRow)
+                .where(
+                    BookingPaymentRow.id == payment_id,
+                    BookingPaymentRow.refunded_amount + amount <= BookingPaymentRow.amount + 0.004,  # float slop
+                )
+                .values(refunded_amount=BookingPaymentRow.refunded_amount + amount)
+            )
+            return result.rowcount == 1
+
+    def release_refund(self, payment_id: str, amount: float) -> None:
+        """Undo reserve_refund after the provider refused the refund."""
+        with _session() as s:
+            s.execute(
+                sa_update(BookingPaymentRow)
+                .where(BookingPaymentRow.id == payment_id)
+                .values(refunded_amount=BookingPaymentRow.refunded_amount - amount)
+            )
 
     def mark_refunded(self, booking_ref: str) -> None:
         with _session() as s:

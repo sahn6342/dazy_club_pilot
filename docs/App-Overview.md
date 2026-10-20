@@ -168,12 +168,26 @@ stateDiagram-v2
   no_show --> [*]
 ```
 
-Invalid transitions return 409. Payment status is separate: `unpaid` → `paid` → `refunded`.
+Invalid transitions return 409. Payment status is separate: `unpaid` → `paid` → `partially_refunded` → `refunded`.
 
-### 4.3 Cancel and refund (admin only)
+### 4.3 Cancel and refund (admin and manager only)
 
-1. Admin `PATCH /admin/bookings/{id}` to `cancelled` — applies to all rows with that ref and notifies the customer. **No automatic refund.**
-2. Admin `POST /admin/bookings/{id}/refund` — needs `paymentStatus=paid` and a verified provider payment. Refunds the **full** stored amount through Razorpay, marks booking cancelled + refunded (slot freed), marks payment refunded, notifies customer. Provider failure returns 502.
+Customers cannot cancel; staff do it from **Admin → Bookings**. Cancelling a **paid** booking opens a refund dialog (an unpaid one just cancels). Money-moving steps are shared by every path so they behave the same:
+
+1. **Reserve** the amount: one conditional `UPDATE booking_payments SET refunded_amount = refunded_amount + x WHERE refunded_amount + x <= amount`. Two simultaneous refunds can never exceed what was paid.
+2. **Call Razorpay** `refund(payment_id, amount)`. On failure (or an exception) the reservation is released, nothing else changes and the API returns 502, so the admin can retry.
+3. **Record** the result: `booking_payments.refunded_amount` / status, `bookings.paymentStatus`, and the booking itself. A refund that brings the balance to zero marks `refunded` and cancels the booking; a smaller one marks `partially_refunded`. Cancelling frees the slot.
+4. **Notify** the customer (email/SMS/WhatsApp) with the amount, saying whether the booking was cancelled or stays active, and write `booking.refund` to the audit log.
+
+| Endpoint | What it does |
+|---|---|
+| `GET /admin/bookings/{id}/refund-quote` | What the policy would refund if the booking were cancelled now: paid, already refunded, refundable, hours before start, percent, policy amount, suggested amount |
+| `POST /admin/bookings/{id}/cancel-and-refund` `{amount?, reason?}` | Cancels and refunds the **policy amount** by default. `amount` overrides it (never above the refundable balance); `0` cancels without a refund. Works on pending/confirmed bookings, and also repairs a booking that was cancelled earlier without a refund |
+| `POST /admin/bookings/{id}/refund` `{amount?, reason?}` | Refunds `amount` (default: everything still refundable). Partial refunds leave the booking active |
+| `PATCH /admin/bookings/{id}` to `cancelled` | Plain cancel, no refund. The admin UI only uses it for unpaid bookings |
+
+**Refund policy.** CMS key `refund_policy` (edit it in Admin → CMS; invalid JSON is rejected with a 422):
+`{"tiers": [{"hoursBefore": 24, "percent": 100}, {"hoursBefore": 4, "percent": 50}]}`. A cancellation with at least `hoursBefore` hours of notice gets that tier's percent (largest matching tier wins); less notice than every tier gets 0%. Notice runs to the start of the booking's first slot in the venue timezone. Amounts use `Decimal`, rounded half-up to the paisa. The policy amount is only a suggestion: the admin can change it in the dialog, and the override, reason and policy are all written to the audit log. If the stored policy is ever missing or broken the API logs an error and uses the default above.
 
 ### 4.4 Café order (kiosk)
 
@@ -239,7 +253,7 @@ Dates/times are stored as strings (ISO UTC timestamps, `YYYY-MM-DD`, `HH:MM`). 1
 | Café | `cafe_settings`, `menu_categories`, `menu_items`, `cafe_tables`, `orders`, `order_items`, `kots`, `payments`, `invoices`, `invoice_lines`, `invoice_sequences` |
 | Access and ops | `users` (with `token_version`), `revoked_tokens`, `rate_limit_events`, `otp_codes`, `audit_log` |
 
-`bookings` highlights: one row per slot; the primary row (`is_primary`) carries price, promo, message, email and GST rate; `status` (pending, confirmed, completed, cancelled, no_show); `paymentStatus` (unpaid, paid, refunded); `court_id` and `customer_id` are soft foreign keys. `booking_payments.status`: created, verified, expired, refunded.
+`bookings` highlights: one row per slot; the primary row (`is_primary`) carries price, promo, message, email and GST rate; `status` (pending, confirmed, completed, cancelled, no_show); `paymentStatus` (unpaid, paid, partially_refunded, refunded); `court_id` and `customer_id` are soft foreign keys. `booking_payments.status`: created, verified, expired, partially_refunded, refunded (plus `paid_orphan` and `amount_mismatch`, see 4.1); `booking_payments.refunded_amount` is the running refunded total.
 
 ---
 
@@ -286,7 +300,7 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 | `POST /otp/request` | 5 / 10 min per IP and per contact |
 | `POST /otp/verify` | 10 / 10 min per IP and per contact; 5 wrong guesses kill a code |
 
-**Audit trail**: every state-changing admin action is recorded in `audit_log` (who, role, action, entity, IP, time). Explicit events carry details: `auth.login` / `auth.login_failed` / `auth.logout`, `kiosk.login` / `kiosk.login_failed` / `kiosk.lockout` / `kiosk.logout`, `booking.status_change` (from, to), `booking.refund` (amount) / `booking.refund_failed`, `booking.delete`, `user.create` / `user.update` (password changed? role from/to) / `user.delete`, and system events `payment.late_refunded`, `payment.orphan`, `payment.amount_mismatch`, `payment.reconciled`. Every other successful admin write (promos, courts, schedule, CMS and GST rate, gallery, café setup...) is caught by a middleware fallback and recorded as `METHOD /admin/path/{id}` with the entity id or key. Details hold ids, statuses and amounts only: never passwords, PINs, tokens or OTP codes. Recording never fails the request. Read it at `GET /admin/audit` or in the admin **Audit log** page (superadmin only).
+**Audit trail**: every state-changing admin action is recorded in `audit_log` (who, role, action, entity, IP, time). Explicit events carry details: `auth.login` / `auth.login_failed` / `auth.logout`, `kiosk.login` / `kiosk.login_failed` / `kiosk.lockout` / `kiosk.logout`, `booking.status_change` (from, to), `booking.refund` (amount, partial?, cancelled?, policy, override, reason) / `booking.refund_failed` / `booking.cancel_refund` (cancel with no refund), `booking.delete`, `user.create` / `user.update` (password changed? role from/to) / `user.delete`, and system events `payment.late_refunded`, `payment.orphan`, `payment.amount_mismatch`, `payment.reconciled`. Every other successful admin write (promos, courts, schedule, CMS and GST rate, gallery, café setup...) is caught by a middleware fallback and recorded as `METHOD /admin/path/{id}` with the entity id or key. Details hold ids, statuses and amounts only: never passwords, PINs, tokens or OTP codes. Recording never fails the request. Read it at `GET /admin/audit` or in the admin **Audit log** page (superadmin only).
 
 **Security headers**: the API adds `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` to every response and `Cache-Control: no-store` to admin, kiosk, OTP and booking-lookup responses. Each SPA ships `apps/<app>/public/_headers` (Cloudflare reads it from the build output; `Caddyfile` mirrors it for self-host) with HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and a **report-only** `Content-Security-Policy` allowing only Turnstile, Razorpay Checkout and the API origin. The CSP hard-codes `https://api.dazyclub.com` as the API origin (edit the files if yours differs). Watch the browser console after deploying, then rename the header to `Content-Security-Policy` to enforce.
 
@@ -482,7 +496,7 @@ Security and config:
 
 Behaviour:
 
-- No customer self-cancel. Admin cancel does not auto-refund; refunds are full-amount only, no partial refund or policy rules.
+- No customer self-cancel. Refunds are admin-driven (policy suggestion + override). A crash between the provider refund and saving state leaves the amount reserved (so it can never be refunded twice) and logs `REFUND ISSUED BUT STATE NOT SAVED` for manual reconciliation. Refunds are not yet retried automatically, and the provider has no idempotency key on refund calls.
 - Pending-booking expiry also runs from `POST /internal/sweep`, but only if you actually schedule that cron. Without it, expiry still only happens when slots are read (payment rows now flip `created` → `expired`; migration `h1i2j3k4l5m6` backfilled old rows).
 - Webhook confirms only `payment.captured` (and checks the captured amount equals the order amount; a mismatch flags the payment `amount_mismatch` and does not confirm). `payment.failed` is logged and acknowledged. Missed webhooks are recovered by reconciliation, which also runs from `POST /internal/sweep`.
 - `GET /testimonials` and `GET /notifications` serve static seed data, not admin-edited DB content.

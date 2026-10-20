@@ -112,6 +112,14 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
             ).rowcount
             return pending + manual
 
+    def apply_refund_state(self, booking_ref: str, payment_status: str, cancel: bool) -> None:
+        """After a (partial) refund: record paymentStatus on every row; also cancel (frees the slot)."""
+        values = {"paymentStatus": payment_status}
+        if cancel:
+            values["status"] = "cancelled"
+        with _session() as s:
+            s.execute(sa_update(BookingRow).where(BookingRow.bookingRef == booking_ref).values(**values))
+
     def refund_by_ref(self, booking_ref: str) -> None:
         """Refund issued — mark refunded and cancel (frees the slot)."""
         with _session() as s:
