@@ -47,6 +47,26 @@ export const api = {
 
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 
+  // List endpoints that report the full count in the X-Total-Count header (the body stays a plain array).
+  list: async <T>(path: string): Promise<{ items: T[]; total: number }> => {
+    const token = getToken();
+    const res = await fetch(`${BASE}${path}`, {
+      credentials: "include",
+      headers: { "X-Requested-With": "dazy", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (res.status === 401) {
+      clearToken();
+      window.location.href = "/login";
+      throw new Error("Session expired");
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Request failed" }));
+      throw new Error(typeof err.detail === "string" ? err.detail : "Request failed");
+    }
+    const items: T[] = await res.json();
+    return { items, total: Number(res.headers.get("X-Total-Count") ?? items.length) };
+  },
+
   // File download (the CSV export streams from the API). Same cookie/CSRF/401 handling as request().
   download: async (path: string): Promise<{ blob: Blob; filename: string }> => {
     const token = getToken();

@@ -68,6 +68,9 @@ async def lifespan(app: FastAPI):
         logger.info("=== startup: seeding initial data ===")
         seed_if_empty()
         logger.info("=== startup: complete ===")
+        from services.notification_service import delivery_status
+        for warning in delivery_status()["warnings"]:  # phone numbers are accepted, so say loudly what will NOT be delivered
+            logger.warning("NOTIFICATIONS: %s", warning)
     except Exception:
         tb = traceback.format_exc()
         logger.critical("=== startup FAILED ===\n%s", tb)

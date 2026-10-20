@@ -14,6 +14,7 @@ const NAV = [
   { to: "/contact-details", label: "Contact Details", icon: "📍" },
   { to: "/users", label: "Manage Users", icon: "👥" },
   { to: "/audit", label: "Audit log", icon: "🧾" },
+  { to: "/notifications", label: "Notifications", icon: "🔔" },
 ];
 
 const CAFE_NAV = [

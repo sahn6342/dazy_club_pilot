@@ -312,9 +312,16 @@ class NotificationMessageDto(BaseModel):
     refId: str
     channel: str
     recipient: str
-    status: str  # sent | skipped | failed
+    status: str  # sending | sent | retrying | failed | skipped
     errorMessage: str | None = None
     createdAt: str
+    event: str | None = None
+    provider: str | None = None
+    providerRef: str | None = None
+    attempts: int = 1
+    lastAttemptAt: str | None = None
+    nextAttemptAt: str | None = None
+    resendable: bool = False   # has a stored payload and is not already sent / in flight
 
     model_config = {"from_attributes": True}
 

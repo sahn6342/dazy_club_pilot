@@ -237,15 +237,37 @@ flowchart LR
 
 ### 4.7 Notifications
 
-`notification_service` is the single entry point; it never raises and logs every attempt to `notification_messages` (sent / skipped / failed).
+`notification_service` is the single entry point and never raises. Every message is written to the **outbox** (`notification_messages`) *before* the provider is called and updated with the outcome, so each send is auditable and can be repeated. OTP codes are the exception: their rows carry no content and are never retried (the customer just asks for a new code).
 
 | Event | Channels |
 |---|---|
-| payment pending | email, SMS |
-| confirmed | email, SMS, WhatsApp (de-duplicated) |
-| cancelled, refunded | email, SMS |
+| `booking_pending` (payment reminder) | email, SMS (never WhatsApp) |
+| `booking_confirmed` | email, SMS, WhatsApp (de-duplicated per channel) |
+| `booking_cancelled`, `booking_refunded` | email, SMS, WhatsApp |
 
-Only **email** is real (SMTP). SMS and WhatsApp are stubs that print. With `console` provider, sends are logged to stdout. A phone-only contact is skipped by the email provider. Payment-resume links use `DAZY_WEB_BASE_URL`.
+Email goes to the booking's email address; SMS and WhatsApp go to a phone-number contact. A contact that is an email address gets email only.
+
+**Statuses.** `sending` (in flight) → `sent` | `skipped` (nothing to send: no template configured, not a phone number, or no longer relevant) | `retrying` (failed, will try again) | `failed` (final).
+
+**Retries.** Providers classify a failure: *permanent* (rejected number, missing configuration, refused template, bad credentials) is final at once; *transient* (timeout, connection error, 5xx, 429, Meta rate-limit codes, SMTP 4xx) is retried. A provider that raises is treated as transient. Schedule: attempt 1 now, attempt 2 after 2 minutes, attempt 3 after 10 more, then `failed`. Retries run from the scheduler (`POST /internal/sweep`, so they only happen while the cron worker is running): each due row is claimed atomically (so overlapping sweeps cannot send it twice), and rows stuck in `sending` for 10 minutes (a crash mid-send) are re-queued. A retry is dropped as `skipped` if it stopped being true (a payment reminder for a booking that has since been paid or cancelled, a confirmation for a cancelled booking, a booking that no longer exists) and abandoned after 24 hours; refund notices are always still true. Retries and the manual resend re-send the stored message/template values, not a re-rendered one.
+
+**Admin.** *Admin → Notifications* lists everything (filter by status and channel, paged; message bodies are never returned by the API) with a **Resend** button on failed, skipped and retrying rows: one immediate attempt whose result is shown and final, ignoring relevance because a person decided. `GET /admin/notifications` (filters `status`, `channel`, `refType`, `refId`, `limit`, `offset`; total in `X-Total-Count`) and `POST /admin/notifications/{id}/resend` (audited as `notification.resend`, recipient masked).
+
+**Providers.** `DAZY_NOTIFY_PROVIDER` (`console` | `email`), `DAZY_NOTIFY_SMS_PROVIDER` (`sms_stub` | `msg91`), `DAZY_NOTIFY_WHATSAPP_PROVIDER` (`whatsapp_stub` | `whatsapp_cloud`). Startup and `GET /health/ready` (`notifications`) report which provider each channel uses and, in production, a warning for every channel still on a stub or the console, because phone numbers are accepted regardless. The stubs and console log a masked recipient and never the body in production.
+
+**WhatsApp templates (Meta Cloud API).** Business-initiated messages must use approved templates, so booking events are sent as templates, never as free text; an event whose template env var is empty is `skipped` with the missing variable named. Create these as *Utility* templates, language `en`, and put each template's name in the matching env var. The variable order is fixed by the code (`template_params` in `services/notification_templates.py`): changing it means re-approval.
+
+| Env var | Suggested name | Body (variables in order) |
+|---|---|---|
+| `WHATSAPP_TEMPLATE_BOOKING_CONFIRMED` | `dazy_booking_confirmed` | Hi {{1}}, your {{3}} booking {{2}} is confirmed for {{4}}, {{5}}. See you on court! - Dazy Club |
+| `WHATSAPP_TEMPLATE_BOOKING_CANCELLED` | `dazy_booking_cancelled` | Hi {{1}}, your booking {{2}} for {{3}} has been cancelled. Reply here if you have any questions. - Dazy Club |
+| `WHATSAPP_TEMPLATE_BOOKING_REFUNDED` | `dazy_booking_refunded` | Hi {{1}}, a refund of {{3}} for booking {{2}} has been processed. Your booking is {{4}}. Refunds usually reach your account in 5-7 working days. - Dazy Club |
+
+Variables: confirmed = name, ref, sport, date, time (`06:00-07:00`); cancelled = name, ref, date; refunded = name, ref, amount (`Rs. 600.00`), `cancelled` or `still active`. The OTP uses an *Authentication* template (`WHATSAPP_OTP_TEMPLATE`).
+
+**SMS templates (MSG91 Flow API, India DLT).** Register the same texts on DLT and create one MSG91 flow template per event; the adapter fills variables named `var1`, `var2`... in this order (write them as `##var1##` in the template): pending = name, ref, amount due (`Rs. 1200.00`), resume link; confirmed, cancelled and refunded = same order as WhatsApp above. Ids go in `MSG91_TEMPLATE_BOOKING_PENDING|CONFIRMED|CANCELLED|REFUNDED` and `MSG91_TEMPLATE_OTP` (variable `var1` = the code). MSG91 cannot send free text, so an event without a template id is `skipped`. DLT usually requires the link variable to be on an approved domain: register your site domain.
+
+**Not verified against the real services.** Both adapters are unit-tested against mocked HTTP (request shape, template variables, error classification); neither has been exercised with a live Meta or MSG91 account, and Meta/DLT template approval takes days. After approval, send one booking through each channel to a test phone and check the Notifications page.
 
 ---
 
@@ -468,7 +490,9 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | `DAZY_NOTIFY_PROVIDER` | `console` | `console` (log only) or `email` (SMTP) | no |
 | `DAZY_ENV` | — | `production` (Render also sets `RENDER`) makes the API **refuse to boot** on default/short `JWT_SECRET`, default admin password, non-`razorpay` provider or missing `RAZORPAY_WEBHOOK_SECRET` (`config_guard.py`). Set in `render.yaml` | no |
 | `DAZY_NOTIFY_WHATSAPP_PROVIDER` | `whatsapp_stub` | Read, but only the stub is wired in | no |
-| `DAZY_NOTIFY_SMS_PROVIDER` | `sms_stub` | Read, but only the stub is wired in | no |
+| `DAZY_NOTIFY_SMS_PROVIDER` | `sms_stub` | `sms_stub` (logs) or `msg91` (real SMS via the Flow API) | no |
+| `MSG91_AUTH_KEY`, `MSG91_TEMPLATE_BOOKING_PENDING`, `_CONFIRMED`, `_CANCELLED`, `_REFUNDED`, `MSG91_TEMPLATE_OTP` | — | MSG91 account key and DLT flow template ids, one per event (4.7). No id = that event is skipped. Adapter tested with mocked HTTP only | key: yes |
+| `WHATSAPP_TEMPLATE_BOOKING_CONFIRMED`, `_CANCELLED`, `_REFUNDED` | — | Names of the approved WhatsApp utility templates (4.7). No name = that event is skipped | no |
 | `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_ID`, `WHATSAPP_OTP_TEMPLATE` | — | Meta WhatsApp Cloud API, used when `DAZY_NOTIFY_WHATSAPP_PROVIDER=whatsapp_cloud`. OTPs go out as an approved *authentication template*. Adapter is unit-tested with a mocked transport only, not against the live API | token: yes |
 | `TURNSTILE_SECRET` | — | Cloudflare Turnstile secret. Required in production | yes |
 | `DAZY_PROXY_HOPS` | `0` | Trusted reverse proxies in front of the API (Render = 1, Cloudflare in front of Render = 2, compose/Caddy = 1). Rate limits use the Nth-from-right `X-Forwarded-For` entry | no |
@@ -544,7 +568,7 @@ Behaviour:
 - Pending-booking expiry also runs from `POST /internal/sweep`, but only if you actually schedule that cron. Without it, expiry still only happens when slots are read (payment rows now flip `created` → `expired`; migration `h1i2j3k4l5m6` backfilled old rows).
 - Webhook confirms only `payment.captured` (and checks the captured amount equals the order amount; a mismatch flags the payment `amount_mismatch` and does not confirm). `payment.failed` is logged and acknowledged. Missed webhooks are recovered by reconciliation, which also runs from `POST /internal/sweep`.
 - `GET /testimonials` and `GET /notifications` serve static seed data, not admin-edited DB content.
-- SMS and WhatsApp are stubs. The audit log has no retention policy or export yet (rows are kept forever) and covers admin and kiosk-login actions, not every kiosk POS write (orders and payments are recorded in their own tables).
+- SMS and WhatsApp deliver nothing until their providers, accounts and templates are set up (the defaults are stubs; production logs a warning per such channel). The audit log has no retention policy or export yet (rows are kept forever) and covers admin and kiosk-login actions, not every kiosk POS write (orders and payments are recorded in their own tables).
 - Café is intra-state GST only (no IGST).
 
 Ops and quality:

@@ -6,6 +6,7 @@ skipped, not failed, since SMS is a documented-not-built alternative channel
 (Detailed-Roadmap Phase 5)."""
 import os
 import smtplib
+import socket
 from email.mime.text import MIMEText
 
 from .base import NotificationProvider, NotificationResult
@@ -22,7 +23,7 @@ class SmtpEmailNotificationProvider(NotificationProvider):
         user = os.environ.get("SMTP_USER")
         password = os.environ.get("SMTP_PASSWORD")
         if not host or not user or not password:
-            return NotificationResult(status="failed", detail="SMTP_HOST/SMTP_USER/SMTP_PASSWORD not configured.")
+            return NotificationResult(status="failed", detail="SMTP_HOST/SMTP_USER/SMTP_PASSWORD not configured.", retryable=False)
 
         port = int(os.environ.get("SMTP_PORT", "587"))
         sender = os.environ.get("SMTP_FROM", user)
@@ -37,5 +38,12 @@ class SmtpEmailNotificationProvider(NotificationProvider):
                 server.login(user, password)
                 server.sendmail(sender, [to], msg.as_string())
             return NotificationResult(status="sent")
+        except smtplib.SMTPRecipientsRefused as exc:
+            return NotificationResult(status="failed", detail=f"Recipient refused: {exc}", retryable=False)
+        except (smtplib.SMTPAuthenticationError, smtplib.SMTPSenderRefused, smtplib.SMTPDataError) as exc:
+            code = getattr(exc, "smtp_code", 0) or 0
+            return NotificationResult(status="failed", detail=str(exc), retryable=400 <= code < 500)  # 4xx = try later
+        except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, socket.timeout, TimeoutError, ConnectionError, OSError) as exc:
+            return NotificationResult(status="failed", detail=f"Mail server unreachable: {exc}", retryable=True)
         except Exception as exc:
-            return NotificationResult(status="failed", detail=str(exc))
+            return NotificationResult(status="failed", detail=str(exc), retryable=False)

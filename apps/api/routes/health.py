@@ -9,6 +9,7 @@ from sqlalchemy import text
 from brand import BRAND_NAME
 from db import _BASE_DIR, _session
 from observability import sweep_status
+from services.notification_service import delivery_status
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -30,6 +31,14 @@ def _migration_head() -> str | None:
     return ScriptDirectory.from_config(cfg).get_current_head()
 
 
+def _delivery() -> dict:
+    try:
+        return delivery_status()
+    except Exception:  # informational only: never let it turn a healthy DB into a 503
+        logger.exception("delivery_status failed")
+        return {"providers": {}, "warnings": ["delivery status unavailable"], "queue": {}}
+
+
 @router.get("/health/ready")
 def ready():
     """Readiness, for the uptime monitor: the database answers AND the schema is at the migration
@@ -49,5 +58,5 @@ def ready():
     return JSONResponse(
         status_code=200 if migrated else 503,
         content={"status": "ok" if migrated else "degraded", "db": "ok", "migrated": migrated,
-                 "revision": revision, "head": head, "sweep": sweep_status()},
+                 "revision": revision, "head": head, "sweep": sweep_status(), "notifications": _delivery()},
     )

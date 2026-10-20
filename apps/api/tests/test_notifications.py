@@ -169,7 +169,7 @@ def test_notification_provider_failure_does_not_fail_booking():
 
         logged = deps.notification_repo.get_all(ref_type="booking")
         assert len(logged) == 1
-        assert logged[0].status == "failed"
+        assert logged[0].status == "retrying"  # an exception is treated as transient: queued, not lost (see test_notification_outbox.py)
         assert "provider exploded" in (logged[0].errorMessage or "")
     finally:
         notification_service.notification_provider = original

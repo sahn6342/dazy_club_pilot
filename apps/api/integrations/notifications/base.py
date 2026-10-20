@@ -10,6 +10,9 @@ from dataclasses import dataclass
 class NotificationResult:
     status: str  # sent | skipped | failed
     detail: str | None = None
+    # For status "failed": would trying again later plausibly succeed? True for timeouts, 5xx, rate limits;
+    # False for a rejected number, missing configuration, a refused template. Drives the retry queue.
+    retryable: bool = False
 
 
 class NotificationProvider(ABC):
@@ -17,6 +20,12 @@ class NotificationProvider(ABC):
 
     @abstractmethod
     def send(self, to: str, subject: str, body: str) -> NotificationResult: ...
+
+    def send_template(self, to: str, event: str, params: list[str], fallback_subject: str, fallback_body: str) -> NotificationResult:
+        """Send a pre-approved template message (`event` names it, `params` fill its numbered variables).
+        Channels that need templates (WhatsApp Cloud, India SMS under DLT) override this; the default just
+        sends the already-rendered free text, which is what email and the dev stubs want."""
+        return self.send(to, fallback_subject, fallback_body)
 
     def send_otp(self, to: str, code: str) -> NotificationResult:
         """Send a one-time code. Providers whose channel needs a pre-approved template

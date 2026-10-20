@@ -92,6 +92,29 @@ projects:
       # --- WhatsApp OTP via Meta Cloud API (only when DAZY_NOTIFY_WHATSAPP_PROVIDER=whatsapp_cloud) ---
       - key: DAZY_NOTIFY_WHATSAPP_PROVIDER  # whatsapp_stub (default) | whatsapp_cloud
         sync: false
+      # Approved WhatsApp utility templates (text to submit to Meta is in docs/App-Overview.md, section 4.7).
+      # An event without a template is SKIPPED, never sent as free text (WhatsApp would refuse it).
+      - key: WHATSAPP_TEMPLATE_BOOKING_CONFIRMED
+        sync: false
+      - key: WHATSAPP_TEMPLATE_BOOKING_CANCELLED
+        sync: false
+      - key: WHATSAPP_TEMPLATE_BOOKING_REFUNDED
+        sync: false
+      # --- SMS (MSG91 Flow API; India needs DLT-registered templates: one flow template id per event) ---
+      - key: DAZY_NOTIFY_SMS_PROVIDER  # sms_stub (default) | msg91
+        sync: false
+      - key: MSG91_AUTH_KEY
+        sync: false
+      - key: MSG91_TEMPLATE_BOOKING_PENDING
+        sync: false
+      - key: MSG91_TEMPLATE_BOOKING_CONFIRMED
+        sync: false
+      - key: MSG91_TEMPLATE_BOOKING_CANCELLED
+        sync: false
+      - key: MSG91_TEMPLATE_BOOKING_REFUNDED
+        sync: false
+      - key: MSG91_TEMPLATE_OTP
+        sync: false
       - key: WHATSAPP_CLOUD_TOKEN
         sync: false
       - key: WHATSAPP_CLOUD_PHONE_ID
@@ -136,5 +159,5 @@ projects:
       - key: SMTP_FROM
         sync: false
       # Not listed on purpose: DAZY_DB_PATH (SQLite only, ignored when DAZY_DB_URL is set),
-      # DAZY_NOTIFY_SMS_PROVIDER (stub; default is fine), WHATSAPP_TEMPLATE_LANG and
+      # WHATSAPP_TEMPLATE_LANG and
       # WHATSAPP_DEFAULT_COUNTRY_CODE (defaults "en" / "91").

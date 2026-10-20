@@ -23,5 +23,8 @@ def get_whatsapp_provider() -> NotificationProvider:
 
 def get_sms_provider() -> NotificationProvider:
     provider = os.environ.get("DAZY_NOTIFY_SMS_PROVIDER", "sms_stub")
+    if provider == "msg91":
+        from .sms_msg91 import Msg91SmsProvider
+        return Msg91SmsProvider()
     from .sms_stub import SmsStubProvider
     return SmsStubProvider()

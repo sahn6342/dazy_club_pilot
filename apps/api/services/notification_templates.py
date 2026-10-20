@@ -97,3 +97,22 @@ def booking_refunded(booking: BookingRecord, amount: float | None = None, cancel
         f"Refunds typically appear within 5-7 business days.\n— {BRAND_NAME}"
     )
     return subject, body
+
+
+def template_params(event: str, booking: BookingRecord, amount: float | None = None, cancelled: bool = True) -> list[str]:
+    """Values for the numbered variables ({{1}}, {{2}}... / var1, var2...) of the approved WhatsApp and SMS
+    templates. The ORDER is part of the contract with the template text registered at Meta / MSG91; it is
+    documented, with the exact template bodies, in docs/App-Overview.md. Never reorder without re-approving."""
+    sport = booking.sportSlug.capitalize()
+    when = f"{booking.startTime}-{booking.endTime}"
+    if event == "booking_pending":
+        due = f"Rs. {booking.price:.2f}" if booking.price is not None else "Rs. 0.00"
+        return [booking.name, booking.bookingRef, due, f"{_WEB_BASE_URL}/my-bookings?ref={booking.bookingRef}"]
+    if event == "booking_confirmed":
+        return [booking.name, booking.bookingRef, sport, booking.date, when]
+    if event == "booking_cancelled":
+        return [booking.name, booking.bookingRef, booking.date]
+    if event == "booking_refunded":
+        value = amount if amount is not None else (booking.price or 0.0)
+        return [booking.name, booking.bookingRef, f"Rs. {value:.2f}", "cancelled" if cancelled else "still active"]
+    return []

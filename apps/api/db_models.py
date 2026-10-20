@@ -115,9 +115,18 @@ class NotificationMessageRow(Base):
     refId: Mapped[str] = mapped_column(String, index=True, nullable=False)
     channel: Mapped[str] = mapped_column(String, nullable=False)
     recipient: Mapped[str] = mapped_column(String, nullable=False)
-    status: Mapped[str] = mapped_column(String, nullable=False)
+    # sending | sent | retrying | failed | skipped. "failed" is final (permanent error or attempts used up).
+    status: Mapped[str] = mapped_column(String, index=True, nullable=False)
     errorMessage: Mapped[str | None] = mapped_column(String, nullable=True)
     createdAt: Mapped[str] = mapped_column(String, nullable=False)
+    # Outbox fields: what is needed to send the message again. OTP rows never carry a payload.
+    event: Mapped[str | None] = mapped_column(String, nullable=True)         # booking_confirmed, booking_refunded, ...
+    payload: Mapped[str | None] = mapped_column(Text, nullable=True)         # JSON: subject, body, template params
+    provider: Mapped[str | None] = mapped_column(String, nullable=True)
+    provider_ref: Mapped[str | None] = mapped_column(String, nullable=True)  # the provider's message id when sent
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    last_attempt_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    next_attempt_at: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
 
 
 class EnquiryRow(Base):
