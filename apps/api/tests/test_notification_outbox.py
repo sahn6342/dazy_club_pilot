@@ -384,7 +384,7 @@ def test_the_sweep_endpoint_runs_retries(client, fakes, monkeypatch):
 class _B:
     id, bookingRef, name, sportSlug, date = "bid-1", "AB12CD34", "Jane", "cricket", "2030-02-03"
     startTime, endTime, price, party_size = "06:00", "07:00", 1200.0, 2
-    status, deleted_at = "confirmed", None
+    status, deleted_at, depositAmount = "confirmed", None, None
 
 
 def _booking(**kw):
@@ -401,8 +401,31 @@ def _run(fakes, monkeypatch, booking, fn, *args, **kw):
 def test_confirmation_goes_to_every_channel_the_contact_supports(fakes, monkeypatch):
     _run(fakes, monkeypatch, _booking(email="jane@example.com"), ns.notify_booking_confirmed)
     assert len(fakes["email"].send_calls) == 1
-    assert fakes["sms"].template_calls[0][1:3] == ("booking_confirmed", ["Jane", "AB12CD34", "Cricket", "2030-02-03", "06:00-07:00"])
+    assert fakes["sms"].template_calls[0][1:3] == (
+        "booking_confirmed",
+        ["Jane", "2030-02-03", "06:00-07:00", "Cricket", "2", "None", "Rs. 1200.00", "Rs. 0.00", "AB12CD34"])
     assert fakes["whatsapp"].template_calls[0][1] == "booking_confirmed"
+
+
+def test_confirmation_text_follows_the_agreed_layout():
+    from services import notification_templates as nt
+    b = _booking(email="jane@example.com")
+    subject, email_body = nt.booking_confirmation(b)
+    assert "AB12CD34" in subject
+    for body in (email_body, nt.booking_confirmation_whatsapp(b)):
+        assert "Booking confirmed at Dazy Club. This is your booking confirmation:" in body
+        for line in ("Date: 2030-02-03", "Time: 06:00-07:00", "Sport: Cricket", "Total players: 2", "Add-ons: None",
+                     "Amount paid: Rs. 1200.00", "Pending payment: Rs. 0.00", "Booking id: AB12CD34",
+                     "Address: R.K. Puram, Saguna more", "https://maps.app.goo.gl/Ag1HGe5WjDDc68Tg8"):
+            assert line in body
+        assert body.rstrip().endswith("reply to this message.")
+
+
+def test_a_deposit_leaves_the_rest_pending():
+    from services import notification_templates as nt
+    b = _booking()
+    b.depositAmount = 500.0
+    assert nt._paid_and_pending(b) == ("Rs. 500.00", "Rs. 700.00")
 
 
 def test_a_phone_only_contact_gets_sms_and_whatsapp_but_no_email(fakes, monkeypatch):

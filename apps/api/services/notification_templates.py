@@ -6,6 +6,16 @@ from models import BookingRecord
 
 _WEB_BASE_URL = os.environ.get("DAZY_WEB_BASE_URL", "http://localhost:5173")
 
+VENUE_ADDRESS = os.environ.get("DAZY_VENUE_ADDRESS", "R.K. Puram, Saguna more")
+VENUE_MAP_URL = os.environ.get("DAZY_VENUE_MAP_URL", "https://maps.app.goo.gl/Ag1HGe5WjDDc68Tg8?g_st=ic")
+VENUE_PHONE = os.environ.get("DAZY_SUPPORT_PHONE", "")  # shown as "call <number> or reply"; empty = reply only
+# Bookings carry no add-on data yet, so every confirmation says "None" rather than leaving the line out.
+_ADDONS_NONE = "None"
+
+
+def _assist() -> str:
+    return f"call {VENUE_PHONE} or reply to this message." if VENUE_PHONE else "reply to this message."
+
 
 def booking_payment_pending(booking: BookingRecord) -> tuple[str, str]:
     """Returns (subject, body) for a booking still awaiting payment — lets the
@@ -27,31 +37,53 @@ def booking_payment_pending(booking: BookingRecord) -> tuple[str, str]:
     return subject, body
 
 
+def _money(value: float) -> str:
+    return f"Rs. {value:.2f}"
+
+
+def _paid_and_pending(booking: BookingRecord) -> tuple[str, str]:
+    """Amount received so far and what is still owed. A confirmed booking is normally paid in full;
+    `depositAmount` (when set) is what was actually collected, the rest is pending."""
+    total = booking.price or 0.0
+    paid = booking.depositAmount if booking.depositAmount is not None else total
+    return _money(paid), _money(max(total - paid, 0.0))
+
+
+def _confirmation_lines(booking: BookingRecord) -> str:
+    """The booking details block shared by the email and WhatsApp confirmation."""
+    paid, pending = _paid_and_pending(booking)
+    return (
+        f"Date: {booking.date}\n"
+        f"Time: {booking.startTime}-{booking.endTime}\n"
+        f"Sport: {booking.sportSlug.capitalize()}\n"
+        f"Total players: {booking.party_size}\n"
+        f"Add-ons: {_ADDONS_NONE}\n"
+        f"Amount paid: {paid}\n"
+        f"Pending payment: {pending}\n"
+        f"Booking id: {booking.bookingRef}\n"
+        f"Address: {VENUE_ADDRESS}\n"
+        f"Directions: {VENUE_MAP_URL}\n\n"
+        f"For assistance, {_assist()}"
+    )
+
+
 def booking_confirmation(booking: BookingRecord) -> tuple[str, str]:
     """Returns (subject, body) for a confirmed, paid booking."""
-    amount = f"Rs. {booking.price:.2f}" if booking.price is not None else "Rs. 0.00"
     subject = f"Booking confirmed — {booking.bookingRef}"
     body = (
         f"Hi {booking.name},\n\n"
-        f"Your booking is confirmed.\n\n"
-        f"Ref: {booking.bookingRef}\n"
-        f"Sport: {booking.sportSlug}\n"
-        f"Date: {booking.date}\n"
-        f"Time: {booking.startTime}-{booking.endTime}\n"
-        f"Party size: {booking.party_size}\n"
-        f"Amount paid: {amount}\n\n"
-        f"See you on court!\n— {BRAND_NAME}"
+        f"Booking confirmed at {BRAND_NAME}. This is your booking confirmation:\n\n"
+        f"{_confirmation_lines(booking)}"
     )
     return subject, body
 
 
 def booking_confirmation_whatsapp(booking: BookingRecord) -> str:
-    """Short WhatsApp message for a confirmed booking (under 500 chars)."""
-    amount = f"Rs. {booking.price:.2f}" if booking.price is not None else "free"
+    """WhatsApp text for a confirmed booking. Only delivered as free text inside WhatsApp's 24 h window;
+    outside it the approved template (template_params below) is what actually goes out."""
     return (
-        f"Hi {booking.name}! Your {booking.sportSlug} booking is confirmed.\n"
-        f"Ref: {booking.bookingRef} | Date: {booking.date} | {booking.startTime}-{booking.endTime}\n"
-        f"Amount: {amount}\nSee you on court! — {BRAND_NAME}"
+        f"Hi {booking.name}, Booking confirmed at {BRAND_NAME}. This is your booking confirmation:\n"
+        f"{_confirmation_lines(booking)}"
     )
 
 
@@ -109,7 +141,9 @@ def template_params(event: str, booking: BookingRecord, amount: float | None = N
         due = f"Rs. {booking.price:.2f}" if booking.price is not None else "Rs. 0.00"
         return [booking.name, booking.bookingRef, due, f"{_WEB_BASE_URL}/my-bookings?ref={booking.bookingRef}"]
     if event == "booking_confirmed":
-        return [booking.name, booking.bookingRef, sport, booking.date, when]
+        paid, pending = _paid_and_pending(booking)
+        return [booking.name, booking.date, when, sport, str(booking.party_size), _ADDONS_NONE,
+                paid, pending, booking.bookingRef]
     if event == "booking_cancelled":
         return [booking.name, booking.bookingRef, booking.date]
     if event == "booking_refunded":

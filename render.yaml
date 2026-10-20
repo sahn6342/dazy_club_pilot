@@ -77,6 +77,13 @@ projects:
         sync: false
       - key: DAZY_WEB_BASE_URL     # public customer site URL; used in email links
         sync: false
+      # Printed in the booking-confirmation message (defaults: R.K. Puram, Saguna more + the Maps link; no phone).
+      - key: DAZY_VENUE_ADDRESS
+        sync: false
+      - key: DAZY_VENUE_MAP_URL
+        sync: false
+      - key: DAZY_SUPPORT_PHONE
+        sync: false
       # --- Payments ---
       - key: DAZY_PAYMENT_PROVIDER # noop (fake, dev only) | razorpay
         sync: false

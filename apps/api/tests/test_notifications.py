@@ -151,7 +151,7 @@ def test_confirmation_content_includes_booking_details(fake_provider):
     assert to == "notify@example.com"
     assert booking["bookingRef"] in subject
     assert booking["bookingRef"] in body
-    assert slot["sportSlug"] in body
+    assert slot["sportSlug"].capitalize() in body
     assert slot["date"] in body
     assert slot["startTime"] in body
 

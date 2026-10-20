@@ -259,11 +259,11 @@ Email goes to the booking's email address; SMS and WhatsApp go to a phone-number
 
 | Env var | Suggested name | Body (variables in order) |
 |---|---|---|
-| `WHATSAPP_TEMPLATE_BOOKING_CONFIRMED` | `dazy_booking_confirmed` | Hi {{1}}, your {{3}} booking {{2}} is confirmed for {{4}}, {{5}}. See you on court! - Dazy Club |
+| `WHATSAPP_TEMPLATE_BOOKING_CONFIRMED` | `dazy_booking_confirmed` | Hi {{1}}, Booking confirmed at Dazy Club. This is your booking confirmation: Date: {{2}} Time: {{3}} Sport: {{4}} Total players: {{5}} Add-ons: {{6}} Amount paid: {{7}} Pending payment: {{8}} Booking id: {{9}} Address: R.K. Puram, Saguna more Directions: https://maps.app.goo.gl/Ag1HGe5WjDDc68Tg8?g_st=ic For assistance, reply to this message. |
 | `WHATSAPP_TEMPLATE_BOOKING_CANCELLED` | `dazy_booking_cancelled` | Hi {{1}}, your booking {{2}} for {{3}} has been cancelled. Reply here if you have any questions. - Dazy Club |
 | `WHATSAPP_TEMPLATE_BOOKING_REFUNDED` | `dazy_booking_refunded` | Hi {{1}}, a refund of {{3}} for booking {{2}} has been processed. Your booking is {{4}}. Refunds usually reach your account in 5-7 working days. - Dazy Club |
 
-Variables: confirmed = name, ref, sport, date, time (`06:00-07:00`); cancelled = name, ref, date; refunded = name, ref, amount (`Rs. 600.00`), `cancelled` or `still active`. The OTP uses an *Authentication* template (`WHATSAPP_OTP_TEMPLATE`).
+Variables: confirmed = name, date, time (`06:00-07:00`), sport, total players, add-ons (`None` until bookings carry add-on data), amount paid, pending payment (`Rs. 0.00` when paid in full), booking id; cancelled = name, ref, date; refunded = name, ref, amount (`Rs. 600.00`), `cancelled` or `still active`. The OTP uses an *Authentication* template (`WHATSAPP_OTP_TEMPLATE`).
 
 **SMS templates (MSG91 Flow API, India DLT).** Register the same texts on DLT and create one MSG91 flow template per event; the adapter fills variables named `var1`, `var2`... in this order (write them as `##var1##` in the template): pending = name, ref, amount due (`Rs. 1200.00`), resume link; confirmed, cancelled and refunded = same order as WhatsApp above. Ids go in `MSG91_TEMPLATE_BOOKING_PENDING|CONFIRMED|CANCELLED|REFUNDED` and `MSG91_TEMPLATE_OTP` (variable `var1` = the code). MSG91 cannot send free text, so an event without a template id is `skipped`. DLT usually requires the link variable to be on an approved domain: register your site domain.
 
@@ -483,6 +483,7 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | `DAZY_MEDIA_DIR` | `apps/api/media` locally, `/data/media` in Docker | Local backend only: where uploads are stored and served at `/media` | no |
 | `DAZY_CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174,http://localhost:5175` | Comma-separated allowed browser origins | no |
 | `DAZY_WEB_BASE_URL` | `http://localhost:5173` | Public web URL used in notification links | no |
+| `DAZY_VENUE_ADDRESS`, `DAZY_VENUE_MAP_URL`, `DAZY_SUPPORT_PHONE` | R.K. Puram, Saguna more / the Google Maps link / empty | Address, directions link and support number printed in the booking-confirmation email and WhatsApp text. No phone = "reply to this message". The approved WhatsApp template has the address and link written into its body, so changing them there means re-approval | no |
 | `DAZY_PAYMENT_PROVIDER` | `noop` | `noop` (dev, trusts client) or `razorpay` | no |
 | `RAZORPAY_KEY_ID` | — | Razorpay key id. Required when provider is `razorpay` | semi |
 | `RAZORPAY_KEY_SECRET` | — | Razorpay key secret. Required when provider is `razorpay` | yes |
