@@ -107,7 +107,7 @@ def _set_env(monkeypatch, env):
     for k in ("DAZY_ENV", "RENDER", "JWT_SECRET", "ADMIN_USERNAME", "ADMIN_PASSWORD",
               "DAZY_PAYMENT_PROVIDER", "RAZORPAY_WEBHOOK_SECRET", "TURNSTILE_SECRET", "ADMIN_PASSWORD_HASH", "DAZY_RATE_LIMIT_SCALE",
               "DAZY_MEDIA_BACKEND", "DAZY_MEDIA_LOCAL_OK", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
-              "R2_BUCKET", "R2_PUBLIC_BASE_URL"):
+              "R2_BUCKET", "R2_PUBLIC_BASE_URL", "DAZY_TURNSTILE_DISABLED"):
         monkeypatch.delenv(k, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -115,6 +115,15 @@ def _set_env(monkeypatch, env):
 
 def test_prod_guard_passes_with_good_config(monkeypatch):
     _set_env(monkeypatch, _GOOD)
+    assert config_problems() == []
+    assert_production_config()
+
+
+def test_prod_guard_accepts_turnstile_explicitly_disabled(monkeypatch):
+    without_secret = {k: v for k, v in _GOOD.items() if k != "TURNSTILE_SECRET"}
+    _set_env(monkeypatch, without_secret)
+    assert any("TURNSTILE_SECRET" in p for p in config_problems())  # still required by default
+    _set_env(monkeypatch, {**without_secret, "DAZY_TURNSTILE_DISABLED": "1"})
     assert config_problems() == []
     assert_production_config()
 

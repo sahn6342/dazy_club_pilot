@@ -357,7 +357,7 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 
 **Security headers**: the API adds `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` to every response and `Cache-Control: no-store` to admin, kiosk, OTP and booking-lookup responses. Each SPA ships `apps/<app>/public/_headers` (Cloudflare reads it from the build output; `Caddyfile` mirrors it for self-host) with HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and a **report-only** `Content-Security-Policy` allowing only Turnstile, Razorpay Checkout and the API origin. The CSP hard-codes `https://api.dazyclub.com` as the API origin (edit the files if yours differs). Watch the browser console after deploying, then rename the header to `Content-Security-Policy` to enforce.
 
-**Bot protection**: Cloudflare Turnstile on `POST /bookings`, both enquiry forms and `POST /otp/request` (API: `TURNSTILE_SECRET`; sites: `VITE_TURNSTILE_SITE_KEY`). Skipped when unset (dev); the API refuses to boot in production without the secret.
+**Bot protection**: Cloudflare Turnstile on `POST /bookings`, both enquiry forms and `POST /otp/request` (API: `TURNSTILE_SECRET`; sites: `VITE_TURNSTILE_SITE_KEY`). Skipped when unset (dev); the API refuses to boot in production without the secret, unless `DAZY_TURNSTILE_DISABLED=1` is set: an explicit opt-out that skips the check (even with a secret set) and logs a `SECURITY:` warning at startup. Rate limits, the pending-booking cap and OTP stay on. To enable Turnstile later: remove that variable, set `TURNSTILE_SECRET` on Render and `VITE_TURNSTILE_SITE_KEY` on the web build, and redeploy both.
 
 ---
 
@@ -495,7 +495,8 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | `MSG91_AUTH_KEY`, `MSG91_TEMPLATE_BOOKING_PENDING`, `_CONFIRMED`, `_CANCELLED`, `_REFUNDED`, `MSG91_TEMPLATE_OTP` | — | MSG91 account key and DLT flow template ids, one per event (4.7). No id = that event is skipped. Adapter tested with mocked HTTP only | key: yes |
 | `WHATSAPP_TEMPLATE_BOOKING_CONFIRMED`, `_CANCELLED`, `_REFUNDED` | — | Names of the approved WhatsApp utility templates (4.7). No name = that event is skipped | no |
 | `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_ID`, `WHATSAPP_OTP_TEMPLATE` | — | Meta WhatsApp Cloud API, used when `DAZY_NOTIFY_WHATSAPP_PROVIDER=whatsapp_cloud`. OTPs go out as an approved *authentication template*. Adapter is unit-tested with a mocked transport only, not against the live API | token: yes |
-| `TURNSTILE_SECRET` | — | Cloudflare Turnstile secret. Required in production | yes |
+| `TURNSTILE_SECRET` | — | Cloudflare Turnstile secret. Required in production unless `DAZY_TURNSTILE_DISABLED` is set | yes |
+| `DAZY_TURNSTILE_DISABLED` | unset | `1` skips the Turnstile check and lets production boot without the secret (warns at startup). Remove to enable | no |
 | `DAZY_PROXY_HOPS` | `0` | Trusted reverse proxies in front of the API (Render = 1, Cloudflare in front of Render = 2, compose/Caddy = 1). Rate limits use the Nth-from-right `X-Forwarded-For` entry | no |
 | `DAZY_COOKIE_SAMESITE` | `lax` | `lax`, `strict` or `none` for the session cookies. Use `none` (forces Secure) only if an SPA is on a different site than the API | no |
 | `DAZY_COOKIE_DOMAIN` | — | Optional cookie `Domain` (e.g. `.dazyclub.com`); unset binds the cookie to the API host | no |

@@ -170,6 +170,17 @@ def test_turnstile_enforced_on_booking_enquiry_and_otp(client, monkeypatch):
     assert client.post("/api/v1/otp/request", json={"contact": "9876543210", "turnstileToken": "good-token"}).status_code == 200
 
 
+def test_turnstile_can_be_disabled_explicitly(client, monkeypatch):
+    monkeypatch.setenv("TURNSTILE_SECRET", "secret")
+    monkeypatch.setattr(turnstile, "_siteverify", lambda secret, token, ip: False)  # would reject everything
+    s = _slots(client)
+    assert client.post("/api/v1/bookings", json=_body(s[0])).status_code == 400
+    monkeypatch.setenv("DAZY_TURNSTILE_DISABLED", "1")
+    assert turnstile.turnstile_disabled() and not turnstile.turnstile_enabled()
+    assert client.post("/api/v1/bookings", json=_body(s[0])).status_code == 201
+    assert client.post("/api/v1/otp/request", json={"contact": "9876543210"}).status_code == 200
+
+
 def test_turnstile_fails_closed_when_cloudflare_unreachable(monkeypatch):
     import urllib.request
     monkeypatch.setenv("TURNSTILE_SECRET", "secret")

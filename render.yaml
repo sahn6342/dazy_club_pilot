@@ -94,7 +94,9 @@ projects:
       - key: RAZORPAY_WEBHOOK_SECRET # secret of webhook https://api.dazyclub.com/api/v1/payments/razorpay/webhook (payment.captured)
         sync: false
       # --- Bot protection (Cloudflare Turnstile): API verifies tokens; sites use the PUBLIC site key ---
-      - key: TURNSTILE_SECRET      # required in production (API refuses to boot without it)
+      - key: TURNSTILE_SECRET      # required in production unless DAZY_TURNSTILE_DISABLED=1
+        sync: false
+      - key: DAZY_TURNSTILE_DISABLED  # 1 = skip the bot check (rate limits + OTP stay on); remove the variable to enable Turnstile
         sync: false
       # --- WhatsApp OTP via Meta Cloud API (only when DAZY_NOTIFY_WHATSAPP_PROVIDER=whatsapp_cloud) ---
       - key: DAZY_NOTIFY_WHATSAPP_PROVIDER  # whatsapp_stub (default) | whatsapp_cloud

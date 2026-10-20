@@ -47,8 +47,9 @@ def config_problems() -> list[str]:
                         "(or DAZY_MEDIA_LOCAL_OK=1 if a persistent disk is mounted at DAZY_MEDIA_DIR).")
     if os.environ.get("DAZY_RATE_LIMIT_SCALE", "1") != "1":
         problems.append("DAZY_RATE_LIMIT_SCALE must be unset/1 in production (it loosens every rate limit).")
-    if not os.environ.get("TURNSTILE_SECRET"):
-        problems.append("TURNSTILE_SECRET must be set (bot protection on booking, enquiry and OTP endpoints).")
+    if not os.environ.get("TURNSTILE_SECRET") and os.environ.get("DAZY_TURNSTILE_DISABLED", "").strip().lower() not in ("1", "true", "yes", "on"):
+        problems.append("TURNSTILE_SECRET must be set (bot protection on booking, enquiry and OTP endpoints), "
+                        "or set DAZY_TURNSTILE_DISABLED=1 to run without it (rate limits and OTP stay on).")
     return problems
 
 

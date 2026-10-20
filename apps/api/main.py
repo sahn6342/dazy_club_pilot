@@ -69,6 +69,10 @@ async def lifespan(app: FastAPI):
         seed_if_empty()
         logger.info("=== startup: complete ===")
         from services.notification_service import delivery_status
+        from services.turnstile import turnstile_disabled
+        if turnstile_disabled():
+            logger.warning("SECURITY: Turnstile bot check is DISABLED (DAZY_TURNSTILE_DISABLED); booking, enquiry and OTP "
+                           "endpoints rely on rate limits alone. Remove the variable to enable it.")
         for warning in delivery_status()["warnings"]:  # phone numbers are accepted, so say loudly what will NOT be delivered
             logger.warning("NOTIFICATIONS: %s", warning)
     except Exception:

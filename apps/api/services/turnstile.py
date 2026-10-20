@@ -16,8 +16,14 @@ logger = logging.getLogger(__name__)
 _VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
 
+def turnstile_disabled() -> bool:
+    """Explicit opt-out (DAZY_TURNSTILE_DISABLED=1): checks are skipped even if a secret is set and the
+    production guard stops requiring one. Remove the variable to turn the checks back on."""
+    return os.environ.get("DAZY_TURNSTILE_DISABLED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def turnstile_enabled() -> bool:
-    return bool(os.environ.get("TURNSTILE_SECRET"))
+    return bool(os.environ.get("TURNSTILE_SECRET")) and not turnstile_disabled()
 
 
 def _siteverify(secret: str, token: str, ip: str | None) -> bool:
@@ -37,7 +43,7 @@ def _siteverify(secret: str, token: str, ip: str | None) -> bool:
 def require_turnstile(token: str | None, ip: str | None) -> None:
     """Raise 400 unless the Turnstile token verifies. No-op when Turnstile is not configured."""
     secret = os.environ.get("TURNSTILE_SECRET")
-    if not secret:
+    if not secret or turnstile_disabled():
         return
     if not token or not _siteverify(secret, token, ip):
         raise HTTPException(status_code=400, detail="Please complete the verification challenge and try again.")
