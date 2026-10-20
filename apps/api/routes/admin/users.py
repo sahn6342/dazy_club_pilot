@@ -50,6 +50,7 @@ def update_user(user_id: str, body: UserUpdate, _admin=Depends(require_superadmi
     if body.role is not None:
         updates["role"] = body.role
     if updates:
+        updates["token_version"] = user.token_version + 1  # kills every existing session of this user
         user_repo.update(user_id, updates)
     return _public(user_repo.get_by_id(user_id))
 

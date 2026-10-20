@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-import { setToken } from "../lib/auth";
+import { markSignedIn } from "../lib/auth";
 
 export function Login() {
   const navigate = useNavigate();
@@ -14,11 +14,12 @@ export function Login() {
     setLoading(true);
     const data = Object.fromEntries(new FormData(e.currentTarget));
     try {
-      const res = await api.post<{ access_token: string }>("/admin/login", {
+      // The API answers with the session cookie; the token in the body is not stored.
+      await api.post("/admin/login", {
         username: data.username,
         password: data.password,
       });
-      setToken(res.access_token);
+      markSignedIn();
       navigate("/");
     } catch (err: any) {
       setError(err.message ?? "Login failed");

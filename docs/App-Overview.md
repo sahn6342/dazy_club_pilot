@@ -194,11 +194,13 @@ flowchart LR
 
 ### 4.5 Authentication
 
-- Admin / manager: `POST /admin/login` → HS256 JWT (`sub`, `role`, `exp`), 8 h.
-- Cashier / kitchen: `POST /cafe/login` (name + PIN) → JWT, 2 h.
-- Manager, cashier and kitchen tokens are re-checked against the users table on every request, so deleting a user revokes access. The env-var admin token is not re-checked.
+- Admin / manager: `POST /admin/login` → HS256 JWT (`sub`, `role`, `exp`, `jti`, `ver`), 8 h. Cashier / kitchen: `POST /cafe/login` (name + PIN) → same shape, 2 h.
+- **Session cookie.** Login also sets an httpOnly cookie (`dazy_admin` for the back office, `dazy_kiosk` for the kiosk; SameSite=Lax, Secure in production, `DAZY_COOKIE_SAMESITE` / `DAZY_COOKIE_DOMAIN` configurable). The admin and kiosk SPAs rely on the cookie only: no token is stored in localStorage (only a `dazy_*_session` UI hint), so an injected script cannot steal the session. The token is still returned in the body and `Authorization: Bearer` keeps working for scripts and tests; a Bearer header wins over the cookie.
+- **CSRF.** Writes authenticated by cookie must send `X-Requested-With: dazy` (403 otherwise); a cross-site form or image cannot add it, and CORS preflight blocks other origins. Reads and Bearer-authenticated calls need no header. CORS allows credentials only for the origins in `DAZY_CORS_ORIGINS`.
+- **Logout and revocation.** `POST /admin/logout` and `POST /cafe/logout` revoke that session's `jti` (table `revoked_tokens`, pruned after expiry) and clear the cookie; they are idempotent. `GET /admin/me` / `GET /cafe/me` tell the SPA whether its cookie is still valid. Changing a user's password or role bumps `users.token_version`, which ends all of that user's sessions; bumping `ADMIN_SESSION_EPOCH` ends every env-admin session. Tokens issued before this change (no `jti`/`ver`) keep working until they expire (max 8 h) and cannot be individually revoked.
+- Manager, cashier and kitchen tokens are re-checked against the users table on every request (deleting a user revokes access). Every token is also checked against the revocation list and its version.
 - Invoice print opens in a new window, so it uses a 2-minute signed link: `POST /cafe/invoices/{id}/print-link` (kiosk JWT) returns `/print?t=<token>`; the token is bound to one invoice and carries role `print`, which no role check accepts.
-- No refresh, logout or revocation list. Tokens are Bearer tokens kept in localStorage (`dazy_kiosk_token` for the kiosk).
+- No refresh token: a session simply ends at its 8 h (admin) / 2 h (kiosk) expiry.
 - Customers have no accounts.
 
 ### 4.6 Pricing and availability rules
@@ -283,6 +285,8 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 | Café pre-order | 10 / 10 min per IP |
 | `POST /otp/request` | 5 / 10 min per IP and per contact |
 | `POST /otp/verify` | 10 / 10 min per IP and per contact; 5 wrong guesses kill a code |
+
+**Security headers**: the API adds `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` to every response and `Cache-Control: no-store` to admin, kiosk, OTP and booking-lookup responses. Each SPA ships `apps/<app>/public/_headers` (Cloudflare reads it from the build output; `Caddyfile` mirrors it for self-host) with HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and a **report-only** `Content-Security-Policy` allowing only Turnstile, Razorpay Checkout and the API origin. The CSP hard-codes `https://api.dazyclub.com` as the API origin (edit the files if yours differs). Watch the browser console after deploying, then rename the header to `Content-Security-Policy` to enforce.
 
 **Bot protection**: Cloudflare Turnstile on `POST /bookings`, both enquiry forms and `POST /otp/request` (API: `TURNSTILE_SECRET`; sites: `VITE_TURNSTILE_SITE_KEY`). Skipped when unset (dev); the API refuses to boot in production without the secret.
 
@@ -413,6 +417,10 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_ID`, `WHATSAPP_OTP_TEMPLATE` | — | Meta WhatsApp Cloud API, used when `DAZY_NOTIFY_WHATSAPP_PROVIDER=whatsapp_cloud`. OTPs go out as an approved *authentication template*. Adapter is unit-tested with a mocked transport only, not against the live API | token: yes |
 | `TURNSTILE_SECRET` | — | Cloudflare Turnstile secret. Required in production | yes |
 | `DAZY_PROXY_HOPS` | `0` | Trusted reverse proxies in front of the API (Render = 1, Cloudflare in front of Render = 2, compose/Caddy = 1). Rate limits use the Nth-from-right `X-Forwarded-For` entry | no |
+| `DAZY_COOKIE_SAMESITE` | `lax` | `lax`, `strict` or `none` for the session cookies. Use `none` (forces Secure) only if an SPA is on a different site than the API | no |
+| `DAZY_COOKIE_DOMAIN` | — | Optional cookie `Domain` (e.g. `.dazyclub.com`); unset binds the cookie to the API host | no |
+| `DAZY_COOKIE_SECURE` | on in production | `1`/`0` override for the cookie `Secure` flag | no |
+| `ADMIN_SESSION_EPOCH` | `0` | Integer; bump it to revoke every env-admin session | no |
 | `DAZY_INTERNAL_TOKEN` | — | Secret for `POST /internal/sweep`; endpoint disabled when unset | yes |
 | `DAZY_RATE_LIMIT_SCALE` | `1` | Multiplies every rate limit. E2E only; production refuses to boot unless it is 1 | no |
 | `SMTP_HOST` | — | SMTP server host | no |
@@ -450,7 +458,7 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | Booking horizon | 7 days | availability service |
 | Max slots per booking | 8 (contiguous) | `POST /bookings` |
 | Party size | 1–12 | `POST /bookings` |
-| Admin / manager token TTL | 8 hours | `auth.py` |
+| Admin / manager token and cookie TTL | 8 hours | `auth.py` |
 | Cashier / kitchen token TTL | 2 hours | `auth.py` |
 | Rate limits | see section 6 | `rate_limit.py` |
 | Upload limit | 10 MB, jpg/png/webp/gif | admin gallery |
@@ -468,7 +476,7 @@ Security and config:
 - Default `admin`/`admin` and a hard-coded JWT secret apply in dev. In production (`DAZY_ENV=production` or on Render) the API now refuses to start with them (see 10.1 `DAZY_ENV`). Self-host: set `DAZY_ENV=production` in the root `.env`.
 - Rate limits are DB-backed and spoof-resistant (section 6). The webhook is not rate-limited (it is signature-gated). Kiosk PINs are still 4 digits; per-username lockout makes that acceptable but a longer PIN is stronger.
 - Cashier and kitchen roles have identical permissions; manager has every admin permission except user management.
-- No JWT refresh or logout.
+- No JWT refresh: sessions end at expiry. Cookie auth is built and tested against localhost origins only; confirm it on the real subdomains (and set `DAZY_COOKIE_SAMESITE=none` if an SPA is on a different site). The SPA CSP is deployed in report-only mode.
 
 Behaviour:
 

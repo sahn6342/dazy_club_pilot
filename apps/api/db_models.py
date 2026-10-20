@@ -177,6 +177,9 @@ class UserRow(Base):
     role: Mapped[str] = mapped_column(String, default="manager", nullable=False)
     createdAt: Mapped[str] = mapped_column(String, nullable=False)
     createdBy: Mapped[str] = mapped_column(String, nullable=False)
+    # Bumped on password/role change; tokens carry the value they were issued with, so a bump
+    # invalidates every existing session of that user.
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
 # ── Café POS ──
@@ -371,6 +374,13 @@ class AuditLogRow(Base):
     entityId: Mapped[str | None] = mapped_column(String, nullable=True)
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class RevokedTokenRow(Base):
+    """Logged-out sessions (JWT id). Rows are pruned once the token would have expired anyway."""
+    __tablename__ = "revoked_tokens"
+    jti: Mapped[str] = mapped_column(String, primary_key=True)
+    exp: Mapped[float] = mapped_column(Float, nullable=False, index=True)
 
 
 class OtpCodeRow(Base):

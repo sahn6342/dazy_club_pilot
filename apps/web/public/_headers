@@ -1,0 +1,15 @@
+# Security headers for the customer site (Cloudflare Pages/Workers static assets read this file from the build output).
+# The CSP is REPORT-ONLY on purpose: deploy, watch the browser console / reports for violations from
+# Razorpay Checkout and Turnstile, then rename the header to Content-Security-Policy to enforce.
+# connect-src names the API origin: change https://api.dazyclub.com if your API lives elsewhere.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://checkout.razorpay.com; frame-src https://challenges.cloudflare.com https://api.razorpay.com https://checkout.razorpay.com; connect-src 'self' https://api.dazyclub.com https://api.razorpay.com https://lumberjack.razorpay.com https://checkout.razorpay.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'
+
+# Hashed build assets never change under the same name.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

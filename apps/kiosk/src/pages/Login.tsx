@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BRAND } from "@dazy/shared";
 import { api } from "../lib/api";
-import { setToken, isAuthenticated } from "../lib/auth";
+import { markSignedIn, isAuthenticated } from "../lib/auth";
 
 const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "↵"];
 
@@ -54,8 +54,8 @@ export function Login() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.post<{ access_token: string }>("/cafe/login", { username, pin: p });
-      setToken(res.access_token);
+      await api.post("/cafe/login", { username, pin: p });  // session cookie is set by the API
+      markSignedIn();
       navigate("/menu");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Login failed.");

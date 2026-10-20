@@ -17,6 +17,9 @@ services:
       WHATSAPP_CLOUD_TOKEN: ${WHATSAPP_CLOUD_TOKEN:-}
       WHATSAPP_CLOUD_PHONE_ID: ${WHATSAPP_CLOUD_PHONE_ID:-}
       WHATSAPP_OTP_TEMPLATE: ${WHATSAPP_OTP_TEMPLATE:-}
+      DAZY_COOKIE_SAMESITE: ${DAZY_COOKIE_SAMESITE:-lax}
+      DAZY_COOKIE_DOMAIN: ${DAZY_COOKIE_DOMAIN:-}
+      ADMIN_SESSION_EPOCH: ${ADMIN_SESSION_EPOCH:-0}
       DAZY_INTERNAL_TOKEN: ${DAZY_INTERNAL_TOKEN:-}
       DAZY_PROXY_HOPS: "1"  # Caddy is the one trusted proxy; rate limits key on the real client IP
       JWT_SECRET: ${JWT_SECRET}
@@ -38,9 +41,6 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       # Used in notification links (e.g. the /my-bookings payment-resume link).
       DAZY_WEB_BASE_URL: https://${WEB_DOMAIN}
-      # DAZY_DB_PATH / DAZY_MEDIA_DIR default to /data/... inside the image (see apps/api/Dockerfile).
-      # Point DAZY_DB_URL at Postgres here instead, with zero code changes, if/when you outgrow SQLite.
-    volumes:
       DAZY_MEDIA_BACKEND: ${DAZY_MEDIA_BACKEND:-local}
       DAZY_MEDIA_LOCAL_OK: ${DAZY_MEDIA_LOCAL_OK:-}  # set to 1 with DAZY_ENV=production: uploads live on the api_data volume
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
@@ -48,6 +48,9 @@ services:
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
       R2_BUCKET: ${R2_BUCKET:-}
       R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
+      # DAZY_DB_PATH / DAZY_MEDIA_DIR default to /data/... inside the image (see apps/api/Dockerfile).
+      # Point DAZY_DB_URL at Postgres here instead, with zero code changes, if/when you outgrow SQLite.
+    volumes:
       - api_data:/data
     expose:
       - "8000"

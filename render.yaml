@@ -98,6 +98,15 @@ projects:
         sync: false
       - key: WHATSAPP_OTP_TEMPLATE # approved authentication template name
         sync: false
+      # --- Staff session cookies (admin + kiosk). Defaults suit an API and SPAs under one registrable
+      # domain (admin.dazyclub.com / pos.dazyclub.com / api.dazyclub.com): SameSite=Lax, Secure in production.
+      # If an SPA is on a different site (e.g. *.pages.dev) set DAZY_COOKIE_SAMESITE=none (forces Secure).
+      - key: DAZY_COOKIE_SAMESITE  # lax (default) | strict | none
+        sync: false
+      - key: DAZY_COOKIE_DOMAIN    # optional, e.g. .dazyclub.com; unset = cookie is bound to the API host only
+        sync: false
+      - key: ADMIN_SESSION_EPOCH   # integer; bump it to sign out every env-admin session at once (default 0)
+        sync: false
       # --- Scheduler: an external cron POSTs /api/v1/internal/sweep with header X-Internal-Token ---
       - key: DAZY_INTERNAL_TOKEN   # random 32+ chars; endpoint is disabled (404) when unset
         sync: false

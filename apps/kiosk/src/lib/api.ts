@@ -9,8 +9,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
     ...options,
+    credentials: "include", // httpOnly session cookie
     headers: {
       "Content-Type": "application/json",
+      "X-Requested-With": "dazy", // CSRF guard: the API requires it on cookie-authenticated writes
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },

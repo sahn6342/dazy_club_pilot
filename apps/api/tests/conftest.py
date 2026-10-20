@@ -31,7 +31,7 @@ from routes.admin.auth import clear_login_attempts
 from rate_limit import clear_all_limiters
 from sqlalchemy import delete as _delete
 from db import _session
-from db_models import OtpCodeRow
+from db_models import OtpCodeRow, RevokedTokenRow
 
 # Create schema once before any test runs.
 init_db()
@@ -53,6 +53,7 @@ def _reset_repos():
     seed_if_empty()  # re-insert gallery/testimonials/cms + venue/courts/rules idempotently
     with _session() as _s:
         _s.execute(_delete(OtpCodeRow))  # OTP codes persist in the DB between tests otherwise
+        _s.execute(_delete(RevokedTokenRow))  # so do logged-out sessions
     clear_all_limiters()  # DB-backed limiter state: wipe so fixture logins/bookings never hit a cap
 
 

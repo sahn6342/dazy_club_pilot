@@ -425,6 +425,7 @@ class UserRecord(BaseModel):
     role: str = "manager"  # admin | manager
     createdAt: str
     createdBy: str
+    token_version: int = 0
 
     model_config = {"frozen": False}
 

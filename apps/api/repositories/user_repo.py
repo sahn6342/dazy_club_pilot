@@ -16,6 +16,7 @@ def _to_model(row: UserRow) -> UserRecord:
         role=row.role,
         createdAt=row.createdAt,
         createdBy=row.createdBy,
+        token_version=row.token_version or 0,
     )
 
 

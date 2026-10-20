@@ -86,9 +86,21 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_credentials=True,  # session cookies; origins above are explicit, never "*"
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-OTP-Token"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    path = request.url.path
+    if path.startswith(("/api/v1/admin", "/api/v1/cafe", "/api/v1/otp", "/api/v1/bookings/lookup", "/api/v1/bookings/search")):
+        response.headers.setdefault("Cache-Control", "no-store")  # never cache authenticated/personal responses
+    return response
 
 prefix = "/api/v1"
 
