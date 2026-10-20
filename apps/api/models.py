@@ -224,6 +224,8 @@ class BookingRecord(BaseModel):
     depositAmount: float | None = None
     gst_rate_percent: float | None = None
     email: str | None = None
+    deleted_at: str | None = None
+    deleted_by: str | None = None
 
     model_config = {"frozen": False}
 

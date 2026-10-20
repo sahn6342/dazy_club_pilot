@@ -47,6 +47,26 @@ export const api = {
 
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 
+  // File download (the CSV export streams from the API). Same cookie/CSRF/401 handling as request().
+  download: async (path: string): Promise<{ blob: Blob; filename: string }> => {
+    const token = getToken();
+    const res = await fetch(`${BASE}${path}`, {
+      credentials: "include",
+      headers: { "X-Requested-With": "dazy", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (res.status === 401) {
+      clearToken();
+      window.location.href = "/login";
+      throw new Error("Session expired");
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Download failed" }));
+      throw new Error(typeof err.detail === "string" ? err.detail : "Download failed");
+    }
+    const match = /filename="?([^";]+)"?/i.exec(res.headers.get("Content-Disposition") ?? "");
+    return { blob: await res.blob(), filename: match?.[1] ?? "download.csv" };
+  },
+
   // Multipart upload — let the browser set Content-Type (boundary). 401 handling mirrors request().
   upload: async <T>(path: string, file: File): Promise<T> => {
     const token = getToken();

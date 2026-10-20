@@ -9,6 +9,11 @@ from db_models import OrderRow, OrderItemRow
 
 
 class SqliteOrderRepository:
+    def exists_for_booking(self, booking_id: str) -> bool:
+        """True if any café order (pre-order) is linked to this booking."""
+        with _session() as s:
+            return s.scalar(select(OrderRow.id).where(OrderRow.booking_id == booking_id).limit(1)) is not None
+
     def create(
         self,
         order_type: str,
@@ -149,3 +154,4 @@ class SqliteOrderRepository:
             order.roundOff = round_off
             order.total = total
             order.updatedAt = datetime.now(timezone.utc).isoformat()
+

@@ -62,7 +62,7 @@ class CustomerRow(Base):
 class BookingRow(Base):
     __tablename__ = "bookings"
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    bookingRef: Mapped[str] = mapped_column(String, nullable=False)
+    bookingRef: Mapped[str] = mapped_column(String, index=True, nullable=False)
     customer_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)  # soft FK to customers.id
     court_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)  # FK to courts.id (not enforced on SQLite)
     slotId: Mapped[str] = mapped_column(String, index=True, nullable=False)
@@ -83,6 +83,11 @@ class BookingRow(Base):
     depositAmount: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     gst_rate_percent: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     email: Mapped[str | None] = mapped_column(String, nullable=True)
+    # lower(trim(contact)), written on create: lets search and the pending-booking cap use an index
+    contact_norm: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
+    # Soft delete: hidden from every list and lookup, kept for the books. Deleting also cancels.
+    deleted_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    deleted_by: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class BookingPaymentRow(Base):

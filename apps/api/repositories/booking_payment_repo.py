@@ -139,6 +139,15 @@ class SqliteBookingPaymentRepository:
                 .values(refunded_amount=BookingPaymentRow.refunded_amount - amount)
             )
 
+    def list_by_ref(self, booking_ref: str) -> list[BookingPaymentDto]:
+        with _session() as s:
+            rows = s.scalars(select(BookingPaymentRow).where(BookingPaymentRow.bookingRef == booking_ref)).all()
+            return [_to_model(r) for r in rows]
+
+    def delete_by_ref(self, booking_ref: str) -> int:
+        with _session() as s:
+            return s.execute(sa_delete(BookingPaymentRow).where(BookingPaymentRow.bookingRef == booking_ref)).rowcount
+
     def mark_refunded(self, booking_ref: str) -> None:
         with _session() as s:
             row = s.scalar(

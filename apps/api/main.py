@@ -88,6 +88,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=True,  # session cookies; origins above are explicit, never "*"
+    expose_headers=["X-Total-Count", "Content-Disposition"],
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-OTP-Token"],
 )

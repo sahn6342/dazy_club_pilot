@@ -1,10 +1,15 @@
+import csv
+import io
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from audit import audit
 from dataclasses import asdict
 
 from models import BookingRecord, BookingStatusUpdate, BookingRefundRequest, CancelRefundRequest
-from auth import get_current_admin
-from deps import booking_repo, booking_payment_repo
+from auth import get_current_admin, require_superadmin
+from deps import booking_repo, booking_payment_repo, order_repo
 from services.refund_policy import build_quote, hours_until_start, load_tiers, money
 from services.refund_service import REFUNDABLE_PAYMENT_STATES, refund_booking
 from services.venue_tz import get_venue_zoneinfo
@@ -13,35 +18,52 @@ from services.notification_service import notify_booking_confirmed, notify_booki
 
 router = APIRouter()
 
-_SORT_KEYS = {
-    "date":      lambda b: b.date or "",
-    "createdAt": lambda b: b.createdAt or "",
-    "price":     lambda b: (b.price is None, b.price or 0),
-    "name":      lambda b: (b.name or "").lower(),
-    "sportSlug": lambda b: b.sportSlug or "",
-    "status":    lambda b: b.status or "",
-}
+_DELETED_MODES = ("no", "only", "all")
+_EXPORT_HEADERS = [
+    "Ref", "Name", "Contact", "Sport", "Date", "Start", "End", "Players", "Price (INR)",
+    "GST %", "GST Amount (INR)", "Promo", "Status", "Payment",
+]
 
 
-def _filter_and_sort(
-    result: list[BookingRecord],
-    sport: str | None,
-    date_from: str | None,
-    date_to: str | None,
-    status: str | None,
-    sort_by: str,
-    sort_dir: str,
-) -> list[BookingRecord]:
-    if sport:
-        result = [b for b in result if b.sportSlug == sport]
-    if date_from:
-        result = [b for b in result if b.date >= date_from]
-    if date_to:
-        result = [b for b in result if b.date <= date_to]
-    if status:
-        result = [b for b in result if b.status == status]
-    key_fn = _SORT_KEYS.get(sort_by, _SORT_KEYS["date"])
-    return sorted(result, key=key_fn, reverse=(sort_dir == "desc"))
+def _check_deleted(deleted: str) -> str:
+    if deleted not in _DELETED_MODES:
+        raise HTTPException(status_code=422, detail=f"deleted must be one of {', '.join(_DELETED_MODES)}.")
+    return deleted
+
+
+def _csv_cell(value) -> str:
+    """Neutralise spreadsheet formulas: names and promo codes are customer-controlled, and a cell
+    starting with = + - @ would execute when the owner opens the export in Excel/Sheets."""
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+def _gst_amount(price, rate):
+    if price is None or rate is None:
+        return ""
+    return f"{price - (price * 100) / (100 + rate):.2f}"
+
+
+def _csv_stream(rows):
+    """Yield the CSV in chunks while rows are read from the database in batches."""
+    buf = io.StringIO()
+    writer = csv.writer(buf, quoting=csv.QUOTE_ALL)
+    writer.writerow(_EXPORT_HEADERS)
+    yield "\ufeff" + buf.getvalue()  # BOM so Excel reads UTF-8 names correctly
+    buf.seek(0)
+    buf.truncate()
+    n = 0
+    for b in rows:
+        writer.writerow([_csv_cell(v) for v in (
+            b.bookingRef, b.name, b.contact, b.sportSlug, b.date, b.startTime, b.endTime, b.party_size,
+            b.price, b.gst_rate_percent, _gst_amount(b.price, b.gst_rate_percent), b.promo_code, b.status, b.paymentStatus)])
+        n += 1
+        if n % 200 == 0:
+            yield buf.getvalue()
+            buf.seek(0)
+            buf.truncate()
+    if buf.tell():
+        yield buf.getvalue()
 
 
 @router.get("/admin/bookings")
@@ -50,33 +72,40 @@ def list_bookings(
     date_from: str | None = None,
     date_to: str | None = None,
     status: str | None = None,
+    deleted: str = "no",
     sort_by: str = "date",
     sort_dir: str = "desc",
     limit: int = 25,
     offset: int = 0,
     _: str = Depends(get_current_admin),
 ):
-    filtered = _filter_and_sort(
-        booking_repo.get_all(), sport, date_from, date_to, status, sort_by, sort_dir
+    """One page, filtered and sorted in SQL. `deleted`: no (default) | only | all."""
+    items, total = booking_repo.query(
+        sport=sport, date_from=date_from, date_to=date_to, status=status, deleted=_check_deleted(deleted),
+        sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
     )
-    total = len(filtered)
-    page_items = filtered[offset: offset + min(limit, 100)]
-    return {"items": page_items, "total": total}
+    return {"items": items, "total": total}
 
 
 @router.get("/admin/bookings/export")
 def export_bookings(
+    req: Request,
     sport: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     status: str | None = None,
+    deleted: str = "no",
     sort_by: str = "date",
     sort_dir: str = "desc",
-    _: str = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin),
 ):
-    return _filter_and_sort(
-        booking_repo.get_all(), sport, date_from, date_to, status, sort_by, sort_dir
-    )
+    """CSV download, streamed row by row so a large export never sits in memory."""
+    filters = dict(sport=sport, date_from=date_from, date_to=date_to, status=status, deleted=_check_deleted(deleted))
+    audit("booking.export", admin, request=req, entity_type="booking", detail=filters)  # contains customer PII
+    rows = booking_repo.iter_primary(**filters, sort_by=sort_by, sort_dir=sort_dir)
+    filename = f"bookings-{datetime.now(timezone.utc).date().isoformat()}.csv"
+    return StreamingResponse(_csv_stream(rows), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @router.patch("/admin/bookings/{booking_id}")
@@ -104,12 +133,61 @@ def update_booking(
 
 @router.delete("/admin/bookings/{booking_id}", status_code=204)
 def delete_booking(booking_id: str, req: Request, admin: dict = Depends(get_current_admin)):
+    """Soft delete: the booking disappears from every list and lookup but stays in the books.
+    An active booking is cancelled first (its slot is freed and the customer told). Refused while
+    money is still held (refund first) or café orders are linked."""
     booking = booking_repo.get_by_id(booking_id)
-    if not booking_repo.delete(booking_id):
+    if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.deleted_at:
+        raise HTTPException(status_code=409, detail="This booking is already deleted.")
+    if booking.paymentStatus in ("paid", "partially_refunded"):
+        raise HTTPException(status_code=409, detail="This booking holds a payment. Use Cancel & refund (or Refund) before deleting it.")
+    if order_repo.exists_for_booking(booking.id):
+        raise HTTPException(status_code=409, detail="Café orders are linked to this booking, so it cannot be deleted.")
+    was_active = booking.status in ("pending", "confirmed")
+    if was_active:
+        booking_repo.cancel_by_ref(booking.bookingRef)
+    booking_repo.soft_delete(booking.bookingRef, admin["sub"])
+    if was_active:
+        notify_booking_cancelled(booking.bookingRef)
     audit("booking.delete", admin, request=req, entity_type="booking", entity_id=booking_id,
-          detail={"bookingRef": booking.bookingRef, "status": booking.status,
-                  "paymentStatus": booking.paymentStatus, "price": booking.price} if booking else None)
+          detail={"bookingRef": booking.bookingRef, "status": booking.status, "paymentStatus": booking.paymentStatus,
+                  "price": booking.price, "cancelledByDelete": was_active})
+
+
+@router.post("/admin/bookings/{booking_id}/restore")
+def restore_booking(booking_id: str, req: Request, admin: dict = Depends(get_current_admin)):
+    """Bring a soft-deleted booking back into the lists. It keeps the status it was left in (cancelled
+    if the delete cancelled it): restoring never re-books a slot."""
+    booking = booking_repo.get_by_id(booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if not booking.deleted_at:
+        raise HTTPException(status_code=409, detail="This booking is not deleted.")
+    booking_repo.restore(booking.bookingRef)
+    audit("booking.restore", admin, request=req, entity_type="booking", entity_id=booking_id,
+          detail={"bookingRef": booking.bookingRef, "status": booking.status})
+    return booking_repo.get_by_id(booking_id)
+
+
+@router.delete("/admin/bookings/{booking_id}/purge", status_code=204)
+def purge_booking(booking_id: str, req: Request, admin: dict = Depends(require_superadmin)):
+    """Permanent removal (superadmin only). Refused when a real payment exists: its record is a
+    financial document. Dev (noop) payments carry no money and are removed with the booking."""
+    booking = booking_repo.get_by_id(booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if order_repo.exists_for_booking(booking.id):
+        raise HTTPException(status_code=409, detail="Café orders are linked to this booking, so it cannot be purged.")
+    payments = booking_payment_repo.list_by_ref(booking.bookingRef)
+    real_money = [p for p in payments if p.provider != "noop" and p.status in ("verified", "refunded", "partially_refunded", "paid_orphan", "amount_mismatch")]
+    if real_money:
+        raise HTTPException(status_code=409, detail="A real payment is recorded for this booking, so it cannot be purged.")
+    booking_payment_repo.delete_by_ref(booking.bookingRef)
+    removed = booking_repo.purge_by_ref(booking.bookingRef)
+    audit("booking.purge", admin, request=req, entity_type="booking", entity_id=booking_id,
+          detail={"bookingRef": booking.bookingRef, "rows": removed, "status": booking.status, "price": booking.price})
 
 
 def _primary(booking_id: str):

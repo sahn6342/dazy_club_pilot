@@ -40,7 +40,7 @@ def notify_booking_confirmed(booking_ref: str) -> None:
     single state transition that flips paymentStatus to "paid" (see the
     idempotency guards in routes/bookings.py and routes/payments.py)."""
     try:
-        bookings = booking_repo.get_by_ref(booking_ref)
+        bookings = booking_repo.get_by_ref(booking_ref, include_deleted=True)
         if not bookings:
             return
         primary = next((b for b in bookings if b.is_primary), bookings[0])
@@ -57,7 +57,7 @@ def notify_booking_payment_pending(booking_ref: str) -> None:
     customer a way to resume payment (via /bookings/lookup) if they close the
     tab, since there's no login/profile system to fall back on."""
     try:
-        bookings = booking_repo.get_by_ref(booking_ref)
+        bookings = booking_repo.get_by_ref(booking_ref, include_deleted=True)
         if not bookings:
             return
         primary = next((b for b in bookings if b.is_primary), bookings[0])
@@ -74,7 +74,7 @@ def notify_booking_payment_pending(booking_ref: str) -> None:
 def notify_booking_cancelled(booking_ref: str) -> None:
     """Fires when a booking is cancelled (admin action or timeout sweep)."""
     try:
-        bookings = booking_repo.get_by_ref(booking_ref)
+        bookings = booking_repo.get_by_ref(booking_ref, include_deleted=True)
         if not bookings:
             return
         primary = next((b for b in bookings if b.is_primary), bookings[0])
@@ -88,7 +88,7 @@ def notify_booking_cancelled(booking_ref: str) -> None:
 def notify_booking_refunded(booking_ref: str, amount: float | None = None, cancelled: bool = True, partial: bool = False) -> None:
     """Fires when a refund is issued via the admin panel."""
     try:
-        bookings = booking_repo.get_by_ref(booking_ref)
+        bookings = booking_repo.get_by_ref(booking_ref, include_deleted=True)
         if not bookings:
             return
         primary = next((b for b in bookings if b.is_primary), bookings[0])

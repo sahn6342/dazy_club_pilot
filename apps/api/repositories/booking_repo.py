@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Iterator, Optional
 
 from sqlalchemy import select, delete as sa_delete, update as sa_update, func, or_
 
@@ -32,17 +32,73 @@ def _to_model(row: BookingRow) -> BookingRecord:
         depositAmount=float(row.depositAmount) if row.depositAmount is not None else None,
         gst_rate_percent=float(row.gst_rate_percent) if row.gst_rate_percent is not None else None,
         email=row.email,
+        deleted_at=row.deleted_at,
+        deleted_by=row.deleted_by,
     )
 
 
 class SqliteBookingRepository(BaseRepository[BookingRecord]):
-    def get_all(self) -> list[BookingRecord]:
-        """Return primary booking rows only (one per bookingRef)."""
+    # ── admin listing: filtering, sorting and paging happen in SQL ──────────────
+    _SORTABLE = {
+        "date": BookingRow.date, "createdAt": BookingRow.createdAt, "price": BookingRow.price,
+        "name": func.lower(BookingRow.name), "sportSlug": BookingRow.sportSlug, "status": BookingRow.status,
+    }
+
+    @staticmethod
+    def _conditions(sport, date_from, date_to, status, deleted):
+        conds = [BookingRow.is_primary.is_(True)]  # one row per booking
+        if sport:
+            conds.append(BookingRow.sportSlug == sport)
+        if date_from:
+            conds.append(BookingRow.date >= date_from)
+        if date_to:
+            conds.append(BookingRow.date <= date_to)
+        if status:
+            conds.append(BookingRow.status == status)
+        if deleted == "only":
+            conds.append(BookingRow.deleted_at.is_not(None))
+        elif deleted != "all":
+            conds.append(BookingRow.deleted_at.is_(None))
+        return conds
+
+    def _ordered(self, stmt, sort_by: str, sort_dir: str):
+        col = self._SORTABLE.get(sort_by, self._SORTABLE["date"])
+        desc = sort_dir == "desc"
+        if sort_by == "price":  # unpriced (free) bookings sort last ascending, first descending
+            nulls = BookingRow.price.is_(None)
+            stmt = stmt.order_by(nulls.desc() if desc else nulls.asc(), col.desc() if desc else col.asc())
+        else:
+            stmt = stmt.order_by(col.desc() if desc else col.asc())
+        return stmt.order_by(BookingRow.createdAt.desc(), BookingRow.id)  # stable paging
+
+    def query(
+        self, *, sport: str | None = None, date_from: str | None = None, date_to: str | None = None,
+        status: str | None = None, deleted: str = "no", sort_by: str = "date", sort_dir: str = "desc",
+        limit: int = 25, offset: int = 0,
+    ) -> "tuple[list[BookingRecord], int]":
+        """One page of primary rows plus the total matching count (two queries, however big the table)."""
+        conds = self._conditions(sport, date_from, date_to, status, deleted)
         with _session() as s:
-            return [
-                _to_model(r)
-                for r in s.scalars(select(BookingRow).where(BookingRow.is_primary.is_(True))).all()
-            ]
+            total = s.scalar(select(func.count()).select_from(BookingRow).where(*conds)) or 0
+            stmt = self._ordered(select(BookingRow).where(*conds), sort_by, sort_dir)
+            rows = s.scalars(stmt.offset(max(offset, 0)).limit(max(1, min(limit, 100)))).all()
+            return [_to_model(r) for r in rows], total
+
+    def iter_primary(
+        self, *, sport: str | None = None, date_from: str | None = None, date_to: str | None = None,
+        status: str | None = None, deleted: str = "no", sort_by: str = "date", sort_dir: str = "desc",
+        batch: int = 500,
+    ) -> Iterator[BookingRecord]:
+        """Stream every matching primary row in batches (server-side cursor): memory stays flat for exports."""
+        conds = self._conditions(sport, date_from, date_to, status, deleted)
+        with _session() as s:
+            stmt = self._ordered(select(BookingRow).where(*conds), sort_by, sort_dir).execution_options(yield_per=batch)
+            for row in s.scalars(stmt):
+                yield _to_model(row)
+
+    def get_all(self) -> list[BookingRecord]:
+        """Every live primary row. Tests and small tools only: the admin API pages in SQL instead."""
+        return list(self.iter_primary(sort_by="createdAt", sort_dir="asc"))
 
     def get_by_id(self, id: str) -> Optional[BookingRecord]:
         with _session() as s:
@@ -51,7 +107,7 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
 
     def create(self, item: BookingRecord) -> BookingRecord:
         with _session() as s:
-            row = BookingRow(**item.model_dump())
+            row = BookingRow(**item.model_dump(), contact_norm=item.contact.strip().lower())
             s.add(row)
             s.flush()
             return _to_model(row)
@@ -60,7 +116,7 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
         """Insert all rows in ONE transaction: if any row violates the unique-slot
         index (IntegrityError), none are persisted."""
         with _session() as s:
-            rows = [BookingRow(**item.model_dump()) for item in items]
+            rows = [BookingRow(**item.model_dump(), contact_norm=item.contact.strip().lower()) for item in items]
             s.add_all(rows)
             s.flush()
             return [_to_model(r) for r in rows]
@@ -85,10 +141,31 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
                 .values(status="cancelled")
             )
 
-    def get_by_ref(self, booking_ref: str) -> list[BookingRecord]:
+    def get_by_ref(self, booking_ref: str, include_deleted: bool = False) -> list[BookingRecord]:
+        """Rows sharing a ref. Soft-deleted bookings are invisible unless `include_deleted`
+        (internal money/notification paths set it; customer-facing lookups never do)."""
+        conds = [BookingRow.bookingRef == booking_ref]
+        if not include_deleted:
+            conds.append(BookingRow.deleted_at.is_(None))
         with _session() as s:
-            rows = s.scalars(select(BookingRow).where(BookingRow.bookingRef == booking_ref)).all()
+            rows = s.scalars(select(BookingRow).where(*conds)).all()
             return [_to_model(r) for r in rows]
+
+    def soft_delete(self, booking_ref: str, actor: str) -> None:
+        from datetime import datetime, timezone
+        with _session() as s:
+            s.execute(sa_update(BookingRow).where(BookingRow.bookingRef == booking_ref)
+                      .values(deleted_at=datetime.now(timezone.utc).isoformat(), deleted_by=actor))
+
+    def restore(self, booking_ref: str) -> None:
+        with _session() as s:
+            s.execute(sa_update(BookingRow).where(BookingRow.bookingRef == booking_ref)
+                      .values(deleted_at=None, deleted_by=None))
+
+    def purge_by_ref(self, booking_ref: str) -> int:
+        """Permanently remove every row of a booking. Superadmin purge only."""
+        with _session() as s:
+            return s.execute(sa_delete(BookingRow).where(BookingRow.bookingRef == booking_ref)).rowcount
 
     def confirm_payment_by_ref(self, booking_ref: str) -> int:
         """Payment verified — mark rows sharing this ref paid (pending rows also
@@ -174,7 +251,8 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
                 select(func.count()).select_from(BookingRow).where(
                     BookingRow.is_primary.is_(True),
                     BookingRow.status == "pending",
-                    func.lower(BookingRow.contact) == contact.strip().lower(),
+                    BookingRow.deleted_at.is_(None),
+                    BookingRow.contact_norm == contact.strip().lower(),
                 )
             ) or 0
 
@@ -186,8 +264,9 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
                 select(BookingRow)
                 .where(
                     BookingRow.is_primary.is_(True),
+                    BookingRow.deleted_at.is_(None),
                     or_(
-                        func.lower(BookingRow.contact) == contact_lc,
+                        BookingRow.contact_norm == contact_lc,
                         func.lower(BookingRow.email) == contact_lc,
                     ),
                 )

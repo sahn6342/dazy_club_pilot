@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import func, select, delete as sa_delete
 
 from db import _session
 from db_models import CustomerRow
@@ -58,6 +58,14 @@ class SqliteCustomerRepository:
                 s.add(row)
             s.flush()
             return _to_model(row)
+
+    def query(self, limit: int = 500, offset: int = 0) -> "tuple[list[CustomerRecord], int]":
+        """Newest first, paged in SQL. Returns (page, total)."""
+        with _session() as s:
+            total = s.scalar(select(func.count()).select_from(CustomerRow)) or 0
+            rows = s.scalars(select(CustomerRow).order_by(CustomerRow.createdAt.desc(), CustomerRow.id)
+                             .offset(max(offset, 0)).limit(max(1, min(limit, 1000)))).all()
+            return [_to_model(r) for r in rows], total
 
     def clear(self) -> None:
         with _session() as s:

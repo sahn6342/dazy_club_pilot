@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useConfirm } from "../components/ConfirmDialog";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { StatusBadge } from "../components/StatusBadge";
@@ -11,6 +12,7 @@ type Booking = {
   sportSlug: string; date: string; startTime: string; endTime: string;
   party_size: number; price: number | null; promo_code: string | null;
   gst_rate_percent: number | null; status: string; paymentStatus: string; createdAt: string;
+  deleted_at?: string | null;
 };
 
 const STATUS_MSG: Record<string, string> = {
@@ -25,7 +27,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 };
 const isPaid = (b: { paymentStatus: string }) => b.paymentStatus === "paid" || b.paymentStatus === "partially_refunded";
 
-const EMPTY_FILTER = { sport: "", status: "", date_from: "", date_to: "" };
+const EMPTY_FILTER = { sport: "", status: "", date_from: "", date_to: "", deleted: "no" };
 const PAGE_SIZE = 10;
 
 type SortDir = "asc" | "desc";
@@ -50,6 +52,7 @@ function SortTh({
 
 export function Bookings() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -65,6 +68,7 @@ export function Bookings() {
     if (filter.status)    q.set("status",    filter.status);
     if (filter.date_from) q.set("date_from", filter.date_from);
     if (filter.date_to)   q.set("date_to",   filter.date_to);
+    if (filter.deleted !== "no") q.set("deleted", filter.deleted);
     q.set("sort_by", sortBy);
     q.set("sort_dir", sortDir);
     return q;
@@ -76,6 +80,7 @@ export function Bookings() {
     if (filter.status)    q.set("status",    filter.status);
     if (filter.date_from) q.set("date_from", filter.date_from);
     if (filter.date_to)   q.set("date_to",   filter.date_to);
+    if (filter.deleted !== "no") q.set("deleted", filter.deleted);
     q.set("sort_by", sortBy);
     q.set("sort_dir", sortDir);
     q.set("limit",  String(PAGE_SIZE));
@@ -120,32 +125,40 @@ export function Bookings() {
   async function exportCsv() {
     const q = buildExportQuery();
     try {
-      const allRows = await api.get<Booking[]>(`/admin/bookings/export?${q}`);
-      const headers = [
-        "Ref", "Name", "Contact", "Sport", "Date", "Start", "End",
-        "Players", "Price (INR)", "GST %", "GST Amount (INR)", "Promo", "Status", "Payment",
-      ];
-      const rows = allRows.map((b) => {
-        const gstAmt = (b.price != null && b.gst_rate_percent != null)
-          ? (b.price - (b.price * 100) / (100 + b.gst_rate_percent)).toFixed(2)
-          : "";
-        return [
-          b.bookingRef, b.name, b.contact, b.sportSlug, b.date,
-          b.startTime, b.endTime, b.party_size,
-          b.price ?? "", b.gst_rate_percent != null ? b.gst_rate_percent : "",
-          gstAmt, b.promo_code ?? "", b.status, b.paymentStatus,
-        ];
-      });
-      const csv = [headers, ...rows]
-        .map((r) => r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(","))
-        .join("\n");
-      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-      const a = Object.assign(document.createElement("a"), { href: url, download: "bookings.csv" });
+      // The API streams the CSV (every matching row, not just this page) and neutralises spreadsheet formulas.
+      const { blob, filename } = await api.download(`/admin/bookings/export?${q}`);
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement("a"), { href: url, download: filename });
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(`Exported ${allRows.length} bookings`);
+      toast.success("Export downloaded");
     } catch (err: any) {
       toast.error(err?.message ?? "Export failed");
+    }
+  }
+
+  async function deleteBooking(b: Booking) {
+    const ok = await confirm({
+      message: `Delete booking ${b.bookingRef} (${b.name})? It disappears from the lists but stays in the records, and can be restored from "Deleted only".`,
+      confirmLabel: "Delete", danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/admin/bookings/${b.id}`);
+      setReloadKey((k) => k + 1);
+      toast.success("Booking deleted");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Could not delete the booking");
+    }
+  }
+
+  async function restoreBooking(b: Booking) {
+    try {
+      await api.post(`/admin/bookings/${b.id}/restore`, {});
+      setReloadKey((k) => k + 1);
+      toast.success("Booking restored");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Could not restore the booking");
     }
   }
 
@@ -165,6 +178,11 @@ export function Bookings() {
               <option value="badminton">Badminton</option>
               <option value="pickleball">Pickleball</option>
             </select>
+            <select data-testid="deleted-filter" value={filter.deleted} onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, deleted: e.target.value })); }}>
+              <option value="no">Hide deleted</option>
+              <option value="only">Deleted only</option>
+              <option value="all">Include deleted</option>
+            </select>
             <select value={filter.status} onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, status: e.target.value })); }}>
               <option value="">All statuses</option>
               <option value="pending">Pending</option>
@@ -183,12 +201,14 @@ export function Bookings() {
               value={filter.date_to}
               onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, date_to: e.target.value })); }}
             />
-            {(filter.sport || filter.status || filter.date_from || filter.date_to) && (
+            {(filter.sport || filter.status || filter.date_from || filter.date_to || filter.deleted !== "no") && (
               <button className="btn-action secondary" onClick={() => { setPage(1); setFilter(EMPTY_FILTER); }}>Clear</button>
             )}
             <button
               className="btn-primary small"
               style={{ marginLeft: "auto" }}
+              data-testid="export-csv"
+              title="Download every booking matching these filters"
               onClick={exportCsv}
             >
               Export CSV
@@ -248,6 +268,7 @@ export function Bookings() {
                         <td>{b.gst_rate_percent != null ? `${b.gst_rate_percent}%` : "—"}</td>
                         <td>
                           <StatusBadge status={b.status} />
+                          {b.deleted_at && <small className="muted" data-testid={`deleted-${b.bookingRef}`} style={{ display: "block" }}>Deleted</small>}
                           {PAYMENT_LABEL[b.paymentStatus] && (
                             <small className="muted" data-testid={`pay-${b.bookingRef}`} style={{ display: "block" }}>
                               {PAYMENT_LABEL[b.paymentStatus]}
@@ -256,23 +277,29 @@ export function Bookings() {
                         </td>
                         <td>
                           <div className="action-row" style={{ whiteSpace: "nowrap" }}>
-                            {b.status === "pending" && (
+                            {b.deleted_at && (
+                              <button className="btn-action confirm" data-testid={`restore-${b.bookingRef}`} onClick={() => restoreBooking(b)}>Restore</button>
+                            )}
+                            {!b.deleted_at && b.status === "pending" && (
                               <button className="btn-action confirm" onClick={() => setStatus(b.id, "confirmed")}>Confirm</button>
                             )}
-                            {b.status === "confirmed" && (
+                            {!b.deleted_at && b.status === "confirmed" && (
                               <button className="btn-action confirm" onClick={() => setStatus(b.id, "completed")}>Complete</button>
                             )}
-                            {b.status === "confirmed" && (
+                            {!b.deleted_at && b.status === "confirmed" && (
                               <button className="btn-action cancel" onClick={() => setStatus(b.id, "no_show")}>No-show</button>
                             )}
-                            {(b.status === "pending" || b.status === "confirmed") && (
+                            {!b.deleted_at && (b.status === "pending" || b.status === "confirmed") && (
                               // Paid bookings go through the refund dialog so a cancellation can never silently keep the money.
                               <button className="btn-action cancel" data-testid={`cancel-${b.bookingRef}`}
                                 onClick={() => (isPaid(b) ? openRefund(b, "cancel") : setStatus(b.id, "cancelled"))}>Cancel</button>
                             )}
-                            {isPaid(b) && (
+                            {!b.deleted_at && isPaid(b) && (
                               <button className="btn-action secondary" data-testid={`refund-${b.bookingRef}`}
                                 onClick={() => openRefund(b, "refund")}>Refund</button>
+                            )}
+                            {!b.deleted_at && !isPaid(b) && ["cancelled", "completed", "no_show"].includes(b.status) && (
+                              <button className="btn-action cancel" data-testid={`delete-${b.bookingRef}`} onClick={() => deleteBooking(b)}>Delete</button>
                             )}
                           </div>
                         </td>

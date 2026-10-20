@@ -39,7 +39,7 @@ def confirm_verified_payment(
         notify_booking_confirmed(booking_ref)
         return ConfirmationResult(CONFIRMED)
 
-    bookings = booking_repo.get_by_ref(booking_ref)
+    bookings = booking_repo.get_by_ref(booking_ref, include_deleted=True)
     if bookings and all(b.paymentStatus == "paid" and b.status != "cancelled" for b in bookings):
         return ConfirmationResult(ALREADY_CONFIRMED)  # idempotent redelivery
 

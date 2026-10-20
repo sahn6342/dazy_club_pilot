@@ -84,7 +84,7 @@ Login at `/login`, then:
 | Page | Feature |
 |---|---|
 | Dashboard | Bookings and revenue today, café revenue, occupancy, pending bookings, new enquiries, day-close table (café payments by cash/UPI/card) |
-| Bookings | List, filter, sort, export; confirm / complete / no-show / cancel; refund; delete |
+| Bookings | List, filter, sort (all in SQL, paged), CSV export; confirm / complete / no-show / cancel; cancel & refund / refund; delete, restore ("Deleted only" view) |
 | Schedule | Weekly open/close rules per court (slot length, price, discount) and date exceptions (holiday, special hours; venue-wide or per court) |
 | Courts | Court CRUD. One court = one booking per slot; add more courts for parallel play (capacity is fixed at 1) |
 | Promos | Percent or flat codes, date window, max uses, sport restriction |
@@ -189,6 +189,14 @@ Customers cannot cancel; staff do it from **Admin → Bookings**. Cancelling a *
 **Refund policy.** CMS key `refund_policy` (edit it in Admin → CMS; invalid JSON is rejected with a 422):
 `{"tiers": [{"hoursBefore": 24, "percent": 100}, {"hoursBefore": 4, "percent": 50}]}`. A cancellation with at least `hoursBefore` hours of notice gets that tier's percent (largest matching tier wins); less notice than every tier gets 0%. Notice runs to the start of the booking's first slot in the venue timezone. Amounts use `Decimal`, rounded half-up to the paisa. The policy amount is only a suggestion: the admin can change it in the dialog, and the override, reason and policy are all written to the audit log. If the stored policy is ever missing or broken the API logs an error and uses the default above.
 
+### 4.3a Admin lists, export and deleting bookings
+
+- **Paging in SQL.** `GET /admin/bookings` filters (sport, status, date range, `deleted`), sorts (date, createdAt, price, name, sport, status; unknown column falls back to date; ties broken by createdAt then id so pages never skip or repeat) and pages in the database: two queries (COUNT + page) however large the table, max 100 rows per page. `/admin/customers` and `/admin/enquiries` page the same way, newest first, and put the full count in the `X-Total-Count` response header (the body stays a plain list). The old code loaded every booking into Python for each request.
+- **Indexes.** `bookings(bookingRef)` (which no index covered although payment, lookup and notification paths all filter on it), `bookings(contact_norm)`, `bookings(date, status)`, `bookings(status, createdAt)`, `lower(bookings.email)`, `enquiries(createdAt)`, `customers(createdAt)`. `bookings.contact_norm` (= lower(trim(contact)), written on create, backfilled by the migration) makes contact search and the pending-booking cap use an index instead of `lower()` over every row.
+- **CSV export.** `GET /admin/bookings/export` (same filters) streams a UTF-8 CSV with a BOM, every cell quoted, rows read in batches of 500 through a server-side cursor and written in ~200-row chunks, so memory stays flat. Cells starting with `=`, `+`, `-` or `@` get a leading `'` so a customer name like `=HYPERLINK(...)` cannot run when the owner opens the file in Excel. Each export is written to the audit log (it contains customer contact details).
+- **Soft delete.** `DELETE /admin/bookings/{id}` sets `deleted_at`/`deleted_by`: the booking vanishes from every admin list (unless `deleted=only|all`), from customer lookup, search and pre-order, but stays in the table for the books. Deleting an active booking cancels it first (slot freed, customer notified). It is refused (409) while the booking holds a payment (use Cancel & refund first; a fully refunded one can be deleted) or has café orders linked. `POST /admin/bookings/{id}/restore` undoes it; the booking comes back with the status it was left in (cancelled), it never re-books a slot. A payment arriving later for a deleted booking is refunded like any late payment, not revived.
+- **Purge.** `DELETE /admin/bookings/{id}/purge` (superadmin) removes the rows for good. It refuses bookings with café orders or a real (non-`noop`) payment record, which is a financial document; dev `noop` payments are removed with the booking.
+
 ### 4.4 Café order (kiosk)
 
 ```mermaid
@@ -278,9 +286,9 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 | `POST /payments/razorpay/webhook` | Razorpay webhook (signature-verified) |
 | `POST /contact-enquiries`, `POST /corporate-enquiries` | Enquiry forms |
 
-**Admin** (admin or manager JWT): `POST /admin/login`; `/admin/bookings` (list, export, PATCH status, DELETE, `/{id}/refund`); `/admin/courts`; `/admin/schedule/rules` and `/exceptions`; `/admin/promos`; `/admin/cms`; `/admin/gallery` (+ `/upload`); `/admin/testimonials`; `/admin/enquiries`; `/admin/customers`; `/admin/notifications`; `/admin/reports/dashboard` and `/day-close`; `/admin/cafe/settings`, `/categories`, `/items`, `/tables`.
+**Admin** (admin or manager JWT): `POST /admin/login`; `/admin/bookings` (list, `/export`, PATCH status, DELETE = soft delete, `/{id}/restore`, `/{id}/refund`, `/{id}/cancel-and-refund`, `/{id}/refund-quote`); `/admin/courts`; `/admin/schedule/rules` and `/exceptions`; `/admin/promos`; `/admin/cms`; `/admin/gallery` (+ `/upload`); `/admin/testimonials`; `/admin/enquiries`; `/admin/customers`; `/admin/notifications`; `/admin/reports/dashboard` and `/day-close`; `/admin/cafe/settings`, `/categories`, `/items`, `/tables`.
 
-**Superadmin only**: `/admin/users` (list, create, update, delete). `GET /admin/audit` (audit log: filters `action` substring, `actor`, `entityType`, `entityId`, `dateFrom`/`dateTo`, `limit`/`offset`; newest first).
+**Superadmin only**: `/admin/users` (list, create, update, delete); `DELETE /admin/bookings/{id}/purge` (permanent removal). `GET /admin/audit` (audit log: filters `action` substring, `actor`, `entityType`, `entityId`, `dateFrom`/`dateTo`, `limit`/`offset`; newest first).
 
 **Kiosk / cashier** (cashier, kitchen, manager or admin JWT): `POST /cafe/login`; `/cafe/menu`; `/cafe/tables`; `/cafe/orders` (create, list, get, patch, add item, void item, `/kot`, `/payments`, `/invoice`); `/cafe/kots` and `/kots/{id}/status`; `/cafe/invoices` (list, get, `/print`).
 
@@ -496,6 +504,7 @@ Security and config:
 
 Behaviour:
 
+- Admin pagination is offset-based: fine for a venue's volume, but very deep pages scan; switch to keyset paging if one venue grows to millions of bookings. The audit log, notification log and gallery lists are not paged yet.
 - No customer self-cancel. Refunds are admin-driven (policy suggestion + override). A crash between the provider refund and saving state leaves the amount reserved (so it can never be refunded twice) and logs `REFUND ISSUED BUT STATE NOT SAVED` for manual reconciliation. Refunds are not yet retried automatically, and the provider has no idempotency key on refund calls.
 - Pending-booking expiry also runs from `POST /internal/sweep`, but only if you actually schedule that cron. Without it, expiry still only happens when slots are read (payment rows now flip `created` → `expired`; migration `h1i2j3k4l5m6` backfilled old rows).
 - Webhook confirms only `payment.captured` (and checks the captured amount equals the order amount; a mismatch flags the payment `amount_mismatch` and does not confirm). `payment.failed` is logged and acknowledged. Missed webhooks are recovered by reconciliation, which also runs from `POST /internal/sweep`.
