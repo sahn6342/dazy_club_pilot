@@ -351,7 +351,7 @@ Checklist when something breaks in prod:
 - `DAZY_WEB_BASE_URL` must be the public web URL (used in email links).
 - Rebuild a frontend after changing `VITE_API_BASE_URL`; it is baked in at build time.
 - Check logs: Render service logs (API), Neon query logs (DB), Cloudflare dashboard (frontends).
-- Uploaded gallery images are written to `DAZY_MEDIA_DIR` on local disk. The free plan has no persistent disk, so they are lost on redeploy and spin-down. Upgrade to a paid plan with a disk (commented block in `render.yaml`) or move media to object storage.
+- Gallery uploads go through a storage adapter (`media_store.py`). Production uses **Cloudflare R2** (`DAZY_MEDIA_BACKEND=r2`; the API stores the public R2 URL, so nothing is lost on redeploy and no disk is needed). The `local` backend writes to `DAZY_MEDIA_DIR` and is lost on redeploy without a persistent disk; production refuses to boot on it unless `DAZY_MEDIA_LOCAL_OK=1`. If `R2_PUBLIC_BASE_URL` ever changes, rewrite the prefix in `gallery.imageUrl` with one SQL UPDATE.
 - Render free-tier services sleep after idle, so the first request is slow and a Razorpay webhook may arrive while the API is waking (Razorpay retries). Expiry of pending bookings only runs when slots are read.
 - `DAZY_PAYMENT_PROVIDER=razorpay` with missing `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET` makes the API fail at startup. `DAZY_WEB_BASE_URL` unset makes email links point to `http://localhost:5173`.
 
@@ -395,7 +395,11 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | `ADMIN_PASSWORD_HASH` | — | Optional bcrypt hash; when set it replaces `ADMIN_PASSWORD`. Prefer this in prod | yes |
 | `DAZY_DB_URL` | `sqlite:///<DAZY_DB_PATH>` | SQLAlchemy URL. Neon Postgres URL in prod | yes |
 | `DAZY_DB_PATH` | `apps/api/dazy.db` locally, `/data/dazy.db` in Docker | SQLite file path (ignored if `DAZY_DB_URL` set) | no |
-| `DAZY_MEDIA_DIR` | `apps/api/media` locally, `/data/media` in Docker | Where uploaded images are stored and served at `/media` | no |
+| `DAZY_MEDIA_BACKEND` | `local` | `local` or `r2`. **`r2` is required in production** (see `DAZY_MEDIA_LOCAL_OK`) | no |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | — | Cloudflare R2 credentials and bucket for gallery uploads (S3 API via boto3). Token needs Object Read & Write | secret: yes |
+| `R2_PUBLIC_BASE_URL` | — | Public hostname of the bucket (custom domain or `r2.dev` URL, no trailing slash); upload URLs are built from it | no |
+| `DAZY_MEDIA_LOCAL_OK` | — | Production only: set to `1` to allow the `local` backend because a persistent disk is mounted | no |
+| `DAZY_MEDIA_DIR` | `apps/api/media` locally, `/data/media` in Docker | Local backend only: where uploads are stored and served at `/media` | no |
 | `DAZY_CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174,http://localhost:5175` | Comma-separated allowed browser origins | no |
 | `DAZY_WEB_BASE_URL` | `http://localhost:5173` | Public web URL used in notification links | no |
 | `DAZY_PAYMENT_PROVIDER` | `noop` | `noop` (dev, trusts client) or `razorpay` | no |
@@ -477,7 +481,7 @@ Behaviour:
 
 Ops and quality:
 
-- Media on local disk (see 9.1).
+- Media: R2 adapter is built and tested against a fake S3 client only; it has not been run against a real bucket yet.
 - Tests run on SQLite only, never Postgres; café tables are not reset between tests; Playwright not in CI; no frontend unit tests.
 - Last recorded Playwright failure: `web-pricing … promo … shows inline error on submit`.
 - Doc drift: README says React 18 (code: 19); `e2e/E2E-BIBLE.md` predates the kiosk project; `docs/Launch-Plan.md` rejects Render while production uses it.

@@ -98,12 +98,16 @@ def test_manager_still_has_admin_access(client, auth_headers):
 _GOOD = {
     "DAZY_ENV": "production", "JWT_SECRET": "x" * 40, "ADMIN_USERNAME": "owner", "ADMIN_PASSWORD": "S3cure-pass!",
     "DAZY_PAYMENT_PROVIDER": "razorpay", "RAZORPAY_WEBHOOK_SECRET": "whsec", "TURNSTILE_SECRET": "ts-secret",
+    "DAZY_MEDIA_BACKEND": "r2", "R2_ACCOUNT_ID": "acct", "R2_ACCESS_KEY_ID": "k", "R2_SECRET_ACCESS_KEY": "s",
+    "R2_BUCKET": "b", "R2_PUBLIC_BASE_URL": "https://media.example.com",
 }
 
 
 def _set_env(monkeypatch, env):
     for k in ("DAZY_ENV", "RENDER", "JWT_SECRET", "ADMIN_USERNAME", "ADMIN_PASSWORD",
-              "DAZY_PAYMENT_PROVIDER", "RAZORPAY_WEBHOOK_SECRET", "TURNSTILE_SECRET", "ADMIN_PASSWORD_HASH", "DAZY_RATE_LIMIT_SCALE"):
+              "DAZY_PAYMENT_PROVIDER", "RAZORPAY_WEBHOOK_SECRET", "TURNSTILE_SECRET", "ADMIN_PASSWORD_HASH", "DAZY_RATE_LIMIT_SCALE",
+              "DAZY_MEDIA_BACKEND", "DAZY_MEDIA_LOCAL_OK", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+              "R2_BUCKET", "R2_PUBLIC_BASE_URL"):
         monkeypatch.delenv(k, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -124,6 +128,8 @@ def test_prod_guard_passes_with_good_config(monkeypatch):
     {"RAZORPAY_WEBHOOK_SECRET": ""},
     {"TURNSTILE_SECRET": ""},
     {"DAZY_RATE_LIMIT_SCALE": "100"},
+    {"R2_BUCKET": ""},
+    {"DAZY_MEDIA_BACKEND": "local"},
 ])
 def test_prod_guard_refuses_unsafe_config(monkeypatch, bad):
     _set_env(monkeypatch, {**_GOOD, **bad})

@@ -37,6 +37,14 @@ def config_problems() -> list[str]:
         problems.append("DAZY_PAYMENT_PROVIDER must be 'razorpay' (noop trusts the client and confirms unpaid bookings).")
     elif not os.environ.get("RAZORPAY_WEBHOOK_SECRET"):
         problems.append("RAZORPAY_WEBHOOK_SECRET must be set (webhooks are the source of truth for payments).")
+    if os.environ.get("DAZY_MEDIA_BACKEND", "local").strip().lower() == "r2":
+        missing = [k for k in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "R2_PUBLIC_BASE_URL")
+                   if not os.environ.get(k)]
+        if missing:
+            problems.append(f"DAZY_MEDIA_BACKEND=r2 needs {', '.join(missing)}.")
+    elif not os.environ.get("DAZY_MEDIA_LOCAL_OK"):
+        problems.append("Uploads would be written to local disk and lost on redeploy: set DAZY_MEDIA_BACKEND=r2 "
+                        "(or DAZY_MEDIA_LOCAL_OK=1 if a persistent disk is mounted at DAZY_MEDIA_DIR).")
     if os.environ.get("DAZY_RATE_LIMIT_SCALE", "1") != "1":
         problems.append("DAZY_RATE_LIMIT_SCALE must be unset/1 in production (it loosens every rate limit).")
     if not os.environ.get("TURNSTILE_SECRET"):

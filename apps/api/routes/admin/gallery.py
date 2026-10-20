@@ -1,13 +1,11 @@
+import logging
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from models import GalleryItemAdmin, GalleryItemAdminUpdate, GalleryItemCreate
 from auth import get_current_admin
 from deps import gallery_repo
-from media_store import (
-    MEDIA_GALLERY_DIR, ALLOWED_IMAGE_EXTS, MAX_UPLOAD_BYTES,
-    ensure_media_dirs, local_path_for, validate_magic_bytes,
-)
+from media_store import ALLOWED_IMAGE_EXTS, MAX_UPLOAD_BYTES, get_storage, validate_magic_bytes
 
 router = APIRouter()
 
@@ -19,7 +17,7 @@ def list_gallery(_: str = Depends(get_current_admin)):
 
 @router.post("/admin/gallery/upload")
 async def upload_image(file: UploadFile = File(...), _: str = Depends(get_current_admin)):
-    """Store an uploaded image on disk; return its relative /media URL."""
+    """Store an uploaded image (local disk or R2, per DAZY_MEDIA_BACKEND); return its public URL."""
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_IMAGE_EXTS:
         raise HTTPException(status_code=400, detail="Unsupported file type. Use jpg, png, webp, or gif.")
@@ -29,11 +27,13 @@ async def upload_image(file: UploadFile = File(...), _: str = Depends(get_curren
         raise HTTPException(status_code=413, detail="File too large. Maximum 10 MB.")
     if not validate_magic_bytes(content, ext):
         raise HTTPException(status_code=400, detail="File content does not match the declared image type.")
-    ensure_media_dirs()
     name = f"{uuid.uuid4()}{ext}"
-    with open(os.path.join(MEDIA_GALLERY_DIR, name), "wb") as out:
-        out.write(content)
-    return {"imageUrl": f"/media/gallery/{name}"}
+    try:
+        url = get_storage().save(name, content, ext)
+    except Exception:
+        logging.getLogger(__name__).exception("Media upload failed")
+        raise HTTPException(status_code=502, detail="Could not store the image. Please try again.")
+    return {"imageUrl": url}
 
 
 @router.post("/admin/gallery", status_code=201)
@@ -60,11 +60,10 @@ def delete_gallery_item(item_id: str, _: str = Depends(get_current_admin)):
     existing = gallery_repo.get_by_id(item_id)
     if not gallery_repo.delete(item_id):
         raise HTTPException(status_code=404, detail="Gallery item not found.")
-    # Best-effort cleanup of a locally-stored upload (ignore external URLs).
+    # Best-effort cleanup of the stored file (external URLs are ignored by the backend).
     if existing is not None:
-        path = local_path_for(existing.imageUrl)
-        if path and os.path.exists(path):
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+        get_storage().delete(existing.imageUrl)
+        if existing.imageUrl and existing.imageUrl.startswith("/media/"):
+            # Rows uploaded before a switch to R2 still point at local disk: clean those too.
+            from media_store import LocalStorage
+            LocalStorage().delete(existing.imageUrl)

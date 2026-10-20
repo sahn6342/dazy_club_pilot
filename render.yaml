@@ -19,10 +19,11 @@ projects:
       repo: https://github.com/sahn6342/dazy_club_pilot
       branch: main
       plan: free
-      # --- Upgrade path for persistent gallery uploads (free plan has NO disk, so files
-      # under DAZY_MEDIA_DIR are lost on every redeploy / spin-down). Uncomment both lines
-      # and the disk block, set DAZY_MEDIA_DIR=/data/media. Image runs as non-root user
-      # `app`; verify the mounted disk is writable after deploy.
+      # --- Gallery uploads: production uses Cloudflare R2 (DAZY_MEDIA_BACKEND=r2), so no disk is
+      # needed and the free-plan filesystem being wiped on redeploy does not matter. A persistent
+      # disk is the alternative: uncomment both lines and the disk block, set
+      # DAZY_MEDIA_DIR=/data/media and DAZY_MEDIA_LOCAL_OK=1. Image runs as non-root user `app`;
+      # verify the mounted disk is writable after deploy.
       # plan: starter
       # disk:
       #   name: dazy-data
@@ -57,7 +58,19 @@ projects:
       # --- Database / storage ---
       - key: DAZY_DB_URL           # Neon pooled Postgres URL, ends with ?sslmode=require
         sync: false
-      - key: DAZY_MEDIA_DIR        # uploaded gallery images; needs a disk to persist
+      - key: DAZY_MEDIA_BACKEND    # r2 (required in production) | local
+        value: r2
+      - key: R2_ACCOUNT_ID         # Cloudflare account id (R2 > Overview)
+        sync: false
+      - key: R2_ACCESS_KEY_ID      # R2 API token, Object Read & Write
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_PUBLIC_BASE_URL    # public bucket hostname, e.g. https://media.dazyclub.com (no trailing slash)
+        sync: false
+      - key: DAZY_MEDIA_DIR        # only used by the local backend (needs a disk to persist)
         sync: false
       # --- CORS / links ---
       - key: DAZY_CORS_ORIGINS     # comma-separated exact origins: web, admin, kiosk (no trailing slash)
