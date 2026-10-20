@@ -7,7 +7,7 @@ Two layers:
     so nothing slips through when a new route is added.
 
 Recording must never break the action being audited, and details must never hold secrets:
-callers pass small dicts of facts (ids, statuses, amounts), never request bodies."""
+callers pass small dicts of facts (ids, statuses, amounts), never request bodies new."""
 import json
 import logging
 import re
