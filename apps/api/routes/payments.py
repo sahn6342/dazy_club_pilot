@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 import logging
 
+from audit import audit
 from deps import booking_payment_repo, payment_provider
 from repositories.booking_payment_repo import AMOUNT_MISMATCH
 from services.payment_confirmation import confirm_verified_payment
@@ -40,6 +41,8 @@ async def razorpay_webhook(request: Request):
         logger.error("AMOUNT MISMATCH on order %s (ref %s): expected %.2f, captured %.2f",
                      provider_order_id, payment.bookingRef, payment.amount, verification.amount)
         booking_payment_repo.set_status(provider_order_id, AMOUNT_MISMATCH)
+        audit("payment.amount_mismatch", "system", entity_type="booking_payment", entity_id=payment.bookingRef,
+              detail={"bookingRef": payment.bookingRef, "expected": payment.amount, "captured": verification.amount})
         return {"status": "amount_mismatch"}
 
     # Idempotent and race-safe: late payments are refunded/flagged, never resurrect a booking.

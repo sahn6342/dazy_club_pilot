@@ -275,8 +275,29 @@ def get_current_cashier(
     return {"sub": payload["sub"], "role": role}
 
 
-def end_session(request: Request, response: Response, creds: Optional[HTTPAuthorizationCredentials], cookie: str) -> None:
-    """Logout: revoke the presented token (if any) and clear the cookie. Never raises."""
+def _peek(token: Optional[str]) -> Optional[dict]:
+    """Claims of a token WITHOUT trusting it for access (expired is fine). For audit/logout only."""
+    if not token:
+        return None
+    try:
+        return jwt.decode(token, _SECRET, algorithms=[_ALGORITHM], options={"verify_exp": False})
+    except jwt.InvalidTokenError:
+        return None
+
+
+def peek_actor(request: Request, cookie: str = ADMIN_COOKIE) -> dict:
+    """Who is making this request, for the audit log. Call only after the route has authenticated it."""
+    header = request.headers.get("authorization", "")
+    token = header[7:] if header.lower().startswith("bearer ") else request.cookies.get(cookie)
+    claims = _peek(token) or {}
+    return {"sub": claims.get("sub") or "unknown", "role": claims.get("role")}
+
+
+def end_session(request: Request, response: Response, creds: Optional[HTTPAuthorizationCredentials], cookie: str) -> Optional[dict]:
+    """Logout: revoke the presented token (if any) and clear the cookie. Never raises.
+    Returns the {"sub", "role"} that was logged out, if the token could be read."""
     token = creds.credentials if creds is not None and creds.credentials else request.cookies.get(cookie)
+    claims = _peek(token)
     revoke_token(token)
     clear_session_cookie(response, cookie)
+    return {"sub": claims.get("sub"), "role": claims.get("role")} if claims and claims.get("sub") else None

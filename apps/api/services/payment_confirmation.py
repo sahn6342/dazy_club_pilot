@@ -8,6 +8,7 @@ the booking — its slot may already belong to someone else — so it is refunde
 import logging
 from dataclasses import dataclass
 
+from audit import audit
 from deps import booking_repo, booking_payment_repo, payment_provider
 from repositories.booking_payment_repo import VERIFIED, REFUNDED, PAID_ORPHAN
 from services.notification_service import notify_booking_confirmed, notify_booking_refunded
@@ -55,6 +56,8 @@ def confirm_verified_payment(
     booking_payment_repo.mark_late_payment(
         provider_order_id, provider_payment_id, signature, REFUNDED if refunded else PAID_ORPHAN
     )
+    audit("payment.late_refunded" if refunded else "payment.orphan", "system", entity_type="booking_payment",
+          entity_id=booking_ref, detail={"bookingRef": booking_ref, "providerPaymentId": provider_payment_id, "amount": amount})
     if refunded:
         notify_booking_refunded(booking_ref)
         return ConfirmationResult(LATE_REFUNDED)

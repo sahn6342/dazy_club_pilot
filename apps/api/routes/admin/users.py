@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, Request, status, Depends
+from audit import audit
 from models import UserCreate, UserUpdate, UserPublic, UserRecord, validate_password_for_role
 from auth import require_superadmin, hash_password
 from deps import user_repo
@@ -19,7 +20,7 @@ def list_users(_admin=Depends(require_superadmin)):
 
 
 @router.post("/admin/users", response_model=UserPublic, status_code=201)
-def create_user(body: UserCreate, admin=Depends(require_superadmin)):
+def create_user(body: UserCreate, req: Request, admin=Depends(require_superadmin)):
     if user_repo.get_by_username(body.username):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists.")
     record = UserRecord(
@@ -31,11 +32,13 @@ def create_user(body: UserCreate, admin=Depends(require_superadmin)):
         createdBy=admin["sub"],
     )
     user_repo.create(record)
+    audit("user.create", admin, request=req, entity_type="user", entity_id=record.id,
+          detail={"username": record.username, "role": record.role})
     return _public(record)
 
 
 @router.patch("/admin/users/{user_id}", response_model=UserPublic)
-def update_user(user_id: str, body: UserUpdate, _admin=Depends(require_superadmin)):
+def update_user(user_id: str, body: UserUpdate, req: Request, admin=Depends(require_superadmin)):
     user = user_repo.get_by_id(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
@@ -52,10 +55,16 @@ def update_user(user_id: str, body: UserUpdate, _admin=Depends(require_superadmi
     if updates:
         updates["token_version"] = user.token_version + 1  # kills every existing session of this user
         user_repo.update(user_id, updates)
+        audit("user.update", admin, request=req, entity_type="user", entity_id=user_id, detail={
+            "username": user.username, "passwordChanged": body.password is not None,  # never the password itself
+            "role": {"from": user.role, "to": body.role} if body.role is not None and body.role != user.role else None})
     return _public(user_repo.get_by_id(user_id))
 
 
 @router.delete("/admin/users/{user_id}", status_code=204)
-def delete_user(user_id: str, _admin=Depends(require_superadmin)):
+def delete_user(user_id: str, req: Request, admin=Depends(require_superadmin)):
+    user = user_repo.get_by_id(user_id)
     if not user_repo.delete(user_id):
         raise HTTPException(status_code=404, detail="User not found.")
+    audit("user.delete", admin, request=req, entity_type="user", entity_id=user_id,
+          detail={"username": user.username, "role": user.role} if user else None)

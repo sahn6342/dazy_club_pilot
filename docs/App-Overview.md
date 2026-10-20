@@ -237,7 +237,7 @@ Dates/times are stored as strings (ISO UTC timestamps, `YYYY-MM-DD`, `HH:MM`). 1
 | Booking | `customers`, `bookings`, `booking_payments`, `promo_codes`, `notification_messages` |
 | Content and leads | `gallery`, `testimonials`, `cms`, `enquiries` |
 | Café | `cafe_settings`, `menu_categories`, `menu_items`, `cafe_tables`, `orders`, `order_items`, `kots`, `payments`, `invoices`, `invoice_lines`, `invoice_sequences` |
-| Access and ops | `users`, `audit_log` (unused scaffolding) |
+| Access and ops | `users` (with `token_version`), `revoked_tokens`, `rate_limit_events`, `otp_codes`, `audit_log` |
 
 `bookings` highlights: one row per slot; the primary row (`is_primary`) carries price, promo, message, email and GST rate; `status` (pending, confirmed, completed, cancelled, no_show); `paymentStatus` (unpaid, paid, refunded); `court_id` and `customer_id` are soft foreign keys. `booking_payments.status`: created, verified, expired, refunded.
 
@@ -266,7 +266,7 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 
 **Admin** (admin or manager JWT): `POST /admin/login`; `/admin/bookings` (list, export, PATCH status, DELETE, `/{id}/refund`); `/admin/courts`; `/admin/schedule/rules` and `/exceptions`; `/admin/promos`; `/admin/cms`; `/admin/gallery` (+ `/upload`); `/admin/testimonials`; `/admin/enquiries`; `/admin/customers`; `/admin/notifications`; `/admin/reports/dashboard` and `/day-close`; `/admin/cafe/settings`, `/categories`, `/items`, `/tables`.
 
-**Superadmin only**: `/admin/users` (list, create, update, delete).
+**Superadmin only**: `/admin/users` (list, create, update, delete). `GET /admin/audit` (audit log: filters `action` substring, `actor`, `entityType`, `entityId`, `dateFrom`/`dateTo`, `limit`/`offset`; newest first).
 
 **Kiosk / cashier** (cashier, kitchen, manager or admin JWT): `POST /cafe/login`; `/cafe/menu`; `/cafe/tables`; `/cafe/orders` (create, list, get, patch, add item, void item, `/kot`, `/payments`, `/invoice`); `/cafe/kots` and `/kots/{id}/status`; `/cafe/invoices` (list, get, `/print`).
 
@@ -285,6 +285,8 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 | Café pre-order | 10 / 10 min per IP |
 | `POST /otp/request` | 5 / 10 min per IP and per contact |
 | `POST /otp/verify` | 10 / 10 min per IP and per contact; 5 wrong guesses kill a code |
+
+**Audit trail**: every state-changing admin action is recorded in `audit_log` (who, role, action, entity, IP, time). Explicit events carry details: `auth.login` / `auth.login_failed` / `auth.logout`, `kiosk.login` / `kiosk.login_failed` / `kiosk.lockout` / `kiosk.logout`, `booking.status_change` (from, to), `booking.refund` (amount) / `booking.refund_failed`, `booking.delete`, `user.create` / `user.update` (password changed? role from/to) / `user.delete`, and system events `payment.late_refunded`, `payment.orphan`, `payment.amount_mismatch`, `payment.reconciled`. Every other successful admin write (promos, courts, schedule, CMS and GST rate, gallery, café setup...) is caught by a middleware fallback and recorded as `METHOD /admin/path/{id}` with the entity id or key. Details hold ids, statuses and amounts only: never passwords, PINs, tokens or OTP codes. Recording never fails the request. Read it at `GET /admin/audit` or in the admin **Audit log** page (superadmin only).
 
 **Security headers**: the API adds `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` to every response and `Cache-Control: no-store` to admin, kiosk, OTP and booking-lookup responses. Each SPA ships `apps/<app>/public/_headers` (Cloudflare reads it from the build output; `Caddyfile` mirrors it for self-host) with HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and a **report-only** `Content-Security-Policy` allowing only Turnstile, Razorpay Checkout and the API origin. The CSP hard-codes `https://api.dazyclub.com` as the API origin (edit the files if yours differs). Watch the browser console after deploying, then rename the header to `Content-Security-Policy` to enforce.
 
@@ -484,7 +486,7 @@ Behaviour:
 - Pending-booking expiry also runs from `POST /internal/sweep`, but only if you actually schedule that cron. Without it, expiry still only happens when slots are read (payment rows now flip `created` → `expired`; migration `h1i2j3k4l5m6` backfilled old rows).
 - Webhook confirms only `payment.captured` (and checks the captured amount equals the order amount; a mismatch flags the payment `amount_mismatch` and does not confirm). `payment.failed` is logged and acknowledged. Missed webhooks are recovered by reconciliation, which also runs from `POST /internal/sweep`.
 - `GET /testimonials` and `GET /notifications` serve static seed data, not admin-edited DB content.
-- SMS and WhatsApp are stubs; `audit_log` table is unused.
+- SMS and WhatsApp are stubs. The audit log has no retention policy or export yet (rows are kept forever) and covers admin and kiosk-login actions, not every kiosk POS write (orders and payments are recorded in their own tables).
 - Café is intra-state GST only (no IGST).
 
 Ops and quality:

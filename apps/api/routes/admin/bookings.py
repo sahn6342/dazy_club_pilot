@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from audit import audit
 from models import BookingRecord, BookingStatusUpdate, BookingRefundRequest
 from auth import get_current_admin
 from deps import booking_repo, booking_payment_repo, payment_provider
@@ -77,12 +78,15 @@ def export_bookings(
 def update_booking(
     booking_id: str,
     body: BookingStatusUpdate,
-    _: str = Depends(get_current_admin),
+    req: Request,
+    admin: dict = Depends(get_current_admin),
 ):
     booking = booking_repo.get_by_id(booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
     assert_valid_transition(booking.status, body.status)
+    audit("booking.status_change", admin, request=req, entity_type="booking", entity_id=booking.id,
+          detail={"bookingRef": booking.bookingRef, "from": booking.status, "to": body.status})
     if body.status == "cancelled":
         booking_repo.cancel_by_ref(booking.bookingRef)
         notify_booking_cancelled(booking.bookingRef)
@@ -94,13 +98,17 @@ def update_booking(
 
 
 @router.delete("/admin/bookings/{booking_id}", status_code=204)
-def delete_booking(booking_id: str, _: str = Depends(get_current_admin)):
+def delete_booking(booking_id: str, req: Request, admin: dict = Depends(get_current_admin)):
+    booking = booking_repo.get_by_id(booking_id)
     if not booking_repo.delete(booking_id):
         raise HTTPException(status_code=404, detail="Booking not found.")
+    audit("booking.delete", admin, request=req, entity_type="booking", entity_id=booking_id,
+          detail={"bookingRef": booking.bookingRef, "status": booking.status,
+                  "paymentStatus": booking.paymentStatus, "price": booking.price} if booking else None)
 
 
 @router.post("/admin/bookings/{booking_id}/refund")
-def refund_booking(booking_id: str, body: BookingRefundRequest, _: str = Depends(get_current_admin)):
+def refund_booking(booking_id: str, body: BookingRefundRequest, req: Request, admin: dict = Depends(get_current_admin)):
     booking = booking_repo.get_by_id(booking_id)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
@@ -112,7 +120,11 @@ def refund_booking(booking_id: str, body: BookingRefundRequest, _: str = Depends
         raise HTTPException(status_code=409, detail="No verified payment found for this booking.")
 
     if not payment_provider.refund(payment.providerPaymentId, payment.amount):
+        audit("booking.refund_failed", admin, request=req, entity_type="booking", entity_id=booking_id,
+              detail={"bookingRef": booking.bookingRef, "amount": payment.amount})
         raise HTTPException(status_code=502, detail="Refund failed at the payment provider.")
+    audit("booking.refund", admin, request=req, entity_type="booking", entity_id=booking_id,
+          detail={"bookingRef": booking.bookingRef, "amount": payment.amount, "providerPaymentId": payment.providerPaymentId})
 
     booking_repo.refund_by_ref(booking.bookingRef)
     booking_payment_repo.mark_refunded(booking.bookingRef)

@@ -4,6 +4,7 @@ captured payment through the same confirmation path the webhook uses."""
 import logging
 from datetime import datetime, timedelta, timezone
 
+from audit import audit
 from deps import booking_payment_repo, payment_provider
 from repositories.booking_payment_repo import AMOUNT_MISMATCH
 from services.payment_confirmation import confirm_verified_payment
@@ -29,8 +30,12 @@ def reconcile_unsettled_payments() -> int:
                 logger.error("AMOUNT MISMATCH reconciling order %s: expected %.2f, captured %.2f",
                              p.providerOrderId, p.amount, captured.amount)
                 booking_payment_repo.set_status(p.providerOrderId, AMOUNT_MISMATCH)
+                audit("payment.amount_mismatch", "system", entity_type="booking_payment", entity_id=p.bookingRef,
+                      detail={"bookingRef": p.bookingRef, "expected": p.amount, "captured": captured.amount, "source": "reconciliation"})
                 continue
-            confirm_verified_payment(p.bookingRef, p.providerOrderId, captured.providerPaymentId, None)
+            result = confirm_verified_payment(p.bookingRef, p.providerOrderId, captured.providerPaymentId, None)
+            audit("payment.reconciled", "system", entity_type="booking_payment", entity_id=p.bookingRef,
+                  detail={"bookingRef": p.bookingRef, "outcome": result.outcome})
             settled += 1
         except Exception:
             logger.exception("Reconciliation failed for order %s", p.providerOrderId)

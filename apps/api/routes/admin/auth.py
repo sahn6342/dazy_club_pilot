@@ -4,6 +4,7 @@ from auth import (
     ADMIN_COOKIE, _bearer, admin_session_epoch, clear_session_cookie, create_access_token, end_session,
     get_current_admin, set_session_cookie, verify_env_admin, verify_password,
 )
+from audit import audit
 from deps import user_repo
 from rate_limit import admin_login_limiter, client_ip
 
@@ -23,6 +24,7 @@ def login(request: AdminLoginRequest, req: Request, response: Response):
     if verify_env_admin(request.username, request.password):
         token = create_access_token(request.username, role="admin", ver=admin_session_epoch())
         set_session_cookie(response, ADMIN_COOKIE, token)
+        audit("auth.login", {"sub": request.username, "role": "admin"}, request=req, entity_type="user")
         return AdminToken(access_token=token)
 
     # Check manager repo
@@ -30,15 +32,19 @@ def login(request: AdminLoginRequest, req: Request, response: Response):
     if user and user.role == "manager" and verify_password(request.password, user.hashed_password):
         token = create_access_token(request.username, role=user.role, ver=user.token_version)
         set_session_cookie(response, ADMIN_COOKIE, token)
+        audit("auth.login", {"sub": user.username, "role": user.role}, request=req, entity_type="user", entity_id=user.id)
         return AdminToken(access_token=token)
 
+    audit("auth.login_failed", request.username, request=req, entity_type="user")  # never the password
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
 
 
 @router.post("/admin/logout", status_code=204)
 def logout(req: Request, response: Response, credentials=Depends(_bearer)):
     """Revoke this session and clear the cookie. Idempotent; works with an expired or missing session."""
-    end_session(req, response, credentials, ADMIN_COOKIE)
+    who = end_session(req, response, credentials, ADMIN_COOKIE)
+    if who:
+        audit("auth.logout", who, request=req, entity_type="user")
     response.status_code = 204
 
 

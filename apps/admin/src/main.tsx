@@ -14,6 +14,7 @@ import { Gallery } from "./pages/Gallery";
 import { Testimonials } from "./pages/Testimonials";
 import { CMS } from "./pages/CMS";
 import { Users } from "./pages/Users";
+import { Audit } from "./pages/Audit";
 import { Schedule } from "./pages/Schedule";
 import { Promos } from "./pages/Promos";
 import { ContactDetails } from "./pages/ContactDetails";
@@ -42,6 +43,7 @@ function App() {
         <Route path="/courts" element={<AuthGuard><Courts /></AuthGuard>} />
         <Route path="/contact-details" element={<AuthGuard><ContactDetails /></AuthGuard>} />
         <Route path="/users" element={<AuthGuard><Users /></AuthGuard>} />
+        <Route path="/audit" element={<AuthGuard><Audit /></AuthGuard>} />
         <Route path="/cafe/categories" element={<AuthGuard><CafeCategories /></AuthGuard>} />
         <Route path="/cafe/items" element={<AuthGuard><CafeItems /></AuthGuard>} />
         <Route path="/cafe/tables" element={<AuthGuard><CafeTables /></AuthGuard>} />

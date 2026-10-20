@@ -13,6 +13,7 @@ const NAV = [
   { to: "/courts", label: "Courts", icon: "🏟" },
   { to: "/contact-details", label: "Contact Details", icon: "📍" },
   { to: "/users", label: "Manage Users", icon: "👥" },
+  { to: "/audit", label: "Audit log", icon: "🧾" },
 ];
 
 const CAFE_NAV = [

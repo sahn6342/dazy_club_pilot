@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, delete as sa_delete, func
 
 from models import AuditLogDto
 from db import _session
@@ -44,6 +44,33 @@ class SqliteAuditRepository:
                 stmt = stmt.where(AuditLogRow.actor == actor)
             stmt = stmt.offset(offset).limit(min(limit, 1000))
             return [_to_model(r) for r in s.scalars(stmt).all()]
+
+    def query(
+        self, action: str | None = None, actor: str | None = None, entity_type: str | None = None,
+        entity_id: str | None = None, date_from: str | None = None, date_to: str | None = None,
+        limit: int = 50, offset: int = 0,
+    ) -> "tuple[list[AuditLogDto], int]":  # quoted: this class defines a method named `list`
+        """Newest first. `action` matches as a substring, the rest exactly; dates are YYYY-MM-DD (UTC, inclusive)."""
+        conds = []
+        if action:
+            conds.append(AuditLogRow.action.ilike(f"%{action}%"))
+        if actor:
+            conds.append(AuditLogRow.actor == actor)
+        if entity_type:
+            conds.append(AuditLogRow.entityType == entity_type)
+        if entity_id:
+            conds.append(AuditLogRow.entityId == entity_id)
+        if date_from:
+            conds.append(AuditLogRow.at >= date_from)
+        if date_to:
+            conds.append(AuditLogRow.at < f"{date_to}T99")  # any time on date_to sorts below this
+        with _session() as s:
+            total = s.scalar(select(func.count()).select_from(AuditLogRow).where(*conds)) or 0
+            rows = s.scalars(
+                select(AuditLogRow).where(*conds).order_by(AuditLogRow.at.desc())
+                .offset(max(offset, 0)).limit(max(1, min(limit, 200)))
+            ).all()
+            return [_to_model(r) for r in rows], total
 
     def clear(self) -> None:
         with _session() as s:

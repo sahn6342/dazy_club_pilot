@@ -25,6 +25,7 @@ from routes.bookings import router as bookings_router
 from routes.payments import router as payments_router
 from routes.internal import router as internal_router
 from routes.otp import router as otp_router
+from routes.admin.audit import router as admin_audit_router
 from routes.promos import router as promos_router
 from routes.venue import router as venue_router
 from routes.preorders import router as preorders_router
@@ -93,6 +94,27 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def audit_admin_writes(request, call_next):
+    """Fallback audit: every successful admin write that did not record an explicit event
+    (see audit.py) is logged by method + normalised path, with the acting admin."""
+    response = await call_next(request)
+    path = request.url.path
+    if (
+        request.method in ("POST", "PUT", "PATCH", "DELETE")
+        and path.startswith("/api/v1/admin/")
+        and response.status_code < 400
+        and not request.scope.get("audit_done")
+        and path not in ("/api/v1/admin/login", "/api/v1/admin/logout")
+    ):
+        from audit import audit, normalise_path
+        from auth import peek_actor
+        action_path, entity_type, entity_id = normalise_path(path)
+        audit(f"{request.method} {action_path}", peek_actor(request), request=request,
+              entity_type=entity_type, entity_id=entity_id)
+    return response
+
+
+@app.middleware("http")
 async def security_headers(request, call_next):
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -134,6 +156,7 @@ app.include_router(admin_promos_router, prefix=prefix)
 app.include_router(admin_courts_router, prefix=prefix)
 app.include_router(admin_reports_router, prefix=prefix)
 app.include_router(admin_notifications_router, prefix=prefix)
+app.include_router(admin_audit_router, prefix=prefix)
 
 # Kiosk (cashier) routes
 app.include_router(cafe_auth_router, prefix=prefix)

@@ -50,6 +50,7 @@ def _reset_repos():
     deps.promo_repo.clear()  # clear promos; seed re-adds WELCOME10 + FLAT100
     deps.booking_payment_repo.clear()
     deps.notification_repo.clear()
+    deps.audit_repo.clear()
     seed_if_empty()  # re-insert gallery/testimonials/cms + venue/courts/rules idempotently
     with _session() as _s:
         _s.execute(_delete(OtpCodeRow))  # OTP codes persist in the DB between tests otherwise

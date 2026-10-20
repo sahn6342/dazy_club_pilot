@@ -24,6 +24,7 @@ from repositories.invoice_repo import SqliteInvoiceRepository
 from repositories.booking_payment_repo import SqliteBookingPaymentRepository
 from repositories.reporting_repo import SqliteReportingRepository
 from repositories.notification_repo import SqliteNotificationRepository
+from repositories.audit_repo import SqliteAuditRepository
 from integrations.payments.factory import get_payment_provider
 from integrations.notifications.factory import get_notification_provider, get_whatsapp_provider, get_sms_provider
 
@@ -48,6 +49,7 @@ invoice_repo = SqliteInvoiceRepository()
 booking_payment_repo = SqliteBookingPaymentRepository()
 reporting_repo = SqliteReportingRepository()
 notification_repo = SqliteNotificationRepository()
+audit_repo = SqliteAuditRepository()
 payment_provider = get_payment_provider()
 notification_provider = get_notification_provider()
 whatsapp_provider = get_whatsapp_provider()
