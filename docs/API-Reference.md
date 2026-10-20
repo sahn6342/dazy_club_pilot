@@ -1,6 +1,6 @@
 # Dazy Club — API Reference
 
-FastAPI backend. Base URL: **`http://localhost:8000/api/v1`**. Interactive docs available at `http://localhost:8000/docs` while the server runs.
+FastAPI backend. Base URL: **`http://localhost:8000/api/v1`**. Interactive docs available at `http://localhost:8000/docs` while the server runs new.
 
 **Auth:**
 - **Public** — no token.
