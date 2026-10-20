@@ -1,0 +1,2 @@
+Touch this file to force a rebuild of apps/admin (host build filters only watch the app folder).
+Last bump: 2026-10-20
