@@ -36,14 +36,14 @@ The booking flow: choose a sport, choose a date, see **live availability slots**
 
 ![Web book](screenshots/web-book.png)
 
-- **Sport selector** — Cricket / Badminton / Pickleball.
+- **Sport selector** — Cricket / Football / Badminton / Pickleball.
 - **Date picker** — bookable window (7 days ahead).
 - **Live slots** — fetched from `GET /slots`; availability is computed from schedule rules, exceptions (holidays/special hours), capacity, and existing bookings. Closed days / blocked dates show no slots.
 - **Multi-slot booking** — select consecutive slots; one is flagged primary.
-- **Party size & price** — party size validated against the sport's max (Cricket 11, Pickleball 6, Badminton 4); price derives from per-sport base price.
+- **Party size & price** — party size limited per slot (Cricket 25, Football 25, Badminton 4, Pickleball 4); price derives from per-sport base price.
 - **Promo codes** — validated via `GET /promos/validate` before submission.
 - **Booking submission** — `POST /bookings` returns a booking reference immediately; customer record is created/linked. A priced slot goes to `pending` and opens the **payment panel** (dev-simulate buttons or real Razorpay checkout, depending on `DAZY_PAYMENT_PROVIDER`); a free slot (e.g. a 100%-off promo) confirms immediately.
-- **Accidental-abandonment guard** — while payment is pending or the booking just confirmed, the sport tabs/date pills/other slot chips are disabled, so a stray click can't silently lose the in-progress flow.
+- **After booking** — the page is never locked. A confirmed booking becomes a compact card above the slot picker (booking ID with a Copy button, a "take a screenshot or note down this booking ID" reminder, the amount and a link to My Bookings) and stays there while the customer books more. Tapping another slot, sport or date while a payment is pending leaves the payment step (also possible with "Choose a different slot"): a banner says the slot is held for 15 minutes and can be resumed from My Bookings with the ID.
 - **Café pre-order** — once confirmed, "Add food & drinks for your visit" lets the customer attach café items to the booking (`POST /bookings/{ref}/preorder`); the order is ready for the counter when they arrive.
 
 **Mobile:**

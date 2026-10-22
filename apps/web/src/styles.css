@@ -942,6 +942,94 @@ summary:focus-visible {
   color: #f7f4ea;
 }
 
+/* Confirmed bookings stay above the slot picker as compact cards while the visitor keeps booking. */
+.confirmed-list {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  scroll-margin-top: 140px; /* clears the sticky header, taller on phones */
+}
+
+.confirmed-card {
+  padding: 1.25rem 1.5rem;
+}
+
+.confirmed-card p {
+  margin: 0.4rem 0;
+}
+
+.ref-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px dashed rgba(216, 180, 86, 0.7);
+  border-radius: 12px;
+  background: rgba(216, 180, 86, 0.08);
+}
+
+.ref-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a7a9b1;
+}
+
+.ref-value {
+  font-size: 1.5rem;
+  letter-spacing: 0.12em;
+  color: #d8b456;
+  user-select: all;
+}
+
+.ref-box .button {
+  margin-left: auto;
+}
+
+.screenshot-note {
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  background: rgba(216, 180, 86, 0.12);
+  color: #f7f4ea;
+  font-weight: 600;
+}
+
+.form-message.left-payment {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(216, 180, 86, 0.5);
+  border-radius: 12px;
+  background: rgba(216, 180, 86, 0.08);
+  color: #f7f4ea;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #d8b456;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.form-message.left-payment .link-button {
+  margin-left: auto;
+  font-size: 1.3rem;
+  text-decoration: none;
+  line-height: 1;
+}
+
 .faq details {
   padding: 1.1rem 0;
   border-bottom: 1px solid #2a2d35;

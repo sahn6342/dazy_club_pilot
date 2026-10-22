@@ -5,9 +5,9 @@ import { Turnstile } from "../components/Turnstile";
 import { ApiError, createBooking, getNext7Days, TURNSTILE_SITE_KEY, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PromoValidationResult } from "../lib/api";
 import { validateName, validateContact, validatePlayers } from "../lib/validate";
 import { PaymentPanel } from "../components/PaymentPanel";
-import { PreOrderPanel } from "../components/PreOrderPanel";
+import { ConfirmedBookingCard, type ConfirmedBooking } from "../components/ConfirmedBookingCard";
 
-type FormStatus = "idle" | "payment" | "success" | "error";
+type FormStatus = "idle" | "payment" | "error";
 
 interface BookingFields {
   name: string;
@@ -91,6 +91,13 @@ export function Book() {
   const [bookedEndTime, setBookedEndTime] = useState("");
   const [bookedSlotCount, setBookedSlotCount] = useState(1);
   const [pendingCheckout, setPendingCheckout] = useState<CheckoutConfig | null>(null);
+
+  // Confirmed bookings of this visit stay on the page as compact cards (newest first) while the visitor keeps booking.
+  const [confirmed, setConfirmed] = useState<ConfirmedBooking[]>([]);
+  const confirmedTop = useRef<HTMLDivElement>(null);
+  const pendingInfo = useRef<ConfirmedBooking | null>(null); // the booking being paid for, turned into a card on success
+  // A payment the visitor walked away from: its slot stays held for 15 minutes and can be resumed from My Bookings.
+  const [leftPayment, setLeftPayment] = useState<string | null>(null);
 
   const [fields, setFields] = useState<BookingFields>({ name: "", contact: "", email: "", players: "1", message: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -184,10 +191,12 @@ export function Book() {
 
   function handleSlotClick(slot: Slot) {
     if (!slot.available) return;
-    // A pending payment or a just-confirmed booking must not be silently
-    // abandoned by an accidental tap on another slot — only "Book another
-    // slot" (which explicitly resets everything) should exit these states.
-    if (bookingStatus === "payment" || bookingStatus === "success") return;
+    // Tapping another slot while a payment is pending leaves that payment step (it can be resumed from My Bookings).
+    if (bookingStatus === "payment") {
+      leavePayment();
+      setSelectedSlots([slot]);
+      return;
+    }
 
     setBookingStatus("idle");
 
@@ -222,6 +231,49 @@ export function Book() {
     setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
     setTouched({ name: false, contact: false, players: false });
   }
+
+  /** Back to a clean booking form (keeps the confirmed cards). */
+  function resetBookingForm() {
+    setSelectedSlots([]);
+    setBookingStatus("idle");
+    setBookingRef("");
+    setFields({ name: "", contact: "", email: "", players: "1", message: "" });
+    setErrors({});
+    setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
+    setBookedPrice(null); setBookedPromo(null);
+    setBookedGstRate(null); setBookedGstAmount(null);
+    setBookedStartTime(""); setBookedEndTime(""); setBookedSlotCount(1);
+    setPendingCheckout(null);
+    setTouched({ name: false, contact: false, players: false });
+  }
+
+  /** A confirmed booking becomes a card above the picker, and the form is free for the next booking. */
+  function finishBooking() {
+    const info = pendingInfo.current;
+    pendingInfo.current = null;
+    if (info) setConfirmed((list) => [info, ...list]);
+    setLeftPayment(null);
+    resetBookingForm();
+    loadSlots();
+    window.setTimeout(() => confirmedTop.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  }
+
+  /** Walk away from a pending payment without losing the booking: say where to resume it. */
+  function leavePayment() {
+    if (bookingStatus !== "payment") return;
+    setLeftPayment(bookingRef);
+    pendingInfo.current = null;
+    setSelectedSlots([]);
+    setBookingStatus("idle");
+    setBookingRef("");
+    setPendingCheckout(null);
+    setBookedPrice(null); setBookedPromo(null);
+    setBookedGstRate(null); setBookedGstAmount(null);
+    setBookedStartTime(""); setBookedEndTime(""); setBookedSlotCount(1);
+  }
+
+  function chooseSport(slug: string) { leavePayment(); setBookSport(slug); }
+  function chooseDate(iso: string) { leavePayment(); setBookDate(iso); }
 
   async function submitBooking(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -263,12 +315,25 @@ export function Book() {
       setBookedStartTime(result.startTime ?? firstSlot.startTime);
       setBookedEndTime(result.endTime ?? lastSlot!.endTime);
       setBookedSlotCount(result.slotCount ?? selectedSlots.length);
+      setLeftPayment(null);
+      pendingInfo.current = {
+        ref: result.bookingRef,
+        sportLabel: SPORT_LABELS[firstSlot.sportSlug] ?? firstSlot.sportSlug,
+        dateLabel: days.find((d) => d.iso === firstSlot.date)?.label ?? firstSlot.date,
+        start: result.startTime ?? firstSlot.startTime,
+        end: result.endTime ?? lastSlot!.endTime,
+        slotCount: result.slotCount ?? selectedSlots.length,
+        price: result.price ?? null,
+        promo: result.promoCode ?? null,
+        gstRate: result.gstRatePercent ?? null,
+        gstAmount: result.gstAmount ?? null,
+        contact: fields.contact.trim(),
+      };
       if (result.paymentRequired && result.checkout) {
         setPendingCheckout(result.checkout);
         setBookingStatus("payment");
       } else {
-        setBookingStatus("success");
-        loadSlots();
+        finishBooking();
       }
     } catch (err: unknown) {
       const failure = describeBookingError(err);
@@ -316,14 +381,27 @@ export function Book() {
         <p>Select one or more consecutive slots and confirm your booking.</p>
       </div>
 
+      {confirmed.length > 0 && (
+        <div className="confirmed-list" ref={confirmedTop} data-testid="confirmed-list">
+          {confirmed.map((b) => <ConfirmedBookingCard key={b.ref} booking={b} />)}
+        </div>
+      )}
+
+      {leftPayment && (
+        <p className="form-message left-payment" data-testid="left-payment" role="status">
+          Payment for <strong>{leftPayment}</strong> isn't finished. Its slot is held for 15 minutes; resume it from{" "}
+          <a href="/my-bookings">My Bookings</a> with this ID, or just keep choosing.
+          <button type="button" className="link-button" aria-label="Dismiss" onClick={() => setLeftPayment(null)}>×</button>
+        </p>
+      )}
+
       <div className="sport-tabs" role="tablist">
         {Object.entries(SPORT_LABELS).map(([slug, label]) => (
           <button
             key={slug}
             role="tab"
             className={`tab-btn${bookSport === slug ? " active" : ""}`}
-            disabled={bookingStatus === "payment" || bookingStatus === "success"}
-            onClick={() => setBookSport(slug)}
+            onClick={() => chooseSport(slug)}
           >
             {label}
           </button>
@@ -335,8 +413,7 @@ export function Book() {
           <button
             key={d.iso}
             className={`date-pill${bookDate === d.iso ? " active" : ""}`}
-            disabled={bookingStatus === "payment" || bookingStatus === "success"}
-            onClick={() => setBookDate(d.iso)}
+            onClick={() => chooseDate(d.iso)}
           >
             {d.short}
           </button>
@@ -437,7 +514,7 @@ export function Book() {
         )}
       </div>
 
-      {selectedSlots.length > 0 && bookingStatus !== "success" && bookingStatus !== "payment" && (
+      {selectedSlots.length > 0 && bookingStatus !== "payment" && (
         <div className="booking-form-wrap">
           <div className="booking-summary">
             <span className="eyebrow">Selected slot{selectedSlots.length > 1 ? "s" : ""}</span>
@@ -572,51 +649,9 @@ export function Book() {
           amount={bookedPrice ?? 0}
           customerName={fields.name.trim()}
           customerContact={fields.contact.trim()}
-          onSuccess={() => { setBookingStatus("success"); loadSlots(); }}
+          onSuccess={finishBooking}
+          onChooseAnother={leavePayment}
         />
-      )}
-
-      {bookingStatus === "success" && (
-        <div className="booking-confirmed">
-          <p className="eyebrow">Booking confirmed</p>
-          <h3>You're booked in!</h3>
-          <p>
-            <strong>Ref: {bookingRef}</strong> &nbsp;—&nbsp;
-            {SPORT_LABELS[firstSlot!.sportSlug]}, {selectedDay?.label}, {bookedStartTime}–{bookedEndTime}
-            {bookedSlotCount > 1 && <span className="muted"> &nbsp;({bookedSlotCount} slots)</span>}
-          </p>
-          {bookedPrice != null && (
-            <p className="summary-total" data-testid="confirmed-amount">
-              Amount paid: ₹{bookedPrice}
-              {bookedPromo && <span className="muted"> — promo {bookedPromo}</span>}
-            </p>
-          )}
-          {bookedGstAmount != null && bookedGstRate != null && (
-            <p className="gst-note muted" style={{ fontSize: "0.85em" }}>
-              Includes GST ({bookedGstRate}%): ₹{bookedGstAmount.toFixed(2)}
-            </p>
-          )}
-          <p>We'll reach out to confirm details. Save your reference number.</p>
-          <PreOrderPanel bookingRef={bookingRef} contact={fields.contact} />
-          <button
-            className="button secondary"
-            onClick={() => {
-              setSelectedSlots([]);
-              setBookingStatus("idle");
-              setBookingRef("");
-              setFields({ name: "", contact: "", email: "", players: "1", message: "" });
-              setErrors({});
-              setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
-              setBookedPrice(null); setBookedPromo(null);
-              setBookedGstRate(null); setBookedGstAmount(null);
-              setBookedStartTime(""); setBookedEndTime(""); setBookedSlotCount(1);
-              setPendingCheckout(null);
-              setTouched({ name: false, contact: false, players: false });
-            }}
-          >
-            Book another slot
-          </button>
-        </div>
       )}
     </section>
   );

@@ -32,9 +32,11 @@ interface PaymentPanelProps {
   customerName: string;
   customerContact: string;
   onSuccess: () => void;
+  /** Leave this payment (its slot stays held for a while and can be resumed from My Bookings). */
+  onChooseAnother?: () => void;
 }
 
-export function PaymentPanel({ bookingRef, checkout, amount, customerName, customerContact, onSuccess }: PaymentPanelProps) {
+export function PaymentPanel({ bookingRef, checkout, amount, customerName, customerContact, onSuccess, onChooseAnother }: PaymentPanelProps) {
   const [status, setStatus] = useState<"idle" | "processing" | "dismissed" | "error" | "recheck">("idle");
   const [error, setError] = useState("");
   // The payment details of the last attempt, kept so a failed *check* can be repeated without paying again.
@@ -143,6 +145,14 @@ export function PaymentPanel({ bookingRef, checkout, amount, customerName, custo
         >
           {status === "processing" ? "Opening payment…" : status === "dismissed" ? "Try payment again" : "Pay now"}
         </button>
+      )}
+
+      {onChooseAnother && (
+        <p>
+          <button type="button" className="link-button" data-testid="choose-another-slot" onClick={onChooseAnother} disabled={status === "processing"}>
+            Choose a different slot
+          </button>
+        </p>
       )}
 
       {status === "dismissed" && !isDev && (

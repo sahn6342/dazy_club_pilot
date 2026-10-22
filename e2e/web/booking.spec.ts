@@ -216,7 +216,7 @@ test.describe("Book page — successful booking", () => {
     }
   });
 
-  test("book another slot button resets form", async ({ page, request }) => {
+  test("after a confirmed booking the form is free for the next one", async ({ page, request }) => {
     await mockAllSlotsAvailable(page);
     await page.goto("/book");
     await selectDate(page, 1);
@@ -244,9 +244,12 @@ test.describe("Book page — successful booking", () => {
 
       const succeeded = await page.getByText(/you're booked in/i).isVisible();
       if (succeeded) {
-        await page.getByRole("button", { name: /book another/i }).click();
+        // the confirmation stays as a card and nothing is locked: the form is empty and the grid is clickable
+        await expect(page.getByTestId("confirmed-card")).toBeVisible();
         await expect(page.locator(".booking-form-wrap")).not.toBeVisible();
         await expect(page.locator(".slot-grid")).toBeVisible();
+        await expect(page.locator(".date-pill").first()).toBeEnabled();
+        await expect(page.getByRole("button", { name: /book another/i })).toHaveCount(0);
       }
     } finally {
       if (createdBookingId) await deleteBooking(request, createdBookingId);
