@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { BRAND } from "@dazy/shared";
 import type { CheckoutConfig } from "../lib/api";
-import { verifyBookingPayment } from "../lib/api";
+import { ApiError, verifyBookingPayment } from "../lib/api";
 
 declare global {
   interface Window {
@@ -35,19 +35,35 @@ interface PaymentPanelProps {
 }
 
 export function PaymentPanel({ bookingRef, checkout, amount, customerName, customerContact, onSuccess }: PaymentPanelProps) {
-  const [status, setStatus] = useState<"idle" | "processing" | "dismissed" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "processing" | "dismissed" | "error" | "recheck">("idle");
   const [error, setError] = useState("");
+  // The payment details of the last attempt, kept so a failed *check* can be repeated without paying again.
+  const lastPayment = useRef<{ providerOrderId: string; providerPaymentId: string; signature?: string } | null>(null);
 
   async function completeVerification(providerOrderId: string, providerPaymentId: string, signature?: string) {
+    lastPayment.current = { providerOrderId, providerPaymentId, signature };
     setStatus("processing");
     setError("");
     try {
       await verifyBookingPayment(bookingRef, { providerOrderId, providerPaymentId, signature });
+      lastPayment.current = null;
       onSuccess();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.isOutage) {
+        // The money may already have been taken: we only failed to ask the server. Offer to ask again, not to pay again.
+        setStatus("recheck");
+        setError("We couldn't confirm your payment yet. If money was deducted, please don't pay again: check again in a moment. " +
+          `Your booking ref is ${bookingRef}.`);
+        return;
+      }
       setStatus("error");
-      setError(err?.message ?? "We couldn't confirm your payment. Please try again or contact us with your booking ref.");
+      setError((err as Error)?.message || "We couldn't confirm your payment. Please try again or contact us with your booking ref.");
     }
+  }
+
+  function recheckPayment() {
+    const p = lastPayment.current;
+    if (p) void completeVerification(p.providerOrderId, p.providerPaymentId, p.signature);
   }
 
   async function openRazorpay() {
@@ -90,7 +106,11 @@ export function PaymentPanel({ bookingRef, checkout, amount, customerName, custo
 
       {error && <p className="form-message error" data-testid="payment-error">{error}</p>}
 
-      {isDev ? (
+      {status === "recheck" ? (
+        <button type="button" className="button primary" data-testid="payment-recheck" onClick={recheckPayment}>
+          Check payment again
+        </button>
+      ) : isDev ? (
         <div className="payment-dev-panel" data-testid="payment-dev-panel">
           <p className="muted">Dev mode — no real payment gateway is configured.</p>
           <div className="payment-dev-actions">

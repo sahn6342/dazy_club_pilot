@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { launchSports } from "@dazy/shared";
 import { Turnstile } from "../components/Turnstile";
-import { submitContactEnquiry, submitCorporateEnquiry, todayIso, getVenueInfo, TURNSTILE_SITE_KEY } from "../lib/api";
+import { ApiError, submitContactEnquiry, submitCorporateEnquiry, todayIso, getVenueInfo, TURNSTILE_SITE_KEY } from "../lib/api";
 import { validateName, validateContact, validateCompany, validateGroupSize } from "../lib/validate";
 
 type VenueInfo = { address: string; phone: string; email: string; hours: string; instagram: string; facebook: string };
@@ -118,6 +118,7 @@ function useField(initial = "") {
 
 function ContactForm() {
   const [status, setStatus] = useState<FormStatus>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
   const [tsToken, setTsToken] = useState<string | null>(null);
   const [tsReset, setTsReset] = useState(0);
   const name = useField();
@@ -134,7 +135,7 @@ function ContactForm() {
     name.onBlur(); contact.onBlur();
     if (validateName(name.value) || validateContact(contact.value)) return;
 
-    if (TURNSTILE_SITE_KEY && !tsToken) { setStatus("error"); return; }
+    if (TURNSTILE_SITE_KEY && !tsToken) { setErrorMsg("Please complete the verification challenge first."); setStatus("error"); return; }
     setStatus("submitting");
     const data = Object.fromEntries(new FormData(formEl));
     try {
@@ -148,7 +149,8 @@ function ContactForm() {
       setStatus("success");
       name.reset(); contact.reset();
       formEl.reset();
-    } catch {
+    } catch (err) {
+      setErrorMsg(err instanceof ApiError ? err.message : "");
       setStatus("error");
     }
     setTsReset((n) => n + 1);
@@ -188,7 +190,7 @@ function ContactForm() {
       <button className="button primary" type="submit" disabled={status === "submitting"}>
         {status === "submitting" ? "Sending…" : "Send message"}
       </button>
-      <StatusMessage status={status} />
+      <StatusMessage status={status} message={errorMsg} />
     </form>
   );
 }
@@ -197,6 +199,7 @@ function ContactForm() {
 
 function CorporateForm() {
   const [status, setStatus] = useState<FormStatus>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
   const [tsToken, setTsToken] = useState<string | null>(null);
   const [tsReset, setTsReset] = useState(0);
   const contactName = useField();
@@ -224,7 +227,7 @@ function CorporateForm() {
       validateGroupSize(Number(groupSize))
     ) return;
 
-    if (TURNSTILE_SITE_KEY && !tsToken) { setStatus("error"); return; }
+    if (TURNSTILE_SITE_KEY && !tsToken) { setErrorMsg("Please complete the verification challenge first."); setStatus("error"); return; }
     setStatus("submitting");
     const data = Object.fromEntries(new FormData(formEl));
     try {
@@ -243,7 +246,8 @@ function CorporateForm() {
       contactName.reset(); company.reset(); contact.reset();
       setGroupSize("1"); setGroupTouched(false);
       formEl.reset();
-    } catch {
+    } catch (err) {
+      setErrorMsg(err instanceof ApiError ? err.message : "");
       setStatus("error");
     }
     setTsReset((n) => n + 1);
@@ -310,13 +314,13 @@ function CorporateForm() {
       <button className="button primary" type="submit" disabled={status === "submitting"}>
         {status === "submitting" ? "Submitting…" : "Submit enquiry"}
       </button>
-      <StatusMessage status={status} />
+      <StatusMessage status={status} message={errorMsg} />
     </form>
   );
 }
 
-function StatusMessage({ status }: { status: FormStatus }) {
+function StatusMessage({ status, message }: { status: FormStatus; message?: string }) {
   if (status === "success") return <p className="form-message success">Thanks! We'll be in touch soon.</p>;
-  if (status === "error") return <p className="form-message error">Something went wrong. Please try again.</p>;
+  if (status === "error") return <p className="form-message error">{message || "Something went wrong. Please try again."}</p>;
   return null;
 }

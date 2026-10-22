@@ -13,15 +13,94 @@ export function resolveImg(url: string | null | undefined): string {
   return /^https?:\/\//.test(url) ? url : `${API_ORIGIN}${url}`;
 }
 
-// FastAPI's `detail` is a string for app-raised HTTPExceptions, but a list of
-// {loc, msg, type} objects for Pydantic 422 validation errors — stringifying
-// that list directly renders "[object Object]". Always reduce to one string.
-function errorMessage(body: any, fallback: string): string {
-  const detail = body?.detail;
-  if (typeof detail === "string") return detail;
-  if (Array.isArray(detail)) return detail.map((d) => d?.msg ?? JSON.stringify(d)).join("; ") || fallback;
-  return fallback;
+// ── Errors ───────────────────────────────────────────────────────────────────
+// Every call goes through request(). A failure becomes an ApiError that says WHAT happened (kind, HTTP status and
+// the server's machine-readable `code`) next to a message that is safe to show. Callers decide by status/code,
+// never by searching the message text.
+
+export type ApiErrorKind = "http" | "network" | "timeout";
+
+export class ApiError extends Error {
+  readonly status: number;      // HTTP status, or 0 when there was no response (network / timeout)
+  readonly code: string | null; // machine-readable code from the API (e.g. "slot_unavailable"), when it sent one
+  readonly kind: ApiErrorKind;
+  constructor(message: string, opts: { status?: number; code?: string | null; kind?: ApiErrorKind } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = opts.status ?? 0;
+    this.code = opts.code ?? null;
+    this.kind = opts.kind ?? "http";
+  }
+  /** The service could not answer (no connection, timeout, or a 5xx): not the user's input and not a lost slot. */
+  get isOutage(): boolean {
+    return this.kind !== "http" || this.status >= 500;
+  }
 }
+
+export const MESSAGES = {
+  network: "Can't reach the server. Check your connection and try again.",
+  timeout: "The server took too long to answer. Please try again.",
+  server: "Something went wrong on our side. Please try again in a moment.",
+};
+
+const REQUEST_TIMEOUT_MS = 15_000;
+
+/** Reduce FastAPI's `detail` (a string, or a list of {msg} objects for 422 validation errors) to one string. */
+function detailText(body: any): string | null {
+  const detail = body?.detail;
+  if (typeof detail === "string") return detail || null;
+  if (Array.isArray(detail)) {
+    const msgs = detail.map((d) => String(d?.msg ?? "").replace(/^(Value|Assertion) error, /i, "")).filter(Boolean);
+    return msgs.length ? msgs.join("; ") : null;
+  }
+  return null;
+}
+
+/** Back-compat for callers that only need the text. */
+export function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
+}
+
+async function request<T = any>(
+  path: string,
+  init: RequestInit & { fallback?: string; timeoutMs?: number } = {},
+): Promise<T> {
+  const { fallback = "Something went wrong. Please try again.", timeoutMs = REQUEST_TIMEOUT_MS, ...fetchInit } = init;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let r: Response;
+  try {
+    r = await fetch(`${API}${path}`, { ...fetchInit, signal: controller.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new ApiError(MESSAGES.timeout, { kind: "timeout" });
+    throw new ApiError(MESSAGES.network, { kind: "network" });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!r.ok) {
+    const body = await r.json().catch(() => null);
+    const text = detailText(body);
+    const code = typeof body?.code === "string" ? body.code : null;
+    // 5xx: show the server's own words only when it chose them (e.g. 503 "Payment gateway unavailable");
+    // the generic "Internal server error." is replaced, with the request id so support can find it.
+    let message: string;
+    if (r.status >= 500 && (!text || /^internal server error\.?$/i.test(text))) {
+      const rid = typeof body?.requestId === "string" ? body.requestId.slice(0, 8) : "";
+      message = rid ? `${MESSAGES.server} (ref ${rid})` : MESSAGES.server;
+    } else {
+      message = text ?? fallback;
+    }
+    throw new ApiError(message, { status: r.status, code, kind: "http" });
+  }
+  return r.json();
+}
+
+const jsonInit = (method: string, body: unknown, fallback: string, headers: Record<string, string> = {}) => ({
+  method,
+  headers: { "Content-Type": "application/json", ...headers },
+  body: JSON.stringify(body),
+  fallback,
+});
 
 export interface GalleryItem {
   id: string;
@@ -32,22 +111,16 @@ export interface GalleryItem {
 }
 
 export async function getVenueInfo(): Promise<Record<string, string>> {
-  const r = await fetch(`${API}/venue`);
-  if (!r.ok) throw new Error("Failed to load venue info");
-  const entries: { key: string; value: string }[] = await r.json();
+  const entries: { key: string; value: string }[] = await request("/venue", { fallback: "Failed to load venue info" });
   return Object.fromEntries(entries.map((e) => [e.key, e.value]));
 }
 
 export async function getGallery(): Promise<GalleryItem[]> {
-  const r = await fetch(`${API}/gallery`);
-  if (!r.ok) throw new Error("Failed to load gallery");
-  return r.json();
+  return request("/gallery", { fallback: "Failed to load gallery" });
 }
 
 export async function getSlots(sport: string, date: string): Promise<Slot[]> {
-  const r = await fetch(`${API}/slots?sport=${sport}&date=${date}`);
-  if (!r.ok) throw new Error("Failed to load slots");
-  return r.json();
+  return request(`/slots?sport=${sport}&date=${date}`, { fallback: "Failed to load slots" });
 }
 
 export interface BookingPayload {
@@ -119,38 +192,18 @@ export async function validatePromo(
 ): Promise<PromoValidationResult> {
   const params = new URLSearchParams({ code, sport });
   if (amount != null) params.set("amount", String(amount));
-  const r = await fetch(`${API}/promos/validate?${params}`);
-  if (!r.ok) throw new Error("Validation failed");
-  return r.json();
+  return request(`/promos/validate?${params}`, { fallback: "Validation failed" });
 }
 
 export async function createBooking(payload: BookingPayload): Promise<BookingResult> {
-  const r = await fetch(`${API}/bookings`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({ detail: "Booking failed" }));
-    throw new Error(errorMessage(err, "Booking failed"));
-  }
-  return r.json();
+  return request("/bookings", jsonInit("POST", payload, "Booking failed"));
 }
 
 export async function verifyBookingPayment(
   bookingRef: string,
   payload: PaymentVerifyPayload
 ): Promise<{ status: string; paymentStatus: string }> {
-  const r = await fetch(`${API}/bookings/${bookingRef}/payment/verify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({ detail: "Payment verification failed" }));
-    throw new Error(errorMessage(err, "Payment verification failed"));
-  }
-  return r.json();
+  return request(`/bookings/${bookingRef}/payment/verify`, jsonInit("POST", payload, "Payment verification failed"));
 }
 
 export interface BookingLookupResult {
@@ -173,12 +226,7 @@ export interface BookingLookupResult {
 export async function lookupBooking(ref: string, contact?: string): Promise<BookingLookupResult> {
   const params = new URLSearchParams({ ref });
   if (contact) params.set("contact", contact);
-  const r = await fetch(`${API}/bookings/lookup?${params}`);
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({ detail: "Booking not found." }));
-    throw new Error(errorMessage(err, "Booking not found."));
-  }
-  return r.json();
+  return request(`/bookings/lookup?${params}`, { fallback: "Booking not found." });
 }
 
 export class OtpRequiredError extends Error {
@@ -193,8 +241,7 @@ let publicConfigPromise: Promise<PublicConfig> | null = null;
  *  safe default (OTP required) instead of guessing that it is off. */
 export function getPublicConfig(): Promise<PublicConfig> {
   if (!publicConfigPromise) {
-    publicConfigPromise = fetch(`${API}/public-config`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+    publicConfigPromise = request("/public-config")
       .then((c) => ({ otpRequired: c?.otpRequired !== false }))
       .catch(() => ({ otpRequired: true }));
   }
@@ -204,41 +251,26 @@ export function getPublicConfig(): Promise<PublicConfig> {
 /** `otpToken` is optional: the API only demands it when OTP is enabled (it answers 401 otp_required otherwise). */
 export async function searchBookingsByContact(contact: string, otpToken?: string): Promise<BookingLookupResult[]> {
   const params = new URLSearchParams({ contact });
-  const r = await fetch(`${API}/bookings/search?${params}`, { headers: otpToken ? { "X-OTP-Token": otpToken } : {} });
-  if (r.status === 401 || r.status === 403) throw new OtpRequiredError();
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({ detail: "No bookings found." }));
-    throw new Error(errorMessage(err, "No bookings found."));
+  try {
+    return await request(`/bookings/search?${params}`, {
+      headers: otpToken ? { "X-OTP-Token": otpToken } : {},
+      fallback: "No bookings found.",
+    });
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) throw new OtpRequiredError();
+    throw e;
   }
-  return r.json();
 }
 
 /** Step 1: ask the API to send a one-time code (email, or WhatsApp for a phone number). */
 export async function requestOtp(contact: string, turnstileToken?: string): Promise<{ channel: "email" | "whatsapp" }> {
-  const r = await fetch(`${API}/otp/request`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contact, turnstileToken }),
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({ detail: "Could not send a code." }));
-    throw new Error(errorMessage(err, "Could not send a code."));
-  }
-  return r.json();
+  return request("/otp/request", jsonInit("POST", { contact, turnstileToken }, "Could not send a code."));
 }
 
 /** Step 2: exchange the code for a short-lived token that unlocks booking search for that contact. */
 export async function verifyOtp(contact: string, code: string): Promise<string> {
-  const r = await fetch(`${API}/otp/verify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contact, code }),
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({ detail: "That code is incorrect or has expired." }));
-    throw new Error(errorMessage(err, "That code is incorrect or has expired."));
-  }
-  return (await r.json()).otpToken;
+  const res = await request("/otp/verify", jsonInit("POST", { contact, code }, "That code is incorrect or has expired."));
+  return res.otpToken;
 }
 
 export interface ContactPayload {
@@ -250,13 +282,7 @@ export interface ContactPayload {
 }
 
 export async function submitContactEnquiry(payload: ContactPayload) {
-  const r = await fetch(`${API}/contact-enquiries`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) throw new Error("Enquiry failed");
-  return r.json();
+  return request("/contact-enquiries", jsonInit("POST", payload, "Enquiry failed. Please check the details and try again."));
 }
 
 export interface CorporatePayload {
@@ -272,13 +298,7 @@ export interface CorporatePayload {
 }
 
 export async function submitCorporateEnquiry(payload: CorporatePayload) {
-  const r = await fetch(`${API}/corporate-enquiries`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) throw new Error("Enquiry failed");
-  return r.json();
+  return request("/corporate-enquiries", jsonInit("POST", payload, "Enquiry failed. Please check the details and try again."));
 }
 
 export interface PublicMenuCategory {
@@ -306,9 +326,7 @@ export interface PublicMenu {
 }
 
 export async function getPublicMenu(): Promise<PublicMenu> {
-  const r = await fetch(`${API}/menu`);
-  if (!r.ok) throw new Error("Failed to load menu");
-  return r.json();
+  return request("/menu", { fallback: "Failed to load menu" });
 }
 
 export interface PreOrderLine {
@@ -328,16 +346,7 @@ export async function createPreorder(
   contact: string,
   items: { menu_item_id: string; qty: number }[]
 ): Promise<PreOrderResult> {
-  const r = await fetch(`${API}/bookings/${bookingRef}/preorder`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contact, items }),
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({ detail: "Pre-order failed" }));
-    throw new Error(errorMessage(err, "Pre-order failed"));
-  }
-  return r.json();
+  return request(`/bookings/${bookingRef}/preorder`, jsonInit("POST", { contact, items }, "Pre-order failed"));
 }
 
 export const SPORT_LABELS: Record<string, string> = {

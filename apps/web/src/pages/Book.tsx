@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Slot } from "@dazy/shared";
 import { Turnstile } from "../components/Turnstile";
-import { createBooking, getNext7Days, TURNSTILE_SITE_KEY, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PromoValidationResult } from "../lib/api";
+import { ApiError, createBooking, getNext7Days, TURNSTILE_SITE_KEY, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PromoValidationResult } from "../lib/api";
 import { validateName, validateContact, validatePlayers } from "../lib/validate";
 import { PaymentPanel } from "../components/PaymentPanel";
 import { PreOrderPanel } from "../components/PreOrderPanel";
@@ -40,6 +40,22 @@ function formatDuration(slots: Slot[]): string {
   if (h === 0) return `${m} min`;
   if (m === 0) return `${h} hr`;
   return `${h} hr ${m} min`;
+}
+
+const SLOT_TAKEN_MESSAGE = "Booking failed. One or more slots may have just been taken. Please choose again.";
+
+/** What to show for a failed booking, decided by the API's status and code, never by searching the text. */
+function describeBookingError(err: unknown): { message: string; slotsTaken: boolean; promo: boolean } {
+  if (err instanceof ApiError) {
+    // `code` is what the API says happened. A server that predates the codes sends none; then fall back to the
+    // HTTP status (409 / 404 on booking = the slot is gone, 400 = the promo) rather than any word in the message.
+    const slotLost = err.code ? err.code === "slot_unavailable" || err.code === "slot_not_found" : err.status === 409 || err.status === 404;
+    if (slotLost) return { message: SLOT_TAKEN_MESSAGE, slotsTaken: true, promo: false };
+    const promoProblem = err.code ? err.code === "promo_invalid" : err.status === 400 && /promo/i.test(err.message);
+    if (promoProblem) return { message: err.message, slotsTaken: false, promo: true };
+    return { message: err.message, slotsTaken: false, promo: false }; // gateway down, rate limit, verification, network...
+  }
+  return { message: "Booking failed. Please try again.", slotsTaken: false, promo: false };
 }
 
 export function Book() {
@@ -127,10 +143,16 @@ export function Book() {
           setPromoResult(null);
           setPromoError(res.error ?? "Invalid promo code.");
         }
-      } catch {
-        setPromoStatus("invalid");
+      } catch (err) {
         setPromoResult(null);
-        setPromoError("Could not validate promo code.");
+        if (err instanceof ApiError && err.isOutage) {
+          // The check itself failed (server or network), so the code is not known to be wrong.
+          setPromoStatus("idle");
+          setPromoError("Couldn't check the promo code right now. You can still book and try it again.");
+        } else {
+          setPromoStatus("invalid");
+          setPromoError("Could not validate promo code.");
+        }
       }
     }, 600);
     return () => clearTimeout(timer);
@@ -248,14 +270,15 @@ export function Book() {
         setBookingStatus("success");
         loadSlots();
       }
-    } catch (err: any) {
-      const msg = err?.message ?? "Booking failed.";
-      if (/promo/i.test(msg)) {
-        setPromoError(msg);
+    } catch (err: unknown) {
+      const failure = describeBookingError(err);
+      if (failure.promo) {
+        setPromoError(failure.message);
       } else {
-        setBookingError(msg);
+        setBookingError(failure.message);
         setBookingStatus("error");
-        loadSlots();
+        // Only a lost slot changes the grid; a gateway outage or rate limit keeps the selection so the user can retry.
+        if (failure.slotsTaken) loadSlots();
       }
       setTsReset((n) => n + 1); // Turnstile tokens are single-use
     } finally {
@@ -535,9 +558,7 @@ export function Book() {
             </button>
             {bookingStatus === "error" && (
               <p className="form-message error" data-testid="booking-error">
-                {bookingError && !/unavailable|conflict|not found|taken/i.test(bookingError)
-                  ? bookingError
-                  : "Booking failed. One or more slots may have just been taken. Please choose again."}
+                {bookingError || "Booking failed. Please try again."}
               </p>
             )}
           </form>
