@@ -86,6 +86,44 @@ function Carousel<T extends object>({
 }
 
 const STRIP_AUTO_MS = 4500;
+
+/** The "In action" clips (optimised copies in public/videos, with a poster each). */
+const ACTION_CLIPS = [
+  { name: "cricket", caption: "Match day in the nets", alt: "Players in maroon kits batting, bowling and fielding on a turf wicket under green netting" },
+  { name: "football", caption: "Fast feet at dusk", alt: "Low-angle view of players passing and dribbling a football on turf at dusk" },
+  { name: "badminton", caption: "Friendly rallies, big smiles", alt: "Two players rallying and celebrating on an indoor badminton court" },
+  { name: "pickleball", caption: "Doubles on the court", alt: "Pickleball doubles on a purple court" },
+];
+
+/** Muted looping clip that only plays while at least half of it is on screen (inside the strip and the page). */
+function ActionVideo({ name, alt }: { name: string; alt: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || typeof IntersectionObserver === "undefined") return; // poster only
+    const io = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) v.play().catch(() => {}); else v.pause(); },
+      { threshold: 0.5 },
+    );
+    io.observe(v);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <video
+      ref={ref}
+      className="action-video"
+      src={`/videos/${name}.mp4`}
+      poster={`/videos/posters/${name}.jpg`}
+      muted
+      loop
+      playsInline
+      preload="none"
+      aria-label={alt}
+    />
+  );
+}
 const STRIP_IDLE_MS = 140;
 
 /**
@@ -100,7 +138,7 @@ const STRIP_IDLE_MS = 140;
  * Auto-advance pauses while the visitor hovers, focuses or touches it and while the tab is hidden, and is off
  * for prefers-reduced-motion.
  */
-function SportStrip({ children, label }: { children: JSX.Element[]; label: string }) {
+function SportStrip({ children, label, name = "sport", className = "" }: { children: JSX.Element[]; label: string; name?: string; className?: string }) {
   const track = useRef<HTMLDivElement>(null);
   const paused = useRef(false);
   const pointerDown = useRef(false);
@@ -187,11 +225,11 @@ function SportStrip({ children, label }: { children: JSX.Element[]; label: strin
 
   return (
     <div
-      className="sport-strip"
+      className={`sport-strip ${className}`.trim()}
       role="region"
       aria-roledescription="carousel"
       aria-label={label}
-      data-testid="sport-strip"
+      data-testid={`${name}-strip`}
       onPointerEnter={pause}
       onPointerLeave={resume}
       onFocus={pause}
@@ -200,12 +238,12 @@ function SportStrip({ children, label }: { children: JSX.Element[]; label: strin
       onTouchEnd={resume}
     >
       {overflowing && (
-        <button type="button" className="strip-arrow prev" data-testid="strip-prev" aria-label="Previous sport" onClick={() => move(-1)}>‹</button>
+        <button type="button" className="strip-arrow prev" data-testid={`${name}-strip-prev`} aria-label="Previous" onClick={() => move(-1)}>‹</button>
       )}
       <div
         className="sport-strip-track"
         ref={track}
-        data-testid="sport-strip-track"
+        data-testid={`${name}-strip-track`}
         tabIndex={0}
         onScroll={scheduleNormalize}
         onPointerDown={() => { pointerDown.current = true; }}
@@ -215,7 +253,7 @@ function SportStrip({ children, label }: { children: JSX.Element[]; label: strin
         {looped}
       </div>
       {overflowing && (
-        <button type="button" className="strip-arrow next" data-testid="strip-next" aria-label="Next sport" onClick={() => move(1)}>›</button>
+        <button type="button" className="strip-arrow next" data-testid={`${name}-strip-next`} aria-label="Next" onClick={() => move(1)}>›</button>
       )}
     </div>
   );
@@ -314,22 +352,16 @@ export function Home() {
         <div className="section-heading">
           <p className="eyebrow">In action</p>
           <h2>Feel the game before you arrive.</h2>
-          <p>Real energy, real rallies — this is the vibe on court.</p>
+          <p>Cricket in the nets, football at dusk, rallies indoors and pickleball doubles: this is the vibe on court.</p>
         </div>
-        <div className="action-grid">
-          <figure className="action-tile">
-            <img src="/images/play-badminton.gif" alt="Badminton rally in action" loading="lazy" />
-            <figcaption>Fast badminton rallies</figcaption>
-          </figure>
-          <figure className="action-tile">
-            <img src="/images/play-cricket.gif" alt="Cricket batting on turf" loading="lazy" />
-            <figcaption>Skill on the turf</figcaption>
-          </figure>
-          <figure className="action-tile">
-            <img src="/images/play-badminton2.gif" alt="Smash and net play" loading="lazy" />
-            <figcaption>Smashes &amp; net play</figcaption>
-          </figure>
-        </div>
+        <SportStrip label="Videos from the courts" name="action" className="action-strip">
+          {ACTION_CLIPS.map((clip) => (
+            <figure className="action-tile" key={clip.name}>
+              <ActionVideo name={clip.name} alt={clip.alt} />
+              <figcaption>{clip.caption}</figcaption>
+            </figure>
+          ))}
+        </SportStrip>
       </section>
 
       <section id="gallery" className="section">

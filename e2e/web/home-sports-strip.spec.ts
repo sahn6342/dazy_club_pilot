@@ -55,7 +55,7 @@ function expectNoRewind(samples: number[], dir: 1 | -1, jump: number) {
  * Click an arrow and follow the smooth scroll until it stops, returning every scroll position seen on the way.
  * Then give the idle step (the invisible swap back into the middle set) time to run.
  */
-async function clickAndSettle(page: Page, testId: "strip-next" | "strip-prev"): Promise<number[]> {
+async function clickAndSettle(page: Page, testId: "sport-strip-next" | "sport-strip-prev"): Promise<number[]> {
   await page.getByTestId(testId).click();
   const samples: number[] = [];
   let same = 0;
@@ -82,9 +82,9 @@ for (const size of SIZES) {
 
     test("next arrow keeps going forward and the row continues past the last card", async ({ page }) => {
       await page.goto("/");
-      await expect(page.getByTestId("strip-next")).toBeVisible();
+      await expect(page.getByTestId("sport-strip-next")).toBeVisible();
       for (let i = 1; i <= 6; i++) {
-        const samples = await clickAndSettle(page, "strip-next");
+        const samples = await clickAndSettle(page, "sport-strip-next");
         // moving: never backwards (no rewind sweep), even when stepping past the last card
         expectNoRewind(samples, 1, await setWidth(page));
         // and the cards shown continue the cycle: ... Pickleball, Cricket, Football, ...
@@ -94,7 +94,7 @@ for (const size of SIZES) {
 
     test("prev arrow from the first card continues backwards to Pickleball", async ({ page }) => {
       await page.goto("/");
-      const samples = await clickAndSettle(page, "strip-prev");
+      const samples = await clickAndSettle(page, "sport-strip-prev");
       expectNoRewind(samples, -1, await setWidth(page));
       expect(await visibleSports(page)).toEqual(expected(-1, size.perView));
     });

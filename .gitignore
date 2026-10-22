@@ -36,3 +36,6 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Original (large) source clips; the site uses the optimised copies in apps/web/public/videos
+/media/

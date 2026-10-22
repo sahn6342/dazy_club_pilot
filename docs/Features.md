@@ -15,14 +15,15 @@ Customer-facing site at **:5173**. Dark, gold-accent theme; fully responsive (de
 
 ### Home
 
-The landing page: hero with CMS-driven tagline/copy, the three sports, a live gallery, testimonials, and a venue stats band.
+The landing page: hero with CMS-driven tagline/copy, the four sports, an "In action" video strip, a live gallery and testimonials.
 
 ![Web home](screenshots/web-home.png)
 
 - **Hero** — tagline + body copy pulled from CMS (`hero_tagline`, `hero_copy`); call-to-action into booking.
-- **Sports** — Cricket, Badminton, Pickleball cards.
+- **Sports** — Cricket, Football, Badminton, Pickleball cards in a swipeable strip (3 / 2 / 1 per screen by width, auto-advancing, looping without a rewind; pauses on hover/touch).
+- **In action** — four short muted looping clips (`apps/web/public/videos/*.mp4` with posters), shown in the same kind of strip; only clips in view play, and none autoplay with reduced motion. The full-size originals live in the git-ignored `media/` folder.
 - **Gallery** — driven live from the API (`GET /gallery`, approved items only), images render from uploaded/managed `imageUrl`.
-- **Testimonials** — approved testimonials from the API.
+- **Testimonials** — real Google reviews (first name + initial, placeholder avatars) in a carousel with a fixed card height.
 - **Footer** — venue name, tagline, contact, socials from CMS.
 
 **Mobile:**

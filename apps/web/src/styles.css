@@ -994,27 +994,22 @@ summary:focus-visible {
 }
 
 /* ── Animated action strip ── */
-.action-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-}
-
 .action-tile {
   position: relative;
   margin: 0;
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid #2a2d35;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 3;
   background: #14161b;
 }
 
-.action-tile img {
+.action-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  background: #14161b;
 }
 
 .action-tile figcaption {
@@ -1222,7 +1217,7 @@ summary:focus-visible {
   border-radius: 12px;
 }
 
-.sport-strip-track > .sport-card {
+.sport-strip-track > * {
   flex: 0 0 calc((100% - 2rem) / 3);
   min-width: 0;
   scroll-snap-align: start;
@@ -1258,14 +1253,14 @@ summary:focus-visible {
 
 /* Tablet: 2 cards per screen */
 @media (max-width: 1024px) {
-  .sport-strip-track > .sport-card {
+  .sport-strip-track > * {
     flex-basis: calc((100% - 1rem) / 2);
   }
 }
 
 /* Mobile: 1 card per screen; arrows sit inside the edges */
 @media (max-width: 720px) {
-  .sport-strip-track > .sport-card {
+  .sport-strip-track > * {
     flex-basis: 100%;
   }
   .strip-arrow.prev { left: 0.5rem; }
@@ -1285,7 +1280,6 @@ summary:focus-visible {
   .card-grid,
   .card-grid.steps,
   .mini-grid,
-  .action-grid,
   .gallery-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1316,7 +1310,6 @@ summary:focus-visible {
   .card-grid.two,
   .card-grid.steps,
   .mini-grid,
-  .action-grid,
   .gallery-grid,
   .corporate-band {
     grid-template-columns: 1fr;
