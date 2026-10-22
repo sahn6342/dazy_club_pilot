@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { Link } from "react-router-dom";
 import { BRAND, galleryItems, launchSports, testimonials } from "@dazy/shared";
 import { getGallery, resolveImg, type GalleryItem } from "../lib/api";
@@ -87,6 +87,92 @@ function Carousel<T extends object>({
   );
 }
 
+const STRIP_AUTO_MS = 4500;
+
+/**
+ * Horizontal scroll-snap strip: swipe / scroll / drag natively, prev-next arrows, and it advances one card at
+ * a time on its own (wrapping back to the start). Cards per screen come from CSS (3 / 2 / 1 by width), so it
+ * adapts on resize without any JS measurement of the viewport. Auto-advance pauses while the visitor hovers,
+ * focuses or touches it and while the tab is hidden, and is off for prefers-reduced-motion.
+ */
+function SportStrip({ children, label }: { children: JSX.Element[]; label: string }) {
+  const track = useRef<HTMLDivElement>(null);
+  const paused = useRef(false);
+  const [overflowing, setOverflowing] = useState(false);
+
+  // One step = the first card's width plus the flex gap.
+  const step = useCallback(() => {
+    const el = track.current;
+    const first = el?.firstElementChild as HTMLElement | undefined;
+    if (!el || !first) return 0;
+    const gap = parseFloat(getComputedStyle(el).columnGap || "0") || 0;
+    return first.offsetWidth + gap;
+  }, []);
+
+  const move = useCallback((dir: 1 | -1) => {
+    const el = track.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const s = step();
+    if (max <= 1 || s <= 0) return;
+    // Work in whole card positions so a click during a smooth scroll still lands on a card edge.
+    const idx = Math.round(el.scrollLeft / s);
+    const lastIdx = Math.ceil(max / s - 0.01);
+    const to = dir === 1 ? (idx >= lastIdx ? 0 : idx + 1) : (idx <= 0 ? lastIdx : idx - 1);
+    el.scrollTo({ left: Math.min(max, to * s), behavior: "smooth" });
+  }, [step]);
+
+  // Arrows only make sense when the cards do not all fit.
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    const measure = () => setOverflowing(el.scrollWidth - el.clientWidth > 1);
+    measure();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", measure);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [children.length]);
+
+  useEffect(() => {
+    if (!overflowing) return;
+    if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => {
+      if (!paused.current && !document.hidden) move(1);
+    }, STRIP_AUTO_MS);
+    return () => clearInterval(t);
+  }, [overflowing, move]);
+
+  const pause = () => { paused.current = true; };
+  const resume = () => { paused.current = false; };
+
+  return (
+    <div
+      className="sport-strip"
+      role="region"
+      aria-roledescription="carousel"
+      aria-label={label}
+      data-testid="sport-strip"
+      onPointerEnter={pause}
+      onPointerLeave={resume}
+      onFocus={pause}
+      onBlur={resume}
+      onTouchStart={pause}
+      onTouchEnd={resume}
+    >
+      {overflowing && (
+        <button type="button" className="strip-arrow prev" data-testid="strip-prev" aria-label="Previous sport" onClick={() => move(-1)}>‹</button>
+      )}
+      <div className="sport-strip-track" ref={track} data-testid="sport-strip-track" tabIndex={0}>
+        {children}
+      </div>
+      {overflowing && (
+        <button type="button" className="strip-arrow next" data-testid="strip-next" aria-label="Next sport" onClick={() => move(1)}>›</button>
+      )}
+    </div>
+  );
+}
+
 export function Home() {
   const [gallery, setGallery] = useState<GalleryItem[]>(galleryItems as GalleryItem[]);
   useEffect(() => {
@@ -146,7 +232,7 @@ export function Home() {
           <h2>Choose your court energy.</h2>
           <p>Four sports, one venue. Find your game.</p>
         </div>
-        <div className="card-grid">
+        <SportStrip label="Sports">
           {launchSports.map((sport) => (
             <article className="card sport-card" key={sport.id}>
               <div className="card-media">
@@ -168,7 +254,7 @@ export function Home() {
               </div>
             </article>
           ))}
-        </div>
+        </SportStrip>
       </section>
 
       <section id="how" className="section">

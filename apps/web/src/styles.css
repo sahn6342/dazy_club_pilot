@@ -1222,6 +1222,92 @@ summary:focus-visible {
   transform: none;
 }
 
+/* ── Sport strip (Home): swipeable scroll-snap row, 3 / 2 / 1 cards per screen ── */
+.sport-strip {
+  position: relative;
+}
+
+.sport-strip-track {
+  display: flex;
+  gap: 1rem;
+  align-items: stretch;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* room so card shadows are not clipped by the scroll container */
+  padding: 0.25rem 0 1.5rem;
+  margin-bottom: -1rem;
+}
+
+.sport-strip-track::-webkit-scrollbar {
+  display: none;
+}
+
+.sport-strip-track:focus-visible {
+  outline: 2px solid #d8b456;
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+.sport-strip-track > .sport-card {
+  flex: 0 0 calc((100% - 2rem) / 3);
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.strip-arrow {
+  position: absolute;
+  top: 30%;
+  z-index: 2;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 1px solid rgba(216, 180, 86, 0.6);
+  background: rgba(10, 11, 14, 0.85);
+  color: #d8b456;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0 0 0.15rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.strip-arrow:hover,
+.strip-arrow:focus-visible {
+  background: #d8b456;
+  color: #0a0b0e;
+}
+
+.strip-arrow.prev { left: -0.75rem; }
+.strip-arrow.next { right: -0.75rem; }
+
+/* Tablet: 2 cards per screen */
+@media (max-width: 1024px) {
+  .sport-strip-track > .sport-card {
+    flex-basis: calc((100% - 1rem) / 2);
+  }
+}
+
+/* Mobile: 1 card per screen; arrows sit inside the edges */
+@media (max-width: 720px) {
+  .sport-strip-track > .sport-card {
+    flex-basis: 100%;
+  }
+  .strip-arrow.prev { left: 0.5rem; }
+  .strip-arrow.next { right: 0.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sport-strip-track {
+    scroll-behavior: auto;
+  }
+}
+
 /* ── Responsive tiers ── */
 
 /* Large tablet: 3-col → 2-col */
