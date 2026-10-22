@@ -185,9 +185,26 @@ export class OtpRequiredError extends Error {
   constructor() { super("otp_required"); }
 }
 
-export async function searchBookingsByContact(contact: string, otpToken: string): Promise<BookingLookupResult[]> {
+export type PublicConfig = { otpRequired: boolean };
+
+let publicConfigPromise: Promise<PublicConfig> | null = null;
+
+/** Flags the API exposes for choosing a flow up front. Fetched once per page load; any failure falls back to the
+ *  safe default (OTP required) instead of guessing that it is off. */
+export function getPublicConfig(): Promise<PublicConfig> {
+  if (!publicConfigPromise) {
+    publicConfigPromise = fetch(`${API}/public-config`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((c) => ({ otpRequired: c?.otpRequired !== false }))
+      .catch(() => ({ otpRequired: true }));
+  }
+  return publicConfigPromise;
+}
+
+/** `otpToken` is optional: the API only demands it when OTP is enabled (it answers 401 otp_required otherwise). */
+export async function searchBookingsByContact(contact: string, otpToken?: string): Promise<BookingLookupResult[]> {
   const params = new URLSearchParams({ contact });
-  const r = await fetch(`${API}/bookings/search?${params}`, { headers: { "X-OTP-Token": otpToken } });
+  const r = await fetch(`${API}/bookings/search?${params}`, { headers: otpToken ? { "X-OTP-Token": otpToken } : {} });
   if (r.status === 401 || r.status === 403) throw new OtpRequiredError();
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: "No bookings found." }));

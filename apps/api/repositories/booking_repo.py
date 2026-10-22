@@ -256,8 +256,8 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
                 )
             ) or 0
 
-    def search_by_contact(self, contact: str) -> list[BookingRecord]:
-        """Primary rows where contact OR email matches (case-insensitive). Newest first, max 10."""
+    def search_by_contact(self, contact: str, limit: int = 10) -> list[BookingRecord]:
+        """Primary rows where contact OR email matches (case-insensitive). Newest first, at most `limit`."""
         with _session() as s:
             contact_lc = contact.strip().lower()
             rows = s.scalars(
@@ -271,7 +271,7 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
                     ),
                 )
                 .order_by(BookingRow.createdAt.desc())
-                .limit(10)
+                .limit(limit)
             ).all()
             return [_to_model(r) for r in rows]
 

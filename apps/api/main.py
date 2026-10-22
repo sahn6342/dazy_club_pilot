@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from media_store import MEDIA_DIR, ensure_media_dirs
 
 from routes.health import router as health_router
+from routes.public_config import router as public_config_router
 from routes.sports import router as sports_router
 from routes.gallery import router as gallery_router
 from routes.testimonials import router as testimonials_router
@@ -73,6 +74,10 @@ async def lifespan(app: FastAPI):
         if turnstile_disabled():
             logger.warning("SECURITY: Turnstile bot check is DISABLED (DAZY_TURNSTILE_DISABLED); booking, enquiry and OTP "
                            "endpoints rely on rate limits alone. Remove the variable to enable it.")
+        from services.otp_service import otp_disabled
+        if otp_disabled():
+            logger.warning("SECURITY: OTP is DISABLED (DAZY_OTP_DISABLED): anyone who knows a phone number or email can list "
+                           "its bookings. Remove the variable to require a code again.")
         for warning in delivery_status()["warnings"]:  # phone numbers are accepted, so say loudly what will NOT be delivered
             logger.warning("NOTIFICATIONS: %s", warning)
     except Exception:
@@ -149,7 +154,7 @@ async def security_headers(request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
     path = request.url.path
-    if path.startswith(("/api/v1/admin", "/api/v1/cafe", "/api/v1/otp", "/api/v1/bookings/lookup", "/api/v1/bookings/search")):
+    if path.startswith(("/api/v1/admin", "/api/v1/cafe", "/api/v1/otp", "/api/v1/bookings/lookup", "/api/v1/bookings/search", "/api/v1/public-config")):
         response.headers.setdefault("Cache-Control", "no-store")  # never cache authenticated/personal responses
     return response
 
@@ -157,6 +162,7 @@ prefix = "/api/v1"
 
 # Public routes
 app.include_router(health_router, prefix=prefix)
+app.include_router(public_config_router, prefix=prefix)
 app.include_router(sports_router, prefix=prefix)
 app.include_router(gallery_router, prefix=prefix)
 app.include_router(testimonials_router, prefix=prefix)

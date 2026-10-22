@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  lookupBooking, searchBookingsByContact, requestOtp, verifyOtp, OtpRequiredError, TURNSTILE_SITE_KEY,
+  lookupBooking, searchBookingsByContact, requestOtp, verifyOtp, getPublicConfig, OtpRequiredError, TURNSTILE_SITE_KEY,
   SPORT_LABELS, type BookingLookupResult,
 } from "../lib/api";
 import { Turnstile } from "../components/Turnstile";
@@ -44,6 +44,13 @@ export function MyBookings() {
   const [otpChannel, setOtpChannel] = useState<"email" | "whatsapp">("email");
   const [otpContact, setOtpContact] = useState("");
   const [otpToken, setOtpToken] = useState<string | null>(null);
+  // Whether the API wants a code for contact-only search (GET /public-config). null = still loading.
+  const [otpNeeded, setOtpNeeded] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getPublicConfig().then((c) => { if (alive) setOtpNeeded(c.otpRequired); });
+    return () => { alive = false; };
+  }, []);
   const [code, setCode] = useState("");
   const [tsToken, setTsToken] = useState<string | null>(null);
   const [tsReset, setTsReset] = useState(0);
@@ -143,11 +150,23 @@ export function MyBookings() {
 
     try {
       if (hasContact && !hasRef) {
-        // Contact only → list all bookings for this phone/email, after a one-time-code check.
+        // Contact only → list all bookings for this phone/email (newest first). The API says up front
+        // (GET /public-config) whether a one-time code is needed; if that changed since the page loaded it
+        // still answers "otp_required", and we switch to the code flow.
         if (otpToken && otpContact === contact.trim()) {
           await runSearch(contact.trim(), otpToken);
-        } else {
+        } else if (otpNeeded !== false) {
           await sendCode();
+        } else {
+          try {
+            const list = await searchBookingsByContact(contact.trim());
+            setResultList(list);
+            setStatus("list");
+          } catch (err: any) {
+            if (!(err instanceof OtpRequiredError)) throw err;
+            setOtpNeeded(true);
+            await sendCode();
+          }
         }
       } else {
         // Ref only, or ref + contact → single booking.
@@ -215,10 +234,10 @@ export function MyBookings() {
           Enter either — or both for a more specific result.
         </p>
 
-        {otpStage === "idle" && !ref.trim() && contact.trim() && <Turnstile onToken={setTsToken} resetKey={tsReset} />}
+        {otpNeeded === true && otpStage === "idle" && !ref.trim() && contact.trim() && <Turnstile onToken={setTsToken} resetKey={tsReset} />}
 
-        <button className="button primary" type="submit" disabled={status === "loading" || otpStage === "code"}>
-          {status === "loading" ? "Looking up…" : !ref.trim() && contact.trim() ? "Send me a code" : "Find my booking"}
+        <button className="button primary" type="submit" disabled={status === "loading" || otpStage === "code" || (otpNeeded === null && !ref.trim() && !!contact.trim())}>
+          {status === "loading" ? "Looking up…" : otpNeeded === true && !ref.trim() && contact.trim() ? "Send me a code" : "Find my booking"}
         </button>
 
         {otpStage === "code" && (

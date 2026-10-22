@@ -152,6 +152,8 @@ projects:
       - key: DAZY_LOG_LEVEL        # optional, default INFO
         sync: false
       # --- Scheduler: an external cron POSTs /api/v1/internal/sweep with header X-Internal-Token ---
+      - key: DAZY_OTP_DISABLED     # 1 = bookings search by phone/email needs no code (shows all, newest first); remove to require OTP
+        sync: false
       - key: DAZY_INTERNAL_TOKEN   # random 32+ chars; endpoint is disabled (404) when unset
         sync: false
       # --- Notifications ---

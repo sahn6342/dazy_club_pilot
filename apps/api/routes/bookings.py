@@ -16,7 +16,9 @@ from services.pricing_service import apply_promo, gst_components, PromoError
 from services.notification_service import notify_booking_confirmed, notify_booking_payment_pending
 from services.payment_confirmation import confirm_verified_payment, LATE_REFUNDED
 from services.turnstile import require_turnstile
-from services.otp_service import normalize_contact
+from services.otp_service import normalize_contact, otp_disabled
+
+_SEARCH_ALL_LIMIT = 200  # only used when OTP is disabled: "all bookings", but bounded
 from auth import verify_otp_token
 
 router = APIRouter()
@@ -271,18 +273,22 @@ def lookup_booking(ref: str, req: Request, contact: str | None = None):
 
 @router.get("/bookings/search", response_model=list[BookingLookupResult])
 def search_bookings(contact: str, req: Request, x_otp_token: str | None = Header(default=None)):
-    """Look up all bookings by phone or email. Returns up to 10 most recent.
-    Requires an OTP token (POST /otp/request then /otp/verify) proving the caller controls the contact."""
+    """Look up bookings by phone or email, newest first.
+    Normally requires an OTP token (POST /otp/request then /otp/verify) proving the caller controls the contact,
+    and returns up to 10. With DAZY_OTP_DISABLED=1 no code is needed and every booking is returned (capped at
+    _SEARCH_ALL_LIMIT as a safety net)."""
     booking_lookup_limiter.check(client_ip(req), message="Too many lookup attempts. Try again later.")
 
     err = _validate_contact_str(contact)
     if err:
         raise HTTPException(status_code=422, detail=err)
-    if not x_otp_token:
-        raise HTTPException(status_code=401, detail="otp_required")
-    verify_otp_token(x_otp_token, normalize_contact(contact))
+    open_search = otp_disabled()
+    if not open_search:
+        if not x_otp_token:
+            raise HTTPException(status_code=401, detail="otp_required")
+        verify_otp_token(x_otp_token, normalize_contact(contact))
 
-    primary_rows = booking_repo.search_by_contact(contact)
+    primary_rows = booking_repo.search_by_contact(contact, limit=_SEARCH_ALL_LIMIT if open_search else 10)
     if not primary_rows:
         raise HTTPException(status_code=404, detail="No bookings found for that contact.")
 

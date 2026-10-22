@@ -91,6 +91,37 @@ def test_search_after_otp_returns_only_that_contacts_bookings(client, otp_sink):
     assert r.status_code == 200 and len(r.json()) == 1
 
 
+def test_search_without_otp_lists_all_bookings_newest_first_when_disabled(client, monkeypatch):
+    monkeypatch.setenv("DAZY_OTP_DISABLED", "1")
+    s = _slots(client)
+    refs = [client.post("/api/v1/bookings", json=_body(s[i], contact="9876543210")).json()["bookingRef"] for i in (0, 2)]
+    client.post("/api/v1/bookings", json=_body(s[4], contact="9222222222"))
+    r = client.get("/api/v1/bookings/search?contact=9876543210")  # no OTP token
+    assert r.status_code == 200
+    assert [b["bookingRef"] for b in r.json()] == refs[::-1]  # newest first, other contact's booking excluded
+    assert client.get("/api/v1/bookings/search?contact=not-a-contact").status_code == 422  # still validated
+    monkeypatch.delenv("DAZY_OTP_DISABLED")
+    assert client.get("/api/v1/bookings/search?contact=9876543210").status_code == 401  # default is closed again
+
+
+def test_search_by_contact_limit_is_a_parameter():
+    import uuid
+    import deps
+    from datetime import datetime, timezone
+    from models import BookingRecord
+    contact = "9333333333"
+    now = datetime.now(timezone.utc).isoformat()
+    deps.booking_repo.create_many([
+        BookingRecord(id=str(uuid.uuid4()), bookingRef=f"LIM{i:05d}", slotId=f"limit-test-slot-{uuid.uuid4()}", name="Lim It",
+                      contact=contact, sportSlug="cricket", date="2030-01-01", startTime="06:00", endTime="07:00",
+                      party_size=1, status="confirmed", createdAt=f"2030-01-01T00:00:{i:02d}+00:00")
+        for i in range(12)
+    ])
+    assert len(deps.booking_repo.search_by_contact(contact)) == 10  # the OTP-gated search keeps its cap
+    wide = deps.booking_repo.search_by_contact(contact, limit=200)
+    assert len(wide) == 12 and wide[0].bookingRef == "LIM00011"  # newest first
+
+
 def test_otp_token_is_bound_to_its_contact(client, otp_sink):
     tok = _verify_flow(client, "9876543210", otp_sink)
     r = client.get("/api/v1/bookings/search?contact=9222222222", headers={"X-OTP-Token": tok})

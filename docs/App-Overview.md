@@ -326,7 +326,8 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 | `POST /bookings/{ref}/payment/verify` | Client payment callback |
 | `GET /bookings/lookup` | Self-service lookup by ref + contact (rate-limited) |
 | `POST /otp/request`, `POST /otp/verify` | One-time code (email, or WhatsApp for a phone number) proving the caller controls a contact; returns a 15-minute `otpToken` |
-| `GET /bookings/search?contact` | All bookings for a contact. Requires `X-OTP-Token` for that contact (401 `otp_required` otherwise) |
+| `GET /public-config` | Public flags for the web pages. Currently `{"otpRequired": bool}` (false when `DAZY_OTP_DISABLED` is set). No auth, `Cache-Control: no-store`, nothing sensitive |
+| `GET /bookings/search?contact` | Bookings for a contact, newest first. Requires `X-OTP-Token` for that contact (401 `otp_required` otherwise), max 10. With `DAZY_OTP_DISABLED=1` no token is needed and up to 200 are returned |
 | `POST /bookings/{ref}/preorder` | Café pre-order |
 | `POST /payments/razorpay/webhook` | Razorpay webhook (signature-verified) |
 | `POST /contact-enquiries`, `POST /corporate-enquiries` | Enquiry forms |
@@ -496,6 +497,7 @@ Names and defaults only. **Never commit real values.** `.env.example` is at the 
 | `WHATSAPP_TEMPLATE_BOOKING_CONFIRMED`, `_CANCELLED`, `_REFUNDED` | — | Names of the approved WhatsApp utility templates (4.7). No name = that event is skipped | no |
 | `WHATSAPP_CLOUD_TOKEN`, `WHATSAPP_CLOUD_PHONE_ID`, `WHATSAPP_OTP_TEMPLATE` | — | Meta WhatsApp Cloud API, used when `DAZY_NOTIFY_WHATSAPP_PROVIDER=whatsapp_cloud`. OTPs go out as an approved *authentication template*. Adapter is unit-tested with a mocked transport only, not against the live API | token: yes |
 | `TURNSTILE_SECRET` | — | Cloudflare Turnstile secret. Required in production unless `DAZY_TURNSTILE_DISABLED` is set | yes |
+| `DAZY_OTP_DISABLED` | unset | `1` makes `GET /bookings/search` list every booking (newest first, max 200) for a phone or email with **no code**, so anyone who knows a contact can see its bookings (names, dates, prices). Warns at startup. Meant for a launch with no email/WhatsApp/SMS delivery; remove it to require the code again. The web page reads `GET /public-config` (`{"otpRequired": bool}`) on load and picks the flow up front (code step vs direct search); if that call fails it assumes a code is required | no |
 | `DAZY_TURNSTILE_DISABLED` | unset | `1` skips the Turnstile check and lets production boot without the secret (warns at startup). Remove to enable | no |
 | `DAZY_PROXY_HOPS` | `0` | Trusted reverse proxies in front of the API (Render = 1, Cloudflare in front of Render = 2, compose/Caddy = 1). Rate limits use the Nth-from-right `X-Forwarded-For` entry | no |
 | `DAZY_COOKIE_SAMESITE` | `lax` | `lax`, `strict` or `none` for the session cookies. Use `none` (forces Secure) only if an SPA is on a different site than the API | no |

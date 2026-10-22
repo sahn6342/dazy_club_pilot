@@ -6,6 +6,7 @@ single use, max 5 wrong guesses, and stored only as an HMAC (never in plaintext)
 import hashlib
 import hmac
 import logging
+import os
 import re
 import secrets
 import time
@@ -25,6 +26,13 @@ MAX_ATTEMPTS = 5
 
 _PHONE_RE = re.compile(r"^\d{10}$")
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
+
+
+def otp_disabled() -> bool:
+    """Explicit opt-out (DAZY_OTP_DISABLED=1): GET /bookings/search then lists every booking for a phone or email
+    with no code, so anyone who knows a contact can see its bookings. For use while no email/WhatsApp/SMS delivery
+    exists to carry the code. Remove the variable to require the code again."""
+    return os.environ.get("DAZY_OTP_DISABLED", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def normalize_contact(contact: str) -> str:
