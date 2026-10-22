@@ -6,9 +6,8 @@ export function Layout() {
   return (
     <main>
       <header className="site-header">
-        <Link className="brand" to="/" aria-label={BRAND.name}>
-          <img className="brand-logo" src="/images/logo-sm.webp" alt="" width="52" height="44" />
-          <span>{BRAND.name}</span>
+        <Link className="brand" to="/">
+          <img className="brand-logo" src="/images/logo-sm.webp" alt={BRAND.name} width="70" height="60" />
         </Link>
         <nav aria-label="Primary navigation">
           <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>Home</NavLink>
@@ -22,8 +21,7 @@ export function Layout() {
 
       <footer className="footer">
         <strong className="footer-brand">
-          <img className="brand-logo" src="/images/logo-sm.webp" alt="" width="52" height="44" loading="lazy" />
-          {BRAND.name}
+          <img className="brand-logo" src="/images/logo-sm.webp" alt={BRAND.name} width="47" height="40" loading="lazy" />
         </strong>
         <span>Premium sports experience. Cricket, Football, Badminton &amp; Pickleball.</span>
       </footer>

@@ -69,7 +69,7 @@ export function Login() {
     <div className="login-screen">
       <div className="login-card">
         <img className="login-logo" src="/logo.webp" alt={BRAND.name} width="150" height="129" />
-        <h1 className="login-title">{BRAND.name} Kiosk</h1>
+        <h1 className="login-title">Kiosk</h1>
         <input
           className="login-input"
           placeholder="Staff username"

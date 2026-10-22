@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BRAND } from "@dazy/shared";
 import { api, Order } from "../lib/api";
 import { clearToken } from "../lib/auth";
 import { PaymentModal } from "../components/PaymentModal";
@@ -68,7 +67,7 @@ export function Orders() {
   return (
     <div className="kiosk-layout">
       <header className="kiosk-header">
-        <span className="kiosk-logo"><img className="kiosk-logo-img" src="/logo-sm.webp" alt="" width="40" height="34" />{BRAND.name}</span>
+        <span className="kiosk-logo"><img className="kiosk-logo-img" src="/logo-sm.webp" alt="" width="40" height="34" />Kiosk</span>
         <nav className="kiosk-nav">
           <button className="kiosk-nav-btn" onClick={() => navigate("/menu")}>Menu</button>
           <button className="kiosk-nav-btn active" onClick={() => navigate("/orders")}>Orders</button>

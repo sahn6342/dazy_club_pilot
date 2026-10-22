@@ -32,7 +32,7 @@ export function Login() {
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
         <img className="login-logo" src="/logo.webp" alt="Dazy Club" width="160" height="137" />
-        <div className="login-brand">Dazy Admin</div>
+        <div className="login-brand">Admin</div>
         <label>Username<input name="username" autoComplete="username" required /></label>
         <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
         {error && <p className="error-msg">{error}</p>}

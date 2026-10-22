@@ -15,7 +15,9 @@ test.describe("Brand logo", () => {
     const headerLogo = page.locator(".site-header .brand-logo");
     await expect(headerLogo).toBeVisible();
     expect(await imageLoaded(page, ".site-header .brand-logo")).toBe(true);
-    await expect(page.locator(".site-header .brand")).toContainText("Dazy Club"); // name stays next to the logo
+    // the logo carries the name: accessible via alt, and no separate "Dazy Club" text beside it
+    await expect(headerLogo).toHaveAttribute("alt", "Dazy Club");
+    expect((await page.locator(".site-header .brand").innerText()).trim()).toBe("");
     await expect(page.locator(".footer .brand-logo")).toHaveCount(1);
     await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon-32.png");
     await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/apple-touch-icon.png");
