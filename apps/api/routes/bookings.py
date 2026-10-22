@@ -2,9 +2,15 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone, date as date_cls
+import logging
+
+import logging
+
 from fastapi import APIRouter, Header, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
 
+from errors import ApiError
+from errors import ApiError
 from models import BookingRequest, BookingRecord, BookingPaymentVerifyRequest, BookingLookupResult
 from deps import booking_repo, court_repo, customer_repo, promo_repo, booking_payment_repo, payment_provider, cms_repo
 from rate_limit import (
@@ -22,6 +28,8 @@ _SEARCH_ALL_LIMIT = 200  # only used when OTP is disabled: "all bookings", but b
 from auth import verify_otp_token
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # A customer may hold at most this many unpaid bookings at once (blocks slot-hoarding).
 _MAX_PENDING_PER_CONTACT = 2
@@ -74,26 +82,28 @@ def create_booking(request: BookingRequest, http_req: Request):
     from services.availability_service import _sweep_stale_pending
     _sweep_stale_pending()  # expired holds must not count against the cap
     if booking_repo.count_pending_by_contact(request.contact) >= _MAX_PENDING_PER_CONTACT:
-        raise HTTPException(
-            status_code=429,
-            detail="You already have bookings waiting for payment. Complete or wait for them to expire (15 minutes) before booking more.",
+        raise ApiError(
+            429,
+            "You already have bookings waiting for payment. Complete or wait for them to expire (15 minutes) before booking more.",
+            "pending_cap",
         )
     # Resolve all requested slots (in order).
     slots = []
     for sid in request.slotIds:
         slot = find_slot(request.sportSlug, request.date, sid)
         if not slot:
-            raise HTTPException(status_code=404, detail=f"Slot {sid} not found.")
+            raise ApiError(404, f"Slot {sid} not found.", "slot_not_found")
         if not slot.available:
-            raise HTTPException(status_code=409, detail=f"Slot {slot.startTime} is unavailable (already booked or elapsed).")
+            raise ApiError(409, f"Slot {slot.startTime} is unavailable (already booked or elapsed).", "slot_unavailable")
         slots.append(slot)
 
     # Validate contiguity for multi-slot bookings.
     for i in range(1, len(slots)):
         if slots[i - 1].endTime != slots[i].startTime:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Slots {slots[i-1].startTime}–{slots[i-1].endTime} and {slots[i].startTime}–{slots[i].endTime} are not consecutive.",
+            raise ApiError(
+                400,
+                f"Slots {slots[i-1].startTime}–{slots[i-1].endTime} and {slots[i].startTime}–{slots[i].endTime} are not consecutive.",
+                "slots_not_consecutive",
             )
 
     court_id = slots[0].courtId or court_repo.id_for_sport(request.sportSlug)
@@ -109,7 +119,7 @@ def create_booking(request: BookingRequest, http_req: Request):
         try:
             promo = promo_repo.validate_and_increment(request.promoCode, request.sportSlug, today)
         except PromoError as e:
-            raise HTTPException(status_code=400, detail=e.detail)
+            raise ApiError(400, e.detail, "promo_invalid")
         final_price = apply_promo(promo, base_total)
         applied_promo = promo.code
 
@@ -155,10 +165,12 @@ def create_booking(request: BookingRequest, http_req: Request):
     if final_price:
         try:
             order = payment_provider.create_order(amount=final_price, ref=ref)
-        except RuntimeError:
+        except RuntimeError as exc:
+            # Say why in the log (wrong keys, gateway down, timeout...): the customer only sees "unavailable".
+            logger.warning("Payment gateway could not create an order for a new booking: %s", exc)
             if applied_promo:
                 promo_repo.decrement_use(applied_promo)
-            raise HTTPException(status_code=503, detail="Payment gateway unavailable — please try again.")
+            raise ApiError(503, "Payment gateway unavailable — please try again.", "payment_unavailable")
 
     try:
         booking_repo.create_many(records)  # one transaction: all slots or none
@@ -168,7 +180,7 @@ def create_booking(request: BookingRequest, http_req: Request):
         # and the client never receives its checkout payload, so it cannot be paid.
         if applied_promo:
             promo_repo.decrement_use(applied_promo)
-        raise HTTPException(status_code=409, detail="One or more slots are unavailable (booking conflict).")
+        raise ApiError(409, "One or more slots are unavailable (booking conflict).", "slot_unavailable")
 
     taxable_val, gst_amt = gst_components(final_price, gst_rate) if final_price else (None, None)
     response = {
@@ -216,7 +228,7 @@ def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest, 
     payment_verify_limiter.check(client_ip(http_req), "Too many requests. Please try again shortly.")
     bookings = booking_repo.get_by_ref(booking_ref)
     if not bookings:
-        raise HTTPException(status_code=404, detail="Booking not found.")
+        raise ApiError(404, "Booking not found.", "booking_not_found")
     primary = next((b for b in bookings if b.is_primary), bookings[0])
 
     # Idempotent — the client callback and the provider webhook can both land here.
@@ -228,7 +240,7 @@ def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest, 
     # could supply a valid signature from a different (cheaper) booking to confirm this one.
     stored_payment = booking_payment_repo.get_by_ref(booking_ref)
     if not stored_payment or not stored_payment.providerOrderId:
-        raise HTTPException(status_code=404, detail="No payment record found for this booking.")
+        raise ApiError(404, "No payment record found for this booking.", "payment_record_missing")
 
     verification = payment_provider.verify_payment(
         stored_payment.providerOrderId,  # from DB — not client-supplied
@@ -236,7 +248,7 @@ def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest, 
         body.signature,
     )
     if not verification.verified:
-        raise HTTPException(status_code=400, detail=verification.reason or "Payment verification failed.")
+        raise ApiError(400, verification.reason or "Payment verification failed.", "payment_verification_failed")
 
     result = confirm_verified_payment(
         booking_ref, stored_payment.providerOrderId, verification.providerPaymentId, body.signature
@@ -247,7 +259,7 @@ def verify_booking_payment(booking_ref: str, body: BookingPaymentVerifyRequest, 
             if result.outcome == LATE_REFUNDED
             else "This booking expired before payment completed. Contact support for a refund."
         )
-        raise HTTPException(status_code=409, detail=detail)
+        raise ApiError(409, detail, "booking_expired_refunded" if result.outcome == LATE_REFUNDED else "booking_expired_paid")
     return {"status": "confirmed", "paymentStatus": "paid"}
 
 
@@ -260,12 +272,12 @@ def lookup_booking(ref: str, req: Request, contact: str | None = None):
 
     bookings = booking_repo.get_by_ref(ref)
     if not bookings:
-        raise HTTPException(status_code=404, detail="Booking not found.")
+        raise ApiError(404, "Booking not found.", "booking_not_found")
     primary = next((b for b in bookings if b.is_primary), bookings[0])
 
     if contact is not None:
         if primary.contact.strip().lower() != contact.strip().lower():
-            raise HTTPException(status_code=404, detail="Booking not found.")
+            raise ApiError(404, "Booking not found.", "booking_not_found")
         return _build_lookup_result(bookings, include_checkout=True)
 
     return _build_lookup_result(bookings, include_checkout=False)
@@ -281,16 +293,16 @@ def search_bookings(contact: str, req: Request, x_otp_token: str | None = Header
 
     err = _validate_contact_str(contact)
     if err:
-        raise HTTPException(status_code=422, detail=err)
+        raise ApiError(422, err, "contact_invalid")
     open_search = otp_disabled()
     if not open_search:
         if not x_otp_token:
-            raise HTTPException(status_code=401, detail="otp_required")
+            raise ApiError(401, "otp_required", "otp_required")
         verify_otp_token(x_otp_token, normalize_contact(contact))
 
     primary_rows = booking_repo.search_by_contact(contact, limit=_SEARCH_ALL_LIMIT if open_search else 10)
     if not primary_rows:
-        raise HTTPException(status_code=404, detail="No bookings found for that contact.")
+        raise ApiError(404, "No bookings found for that contact.", "no_bookings_found")
 
     results = []
     for primary in primary_rows:

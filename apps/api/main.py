@@ -10,6 +10,7 @@ import uuid
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from brand import BRAND_NAME
+from errors import ApiError
 
 logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
@@ -97,6 +98,12 @@ init_sentry()  # no-op unless SENTRY_DSN is set
 app = FastAPI(title=f"{BRAND_NAME} API", version="0.1.0", lifespan=lifespan)
 access_log = logging.getLogger("access")
 _REQUEST_ID_OK = __import__("re").compile(r"^[A-Za-z0-9._-]{8,64}$")
+
+
+@app.exception_handler(ApiError)
+async def api_error(request, exc: ApiError):
+    """Same body as FastAPI's default HTTPException ({"detail": ...}) plus a machine-readable `code`."""
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail, "code": exc.code}, headers=exc.headers)
 
 
 @app.exception_handler(Exception)

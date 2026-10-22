@@ -4,6 +4,8 @@ import os
 import time
 
 from fastapi import HTTPException, Request, status
+
+from errors import ApiError
 from sqlalchemy import delete, func, select
 
 from db import _session
@@ -54,7 +56,7 @@ class SlidingWindowLimiter:
             s.execute(delete(RateLimitEventRow).where(RateLimitEventRow.key == k, RateLimitEventRow.ts <= now - self._window))
             used = s.scalar(select(func.count()).select_from(RateLimitEventRow).where(RateLimitEventRow.key == k))
             if used >= self._limit * _limit_scale():
-                raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=message)
+                raise ApiError(status.HTTP_429_TOO_MANY_REQUESTS, message, "rate_limited")
             s.add(RateLimitEventRow(key=k, ts=now))
 
     def is_blocked(self, key: str) -> bool:

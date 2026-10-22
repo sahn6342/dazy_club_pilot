@@ -42,6 +42,9 @@ class RazorpayPaymentProvider(PaymentProvider):
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
             raise RuntimeError(f"Razorpay API error {e.code}: {e.read().decode()}")
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            # DNS failure, refused/reset connection, timeout: the gateway is unreachable, not a bug of ours.
+            raise RuntimeError(f"Razorpay API unreachable: {e}")
 
     def create_order(self, amount: float, ref: str) -> PaymentOrder:
         paise = int(round(amount * 100))  # Razorpay amounts are integer paise.

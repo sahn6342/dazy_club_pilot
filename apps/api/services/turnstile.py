@@ -11,6 +11,8 @@ import urllib.request
 
 from fastapi import HTTPException
 
+from errors import ApiError
+
 logger = logging.getLogger(__name__)
 
 _VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -46,4 +48,4 @@ def require_turnstile(token: str | None, ip: str | None) -> None:
     if not secret or turnstile_disabled():
         return
     if not token or not _siteverify(secret, token, ip):
-        raise HTTPException(status_code=400, detail="Please complete the verification challenge and try again.")
+        raise ApiError(400, "Please complete the verification challenge and try again.", "verification_required")
