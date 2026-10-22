@@ -110,9 +110,16 @@ export interface GalleryItem {
   imageUrl?: string | null;
 }
 
-export async function getVenueInfo(): Promise<Record<string, string>> {
-  const entries: { key: string; value: string }[] = await request("/venue", { fallback: "Failed to load venue info" });
-  return Object.fromEntries(entries.map((e) => [e.key, e.value]));
+let venueInfoPromise: Promise<Record<string, string>> | null = null;
+
+/** Venue details from the CMS. Cached for the page load so the footer and the WhatsApp button share one request. */
+export function getVenueInfo(): Promise<Record<string, string>> {
+  if (!venueInfoPromise) {
+    venueInfoPromise = request<{ key: string; value: string }[]>("/venue", { fallback: "Failed to load venue info" })
+      .then((entries) => Object.fromEntries(entries.map((e) => [e.key, e.value])))
+      .catch((e) => { venueInfoPromise = null; throw e; }); // a failed load may be retried
+  }
+  return venueInfoPromise;
 }
 
 export async function getGallery(): Promise<GalleryItem[]> {

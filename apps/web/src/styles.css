@@ -989,14 +989,53 @@ summary:focus-visible {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 2rem clamp(1rem, 5vw, 4rem);
+  gap: 1.5rem 2rem;
+  /* extra room at the bottom so the floating WhatsApp button never covers the last contact line */
+  padding: 2rem clamp(1rem, 5vw, 4rem) 5.5rem;
   border-top: 1px solid #2a2d35;
   color: #a7a9b1;
 }
 
 .footer strong {
   color: #d8b456;
+}
+
+.footer-about {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 340px;
+}
+
+.footer-contact {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+  max-width: 520px;
+  flex: 1 1 320px;
+}
+
+.footer-contact li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  line-height: 1.45;
+}
+
+.footer-contact a {
+  color: #d8d7d1;
+}
+
+.footer-contact a:hover,
+.footer-contact a:focus-visible {
+  color: #d8b456;
+}
+
+.footer-icon {
+  flex: 0 0 1.4rem;
+  text-align: center;
 }
 
 /* ── How it works ── */
@@ -1120,35 +1159,6 @@ summary:focus-visible {
 }
 
 /* ── Venue info band (Contact page) ── */
-.venue-info-band {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem 2rem;
-  margin-bottom: 2rem;
-  padding: 1.25rem 1.5rem;
-  border: 1px solid rgba(216, 180, 86, 0.25);
-  border-radius: 18px;
-  background: rgba(216, 180, 86, 0.05);
-}
-
-.venue-info-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  color: #d8d7d1;
-  font-size: 0.95rem;
-}
-
-.venue-info-item a {
-  color: #d8b456;
-}
-
-.venue-info-icon {
-  flex-shrink: 0;
-  font-size: 1rem;
-  line-height: 1.5;
-}
-
 /* ── Carousel (CSS-grid crossfade — no clone, no flash on wrap) ── */
 .carousel {
   position: relative;

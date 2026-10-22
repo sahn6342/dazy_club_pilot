@@ -7,7 +7,8 @@ export function WhatsappFab() {
   useEffect(() => {
     getVenueInfo()
       .then((v) => {
-        const phone = (v.whatsapp_phone ?? "").replace(/\D/g, "");
+        // The number entered in Admin → Contact Details; the venue phone when no separate WhatsApp number is set.
+        const phone = ((v.whatsapp_phone ?? "").trim() || (v.venue_phone ?? "")).replace(/\D/g, "");
         const msg   = v.whatsapp_message ?? "Hello! I am interested.";
         if (phone) setHref(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`);
       })
