@@ -342,8 +342,8 @@ test.describe("Book page — online prepay", () => {
 
 // ── Café pre-order attached to a confirmed booking (Phase 7, sub-step 1) ──
 
-test.describe("Book page — café pre-order", () => {
-  test("customer can add a pre-order after their booking is confirmed", async ({ page, request }) => {
+test.describe("Café pre-order", () => {
+  test("the Book page no longer offers it; the customer adds a pre-order from My Bookings", async ({ page, request }) => {
     const tok = await token(request);
     const cat = await (await request.post(`${API}/admin/cafe/categories`, {
       headers: { Authorization: `Bearer ${tok}` },
@@ -376,6 +376,13 @@ test.describe("Book page — café pre-order", () => {
       await page.getByTestId("simulate-payment-success").click();
       await expect(page.getByText(/you're booked in/i)).toBeVisible({ timeout: 10_000 });
 
+      // The booking page itself does not offer food & drinks...
+      await expect(page.getByRole("button", { name: /add food & drinks/i })).toHaveCount(0);
+      // ...it is added from My Bookings with the booking ID and contact.
+      expect(ref).not.toBeNull();
+      await page.goto(`/my-bookings?ref=${ref}`);
+      await page.getByPlaceholder("10-digit mobile or email").fill(phone);
+      await page.getByRole("button", { name: /find my booking/i }).click();
       await page.getByRole("button", { name: /add food & drinks/i }).click();
       const qty = page.locator(`[data-testid="qty-${item.id}"]`);
       await expect(qty).toBeVisible();

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { PreOrderPanel } from "./PreOrderPanel";
 
 /** Everything the confirmation card shows. Kept by the Book page for the rest of the visit. */
 export interface ConfirmedBooking {
@@ -85,7 +84,6 @@ export function ConfirmedBookingCard({ booking }: { booking: ConfirmedBooking })
         Look it up any time in <Link to="/my-bookings">My Bookings</Link> with this ID and your phone or email.
       </p>
 
-      <PreOrderPanel bookingRef={booking.ref} contact={booking.contact} />
     </div>
   );
 }
