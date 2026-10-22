@@ -97,7 +97,7 @@ export function Menu() {
   return (
     <div className="kiosk-layout">
       <header className="kiosk-header">
-        <span className="kiosk-logo">{BRAND.name}</span>
+        <span className="kiosk-logo"><img className="kiosk-logo-img" src="/logo-sm.webp" alt="" width="40" height="34" />{BRAND.name}</span>
         <nav className="kiosk-nav">
           <button className="kiosk-nav-btn active" onClick={() => navigate("/menu")}>Menu</button>
           <button className="kiosk-nav-btn" onClick={() => navigate("/orders")}>Orders</button>

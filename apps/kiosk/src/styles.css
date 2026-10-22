@@ -133,6 +133,9 @@ body {
 }
 
 .kiosk-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--gold);
@@ -494,3 +497,7 @@ body {
 .kot-btn.preparing { background: rgba(255,183,77,0.2); color: var(--amber); border: 1px solid var(--amber); }
 .kot-btn.ready { background: rgba(76,175,80,0.2); color: var(--green); border: 1px solid var(--green); }
 .kot-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Logo */
+.kiosk-logo-img { height: 34px; width: auto; display: block; }
+.login-logo { display: block; margin: 0 auto 0.5rem; width: 130px; height: auto; }

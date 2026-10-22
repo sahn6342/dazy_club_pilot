@@ -55,6 +55,25 @@ textarea {
 
 .brand {
   font-size: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.brand-logo {
+  height: 52px;
+  width: auto;
+  display: block;
+}
+
+.footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer-brand .brand-logo {
+  height: 32px;
 }
 
 nav {

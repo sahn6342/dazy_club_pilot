@@ -29,6 +29,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
+        <img className="brand-logo" src="/logo-sm.webp" alt="" width="46" height="40" />
         <span className="brand-text">{BRAND.adminTitle}</span>
       </div>
       <nav className="sidebar-nav">

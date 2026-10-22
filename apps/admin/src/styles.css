@@ -51,6 +51,9 @@ body { margin: 0; }
 }
 
 .sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   color: var(--gold);
   font-size: 1.2rem;
   font-weight: 800;
@@ -718,3 +721,7 @@ td code {
   gap: 0.75rem;
   justify-content: flex-end;
 }
+
+/* Logo */
+.brand-logo { height: 40px; width: auto; display: block; }
+.login-logo { display: block; margin: 0 auto 0.5rem; width: 140px; height: auto; }
