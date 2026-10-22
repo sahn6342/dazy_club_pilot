@@ -12,7 +12,7 @@ A sports-venue operating system for **Cricket, Football, Badminton and Picklebal
 
 | App | Path | Dev port | Users | Purpose |
 |---|---|---|---|---|
-| Web | `apps/web` | 5173 | Customers (no login) | Browse, book and pay for slots, enquiries, café pre-order |
+| Web | `apps/web` | 5173 | Customers (no login) | Browse, book and pay for slots, enquiries |
 | Admin | `apps/admin` | 5174 | Admin / manager | Back-office: bookings, schedule, content, café setup, users |
 | Kiosk | `apps/kiosk` | 5175 | Cashier / kitchen (PIN) | Café POS billing, GST invoices, kitchen display (KDS) |
 | API | `apps/api` | 8000 | All of the above | FastAPI backend, database, payments, notifications |
@@ -21,7 +21,7 @@ A sports-venue operating system for **Cricket, Football, Badminton and Picklebal
 
 | Role | How created | Login | Can do |
 |---|---|---|---|
-| Customer | none | none — identified by booking ref + phone/email | Book, pay, look up own bookings, pre-order café items |
+| Customer | none | none — identified by booking ref + phone/email | Book, pay, look up own bookings |
 | Superadmin (`admin`) | `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars | username + password, JWT 8 h | Everything, incl. user management |
 | Manager | Admin → Users | username + password, JWT 8 h | Everything except user management |
 | Cashier | Admin → Users | staff name + 4-digit PIN (kiosk), JWT 2 h | Kiosk POS |
@@ -70,10 +70,10 @@ All pages are public.
 |---|---|
 | `/` | Hero, stats, sport cards, "how it works", gallery carousel (from CMS), testimonials, corporate-events CTA, FAQ |
 | `/book` | Pick sport (tabs) and one of the next 7 days; optional court filter; live slot grid with price, discount and "Booked" tags; select **consecutive** slots (up to 8); enter name, phone/email, players, message; live promo validation; pay |
-| `/my-bookings` | Look up by booking ref, phone/email, or both. Ref + contact on a pending booking resumes payment. Confirmed bookings show the paid amount and the café pre-order panel |
+| `/my-bookings` | Look up by booking ref, phone/email, or both. Ref + contact on a pending booking resumes payment. Confirmed bookings show the paid amount |
 | `/contact` | General enquiry and corporate enquiry (company, group size, event type, date, sport), plus venue details from CMS |
 
-Other: floating WhatsApp button, Razorpay checkout loaded dynamically, simulated-payment buttons when provider is `noop`, café pre-order panel on a confirmed booking.
+Other: floating WhatsApp button, Razorpay checkout loaded dynamically, simulated-payment buttons when provider is `noop`, no café ordering (the pre-order API exists but the website does not offer it).
 
 There is **no customer cancel**. A pending booking auto-expires after 15 minutes; cancel and refund are admin-only.
 

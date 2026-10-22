@@ -301,54 +301,6 @@ export async function submitCorporateEnquiry(payload: CorporatePayload) {
   return request("/corporate-enquiries", jsonInit("POST", payload, "Enquiry failed. Please check the details and try again."));
 }
 
-export interface PublicMenuCategory {
-  id: string;
-  name: string;
-  kind: string;
-  vegType?: string | null;
-  sortOrder: number;
-  active: boolean;
-}
-
-export interface PublicMenuItem {
-  id: string;
-  category_id: string;
-  name: string;
-  description?: string | null;
-  price: number;
-  vegType?: string | null;
-  available: boolean;
-}
-
-export interface PublicMenu {
-  categories: PublicMenuCategory[];
-  items: PublicMenuItem[];
-}
-
-export async function getPublicMenu(): Promise<PublicMenu> {
-  return request("/menu", { fallback: "Failed to load menu" });
-}
-
-export interface PreOrderLine {
-  name: string;
-  qty: number;
-  lineTotal: number;
-}
-
-export interface PreOrderResult {
-  orderNo: string;
-  total: number;
-  items: PreOrderLine[];
-}
-
-export async function createPreorder(
-  bookingRef: string,
-  contact: string,
-  items: { menu_item_id: string; qty: number }[]
-): Promise<PreOrderResult> {
-  return request(`/bookings/${bookingRef}/preorder`, jsonInit("POST", { contact, items }, "Pre-order failed"));
-}
-
 export const SPORT_LABELS: Record<string, string> = {
   cricket: "Cricket",
   football: "Football",

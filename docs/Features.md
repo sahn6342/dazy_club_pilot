@@ -44,7 +44,7 @@ The booking flow: choose a sport, choose a date, see **live availability slots**
 - **Promo codes** — validated via `GET /promos/validate` before submission.
 - **Booking submission** — `POST /bookings` returns a booking reference immediately; customer record is created/linked. A priced slot goes to `pending` and opens the **payment panel** (dev-simulate buttons or real Razorpay checkout, depending on `DAZY_PAYMENT_PROVIDER`); a free slot (e.g. a 100%-off promo) confirms immediately.
 - **After booking** — the page is never locked. A confirmed booking becomes a compact card above the slot picker (booking ID with a Copy button, a "take a screenshot or note down this booking ID" reminder, the amount and a link to My Bookings) and stays there while the customer books more. Tapping another slot, sport or date while a payment is pending leaves the payment step (also possible with "Choose a different slot"): a banner says the slot is held for 15 minutes and can be resumed from My Bookings with the ID.
-- **Café pre-order** — not offered on the Book page. A confirmed booking can add café items from **My Bookings** ("Add food & drinks for your visit", `POST /bookings/{ref}/preorder`); the order is ready for the counter when they arrive.
+- **No food & drinks ordering on the website** — the Book page and My Bookings do not offer a café pre-order (the `POST /bookings/{ref}/preorder` API and the kiosk's pre-order badge still exist).
 
 **Mobile:**
 
@@ -55,7 +55,7 @@ The booking flow: choose a sport, choose a date, see **live availability slots**
 Self-service booking lookup at `/my-bookings` — no login. Enter the booking ref (pre-filled if arriving from a payment-reminder link) + the phone/email used at booking time.
 
 - **Pending booking** — resumes payment with the *original* checkout order (never a second gateway charge for one booking).
-- **Confirmed booking** — shows the details + the same café pre-order panel as the Book page.
+- **Confirmed booking** — shows the details and the paid amount.
 - Wrong contact or unknown ref → generic "not found" (no enumeration); rate-limited per IP.
 - Exists because a closed tab or reload had no other way back to a pending payment (there's no customer login/profile system).
 

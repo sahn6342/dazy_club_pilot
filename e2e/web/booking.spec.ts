@@ -340,26 +340,15 @@ test.describe("Book page — online prepay", () => {
   });
 });
 
-// ── Café pre-order attached to a confirmed booking (Phase 7, sub-step 1) ──
+// ── Food & drinks pre-order is not offered to customers on the website ──
 
-test.describe("Café pre-order", () => {
-  test("the Book page no longer offers it; the customer adds a pre-order from My Bookings", async ({ page, request }) => {
-    const tok = await token(request);
-    const cat = await (await request.post(`${API}/admin/cafe/categories`, {
-      headers: { Authorization: `Bearer ${tok}` },
-      data: { name: "E2E Preorder Cat " + Date.now(), kind: "food" },
-    })).json();
-    const itemName = "E2E Preorder Samosa " + Date.now();
-    const item = await (await request.post(`${API}/admin/cafe/items`, {
-      headers: { Authorization: `Bearer ${tok}` },
-      data: { category_id: cat.id, name: itemName, price: 40, taxRatePercent: 5 },
-    })).json();
-
+test.describe("Food & drinks pre-order", () => {
+  test("neither the Book page nor My Bookings offers it for a confirmed booking", async ({ page, request }) => {
     await page.goto("/book");
     await selectFirstDateWithSlots(page);
     await page.locator(".slot-chip:not(.unavailable)").first().click();
     await expect(page.locator(".booking-form-wrap")).toBeVisible();
-    await page.getByPlaceholder("Your full name").fill("Preorder E2E User");
+    await page.getByPlaceholder("Your full name").fill("No Preorder E2E User");
     const phone = "9" + String(Date.now()).slice(-9);
     await page.getByPlaceholder("10-digit mobile or email").fill(phone);
 
@@ -370,33 +359,20 @@ test.describe("Café pre-order", () => {
       }
     });
 
+    const tok = await token(request);
     try {
       await page.getByRole("button", { name: /confirm booking/i }).click();
       await expect(page.locator(".payment-panel")).toBeVisible();
       await page.getByTestId("simulate-payment-success").click();
       await expect(page.getByText(/you're booked in/i)).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(/food & drinks|pre-order/i)).toHaveCount(0);
 
-      // The booking page itself does not offer food & drinks...
-      await expect(page.getByRole("button", { name: /add food & drinks/i })).toHaveCount(0);
-      // ...it is added from My Bookings with the booking ID and contact.
       expect(ref).not.toBeNull();
       await page.goto(`/my-bookings?ref=${ref}`);
       await page.getByPlaceholder("10-digit mobile or email").fill(phone);
       await page.getByRole("button", { name: /find my booking/i }).click();
-      await page.getByRole("button", { name: /add food & drinks/i }).click();
-      const qty = page.locator(`[data-testid="qty-${item.id}"]`);
-      await expect(qty).toBeVisible();
-      const preorderItem = page.locator(".preorder-item", { hasText: itemName });
-      await preorderItem.getByRole("button", { name: "+" }).click();
-      await preorderItem.getByRole("button", { name: "+" }).click();
-      await expect(qty).toHaveText("2");
-      await expect(page.getByTestId("preorder-total")).toContainText("₹80.00");
-
-      const placed = page.waitForResponse((r) => r.url().includes("/preorder") && r.request().method() === "POST");
-      await page.getByRole("button", { name: /place pre-order/i }).click();
-      const res = await placed;
-      expect(res.status()).toBe(201);
-      await expect(page.getByTestId("preorder-done")).toContainText("₹84.00"); // 80 + 5% tax
+      await expect(page.getByTestId("lookup-status")).toContainText(/confirmed/i);
+      await expect(page.getByText(/food & drinks|pre-order/i)).toHaveCount(0);
     } finally {
       if (ref) {
         const list = (await (await request.get(`${API}/admin/bookings?limit=100`, { headers: { Authorization: `Bearer ${tok}` } })).json()).items;

@@ -7,7 +7,6 @@ import {
 import { Turnstile } from "../components/Turnstile";
 import { validateContact } from "../lib/validate";
 import { PaymentPanel } from "../components/PaymentPanel";
-import { PreOrderPanel } from "../components/PreOrderPanel";
 
 type PageStatus = "idle" | "loading" | "found" | "list" | "error";
 
@@ -298,13 +297,8 @@ export function MyBookings() {
             </p>
           )}
 
-          {result.status === "confirmed" && (
-            <>
-              {result.price != null && (
-                <p className="summary-total">Amount paid: ₹{result.price}</p>
-              )}
-              <PreOrderPanel bookingRef={result.bookingRef} contact={contact} />
-            </>
+          {result.status === "confirmed" && result.price != null && (
+            <p className="summary-total">Amount paid: ₹{result.price}</p>
           )}
         </div>
       )}
