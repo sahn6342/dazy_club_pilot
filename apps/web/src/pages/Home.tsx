@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from "react";
+import { cloneElement, useCallback, useEffect, useLayoutEffect, useRef, useState, type JSX } from "react";
 import { Link } from "react-router-dom";
 import { BRAND, galleryItems, launchSports, testimonials } from "@dazy/shared";
 import { getGallery, resolveImg, type GalleryItem } from "../lib/api";
@@ -88,51 +88,92 @@ function Carousel<T extends object>({
 }
 
 const STRIP_AUTO_MS = 4500;
+const STRIP_IDLE_MS = 140;
 
 /**
- * Horizontal scroll-snap strip: swipe / scroll / drag natively, prev-next arrows, and it advances one card at
- * a time on its own (wrapping back to the start). Cards per screen come from CSS (3 / 2 / 1 by width), so it
- * adapts on resize without any JS measurement of the viewport. Auto-advance pauses while the visitor hovers,
- * focuses or touches it and while the tab is hidden, and is off for prefers-reduced-motion.
+ * Horizontal scroll-snap strip that loops without a visible rewind: swipe / scroll / drag natively, prev-next
+ * arrows, and it advances one card at a time on its own. Cards per screen come from CSS (3 / 2 / 1 by width).
+ *
+ * The cards are rendered three times in a row, [clones][real][clones]; only the middle set is real. Moving
+ * forward past the last real card glides into the first card of the trailing clones (identical to the real
+ * first card), and once scrolling has been idle the strip is moved by exactly one set width without animation,
+ * back into the middle set, which looks the same. So the row simply keeps going in one direction.
+ *
+ * Auto-advance pauses while the visitor hovers, focuses or touches it and while the tab is hidden, and is off
+ * for prefers-reduced-motion.
  */
 function SportStrip({ children, label }: { children: JSX.Element[]; label: string }) {
   const track = useRef<HTMLDivElement>(null);
   const paused = useRef(false);
+  const pointerDown = useRef(false);
+  const idleTimer = useRef<number | undefined>(undefined);
+  const lastStep = useRef(0); // card width + gap the current scroll position was laid out with
+  const n = children.length;
   const [overflowing, setOverflowing] = useState(false);
 
-  // One step = the first card's width plus the flex gap.
-  const step = useCallback(() => {
+  const looped = [
+    ...children.map((c, i) => cloneElement(c, { key: `pre-${i}`, "data-clone": "true", "aria-hidden": true })),
+    ...children,
+    ...children.map((c, i) => cloneElement(c, { key: `post-${i}`, "data-clone": "true", "aria-hidden": true })),
+  ];
+
+  // One step = a card's width plus the flex gap.
+  const measure = useCallback(() => {
     const el = track.current;
     const first = el?.firstElementChild as HTMLElement | undefined;
-    if (!el || !first) return 0;
+    if (!el || !first) return { step: 0, gap: 0 };
     const gap = parseFloat(getComputedStyle(el).columnGap || "0") || 0;
-    return first.offsetWidth + gap;
+    return { step: first.offsetWidth + gap, gap };
   }, []);
 
+  const jump = (el: HTMLElement, left: number) => el.scrollTo({ left, behavior: "instant" as ScrollBehavior });
+
+  // Start on the first real card, keep the same card when the width changes, and decide whether arrows are needed.
+  useLayoutEffect(() => {
+    const el = track.current;
+    if (!el || n === 0) return;
+    el.querySelectorAll("[data-clone]").forEach((c) => c.setAttribute("inert", ""));
+    const place = () => {
+      const { step, gap } = measure();
+      if (step <= 0) return;
+      setOverflowing(n * step - gap > el.clientWidth + 1);
+      if (step === lastStep.current) return;
+      const prev = lastStep.current;
+      const idx = prev > 0 ? ((Math.round(el.scrollLeft / prev) % n) + n) % n : 0;
+      lastStep.current = step;
+      jump(el, (n + idx) * step);
+    };
+    place();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(place) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", place);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", place); };
+  }, [n, measure]);
+
+  // Once scrolling is idle, swap back into the middle (real) set; both positions look identical.
+  const normalize = useCallback(() => {
+    const el = track.current;
+    const step = lastStep.current;
+    if (!el || step <= 0 || pointerDown.current) return;
+    const setWidth = n * step;
+    if (el.scrollLeft >= 2 * setWidth - 2) jump(el, el.scrollLeft - setWidth);
+    else if (el.scrollLeft < setWidth - 2) jump(el, el.scrollLeft + setWidth);
+  }, [n]);
+
+  const scheduleNormalize = useCallback(() => {
+    window.clearTimeout(idleTimer.current);
+    idleTimer.current = window.setTimeout(normalize, STRIP_IDLE_MS);
+  }, [normalize]);
+
+  useEffect(() => () => window.clearTimeout(idleTimer.current), []);
+
+  // Always one card in the asked direction; never wraps (the clones make the row continuous).
   const move = useCallback((dir: 1 | -1) => {
     const el = track.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    const s = step();
-    if (max <= 1 || s <= 0) return;
-    // Work in whole card positions so a click during a smooth scroll still lands on a card edge.
-    const idx = Math.round(el.scrollLeft / s);
-    const lastIdx = Math.ceil(max / s - 0.01);
-    const to = dir === 1 ? (idx >= lastIdx ? 0 : idx + 1) : (idx <= 0 ? lastIdx : idx - 1);
-    el.scrollTo({ left: Math.min(max, to * s), behavior: "smooth" });
-  }, [step]);
-
-  // Arrows only make sense when the cards do not all fit.
-  useEffect(() => {
-    const el = track.current;
-    if (!el) return;
-    const measure = () => setOverflowing(el.scrollWidth - el.clientWidth > 1);
-    measure();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
-    ro?.observe(el);
-    window.addEventListener("resize", measure);
-    return () => { ro?.disconnect(); window.removeEventListener("resize", measure); };
-  }, [children.length]);
+    const step = lastStep.current;
+    if (!el || step <= 0) return;
+    el.scrollTo({ left: (Math.round(el.scrollLeft / step) + dir) * step, behavior: "smooth" });
+  }, []);
 
   useEffect(() => {
     if (!overflowing) return;
@@ -163,8 +204,17 @@ function SportStrip({ children, label }: { children: JSX.Element[]; label: strin
       {overflowing && (
         <button type="button" className="strip-arrow prev" data-testid="strip-prev" aria-label="Previous sport" onClick={() => move(-1)}>‹</button>
       )}
-      <div className="sport-strip-track" ref={track} data-testid="sport-strip-track" tabIndex={0}>
-        {children}
+      <div
+        className="sport-strip-track"
+        ref={track}
+        data-testid="sport-strip-track"
+        tabIndex={0}
+        onScroll={scheduleNormalize}
+        onPointerDown={() => { pointerDown.current = true; }}
+        onPointerUp={() => { pointerDown.current = false; scheduleNormalize(); }}
+        onPointerCancel={() => { pointerDown.current = false; scheduleNormalize(); }}
+      >
+        {looped}
       </div>
       {overflowing && (
         <button type="button" className="strip-arrow next" data-testid="strip-next" aria-label="Next sport" onClick={() => move(1)}>›</button>
