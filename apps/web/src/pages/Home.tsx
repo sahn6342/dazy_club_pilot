@@ -111,10 +111,10 @@ export function Home() {
         </video>
         <div className="hero-overlay" aria-hidden="true" />
         <div className="hero-content">
-          <p className="eyebrow">Cricket · Badminton · Pickleball · Cricket Academy</p>
+          <p className="eyebrow">Cricket · Football · Badminton · Pickleball · Cricket Academy</p>
           <h1>Premium sports energy, built for your next game.</h1>
           <p className="hero-copy">
-            {BRAND.name} brings together Cricket, Badminton, and Pickleball in one premium venue.
+            {BRAND.name} brings together Cricket, Football, Badminton, and Pickleball in one premium venue.
             Whether it's a casual weekend game or a corporate event, we've got your court.
           </p>
           <div className="actions">
@@ -127,10 +127,10 @@ export function Home() {
       <section className="stats-band">
         <div className="stats-inner">
           {[
-            { value: "3", label: "Sports" },
+            { value: "4", label: "Sports" },
             { value: "16h", label: "Open daily" },
             { value: "7", label: "Days ahead" },
-            { value: "11", label: "Max players" },
+            { value: "25", label: "Max players" },
           ].map((s) => (
             <div className="stat" key={s.label}>
               <span className="stat-value">{s.value}</span>
@@ -144,7 +144,7 @@ export function Home() {
         <div className="section-heading">
           <p className="eyebrow">Sports</p>
           <h2>Choose your court energy.</h2>
-          <p>Three sports, one venue. Find your game.</p>
+          <p>Four sports, one venue. Find your game.</p>
         </div>
         <div className="card-grid">
           {launchSports.map((sport) => (
@@ -179,7 +179,7 @@ export function Home() {
         </div>
         <div className="card-grid steps">
           {[
-            { n: "1", t: "Pick your sport", d: "Cricket, Badminton, or Pickleball — choose the game you're in the mood for." },
+            { n: "1", t: "Pick your sport", d: "Cricket, Football, Badminton, or Pickleball — choose the game you're in the mood for." },
             { n: "2", t: "Choose a slot", d: "See live availability for the next 7 days and lock the time that suits you." },
             { n: "3", t: "Play", d: "Get an instant booking reference. Show up, team up, and play." },
           ].map((step) => (
@@ -292,7 +292,7 @@ export function Home() {
           </details>
           <details>
             <summary>Which sports are available?</summary>
-            <p>Cricket, Badminton, and Pickleball are available. More sports may be added in future.</p>
+            <p>Cricket, Football, Badminton, and Pickleball are available. Cricket and Football are played on the same turf, so a slot booked for one is not available for the other. More sports may be added in future.</p>
           </details>
           <details>
             <summary>Can my company plan an event?</summary>
@@ -300,7 +300,7 @@ export function Home() {
           </details>
           <details>
             <summary>What is the maximum group size?</summary>
-            <p>Cricket supports up to 11 players, Pickleball up to 6, and Badminton up to 4 per court slot. For larger groups, use the corporate enquiry form.</p>
+            <p>Cricket and Football support up to 25 players, Pickleball and Badminton up to 4 per court slot. For larger groups, use the corporate enquiry form.</p>
           </details>
         </div>
       </section>

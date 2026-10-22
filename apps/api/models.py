@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 _PHONE_RE = _re.compile(r"^\d{10}$")
 _EMAIL_RE = _re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
-_VALID_SPORTS = {"cricket", "badminton", "pickleball"}
+_VALID_SPORTS = {"cricket", "football", "badminton", "pickleball"}
 
 
 def _validate_contact(v: str) -> str:
@@ -135,7 +135,7 @@ class BookingRequest(BaseModel):
     sportSlug: str = Field(min_length=1)
     date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     startTime: str = Field(pattern=r"^\d{2}:\d{2}$")
-    players: int = Field(ge=1, le=12)  # public API field — mapped to party_size internally
+    players: int = Field(ge=1, le=25)  # public API field — mapped to party_size internally
     promoCode: str | None = Field(default=None, max_length=40)
     message: str | None = Field(default=None, max_length=2000)
     turnstileToken: str | None = Field(default=None, max_length=2048)  # Cloudflare Turnstile response
@@ -516,8 +516,19 @@ class CourtDto(BaseModel):
     capacity: int
     active: bool
     createdAt: str = ""
+    # Every sport bookable on this court, always including `sport` (the primary). More than one = shared turf.
+    sports: list[str] = []
 
     model_config = {"from_attributes": True}
+
+
+def _validate_sport_list(v: list[str] | None) -> list[str] | None:
+    if v is None:
+        return v
+    bad = sorted({x for x in v if x not in _VALID_SPORTS})
+    if bad:
+        raise ValueError(f"sports must be from {sorted(_VALID_SPORTS)}; got {bad}.")
+    return list(dict.fromkeys(v))  # drop duplicates, keep order
 
 
 class CourtCreate(BaseModel):
@@ -526,6 +537,8 @@ class CourtCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     # One court = one booking per slot (enforced by uq_active_court_slot). Add more courts for parallel play.
     capacity: int = Field(ge=1, le=1, default=1)
+    # Other sports played on this same court (shared turf). The primary `sport` is always included.
+    sports: list[str] | None = None
 
     @field_validator("sport")
     @classmethod
@@ -534,11 +547,23 @@ class CourtCreate(BaseModel):
             raise ValueError(f"sport must be one of {sorted(_VALID_SPORTS)}.")
         return v
 
+    @field_validator("sports")
+    @classmethod
+    def validate_sports(cls, v):
+        return _validate_sport_list(v)
+
 
 class CourtUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     capacity: int | None = Field(default=None, ge=1, le=1)
     active: bool | None = None
+    # Replace the set of sports served by this court. Must include the court's primary sport.
+    sports: list[str] | None = None
+
+    @field_validator("sports")
+    @classmethod
+    def validate_sports(cls, v):
+        return _validate_sport_list(v)
 
 
 class ScheduleRuleDto(BaseModel):

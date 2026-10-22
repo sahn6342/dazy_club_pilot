@@ -11,6 +11,14 @@ SPORTS: list[SportDto] = [
         highlights=["Group-friendly turf", "Evening game energy", "Ideal for corporate tournaments"],
     ),
     SportDto(
+        id="sport-football",
+        slug="football",
+        name="Football",
+        tagline="Big-pitch energy on the same premium turf.",
+        description="Turf football for friendly matches, team practice, and tournaments, played on the turf shared with cricket.",
+        highlights=["Premium turf", "Teams of any size", "Great for friendly matches and events"],
+    ),
+    SportDto(
         id="sport-badminton",
         slug="badminton",
         name="Badminton",
@@ -27,6 +35,10 @@ SPORTS: list[SportDto] = [
         highlights=["Beginner friendly", "Social format", "Event-ready experience"],
     ),
 ]
+
+# Sports that have no court of their own: they are played on another sport's court. {sport: sport whose court it uses}.
+# A booking under either sport takes the same (court, slot), so the other sport sees that slot as taken.
+SHARED_COURT_SPORTS: dict[str, str] = {"football": "cricket"}
 
 GALLERY_ITEMS: list[GalleryItemDto] = [
     GalleryItemDto(id="gallery-1", title="Evening turf sessions", sportSlug="cricket", tone="electric",

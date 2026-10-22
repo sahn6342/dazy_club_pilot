@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Slot } from "@dazy/shared";
 import { Turnstile } from "../components/Turnstile";
@@ -80,12 +80,16 @@ export function Book() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [touched, setTouched] = useState<Record<keyof FieldErrors, boolean>>({ name: false, contact: false, players: false });
 
+  // Only the newest slots request may update the page: switching sport or date quickly must not let a slower,
+  // older response overwrite the newer one.
+  const slotsRequest = useRef(0);
   const loadSlots = useCallback(() => {
+    const mine = ++slotsRequest.current;
     setSlotsLoading(true);
     setSlotsError("");
     getSlots(bookSport, bookDate)
-      .then((data) => { setSlots(data); setSlotsLoading(false); })
-      .catch((err) => { setSlotsError(err?.message ?? "Failed to load slots."); setSlotsLoading(false); });
+      .then((data) => { if (mine === slotsRequest.current) { setSlots(data); setSlotsLoading(false); } })
+      .catch((err) => { if (mine === slotsRequest.current) { setSlotsError(err?.message ?? "Failed to load slots."); setSlotsLoading(false); } });
   }, [bookSport, bookDate]);
 
   useEffect(() => {

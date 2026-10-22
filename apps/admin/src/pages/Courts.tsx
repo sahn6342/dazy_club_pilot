@@ -12,16 +12,42 @@ type Court = {
   capacity: number;
   active: boolean;
   createdAt: string;
+  sports: string[]; // every sport bookable on this court; more than one = shared turf
 };
 
-const SPORTS = ["cricket", "badminton", "pickleball"];
+const SPORTS = ["cricket", "football", "badminton", "pickleball"];
 const SPORT_LABELS: Record<string, string> = {
   cricket: "Cricket",
+  football: "Football",
   badminton: "Badminton",
   pickleball: "Pickleball",
 };
 
-const blankForm = { sport: "cricket", name: "" };
+const blankForm = { sport: "cricket", name: "", also: [] as string[] };
+
+/** Checkboxes for the other sports a court is also used for (it always serves its own sport). */
+function AlsoUsedFor({ primary, value, onChange }: { primary: string; value: string[]; onChange: (v: string[]) => void }) {
+  const others = SPORTS.filter((s) => s !== primary);
+  return (
+    <fieldset data-testid="also-used-for" style={{ border: "none", padding: 0, margin: 0 }}>
+      <legend className="muted" style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>Also used for (shared turf)</legend>
+      <span style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+        {others.map((s) => (
+          <label key={s} style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+            <input
+              type="checkbox"
+              data-testid={`also-${s}`}
+              checked={value.includes(s)}
+              onChange={(e) => onChange(e.target.checked ? [...value, s] : value.filter((x) => x !== s))}
+            />
+            {SPORT_LABELS[s]}
+          </label>
+        ))}
+      </span>
+      <span className="muted" style={{ fontSize: "0.75rem" }}>A slot booked under any ticked sport is taken for all of them.</span>
+    </fieldset>
+  );
+}
 
 export function Courts() {
   const toast = useToast();
@@ -34,7 +60,7 @@ export function Courts() {
   const [createError, setCreateError] = useState("");
 
   const [editId, setEditId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: "" });
+  const [editForm, setEditForm] = useState({ name: "", also: [] as string[] });
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -59,6 +85,7 @@ export function Courts() {
         venue_id: venueId,
         sport: form.sport,
         name: form.name.trim(),
+        sports: [form.sport, ...form.also.filter((s) => s !== form.sport)],
       });
       toast.success("Court created");
       setForm(blankForm);
@@ -74,17 +101,18 @@ export function Courts() {
 
   function startEdit(c: Court) {
     setEditId(c.id);
-    setEditForm({ name: c.name });
+    setEditForm({ name: c.name, also: (c.sports ?? []).filter((s) => s !== c.sport) });
     setEditError("");
   }
 
-  async function saveEdit(courtId: string) {
+  async function saveEdit(court: Court) {
     if (!editForm.name.trim()) { setEditError("Name is required."); return; }
     setSaving(true);
     setEditError("");
     try {
-      await api.patch(`/admin/courts/${courtId}`, {
+      await api.patch(`/admin/courts/${court.id}`, {
         name: editForm.name.trim(),
+        sports: [court.sport, ...editForm.also.filter((s) => s !== court.sport)],
       });
       toast.success("Court updated");
       setEditId(null);
@@ -155,6 +183,8 @@ export function Courts() {
                   />
                 </label>
               </div>
+              <AlsoUsedFor primary={form.sport} value={form.also.filter((s) => s !== form.sport)}
+                onChange={(also) => setForm((f) => ({ ...f, also }))} />
               {createError && <p className="field-error">{createError}</p>}
               <div>
                 <button className="btn-primary" type="submit" disabled={creating}>
@@ -174,7 +204,16 @@ export function Courts() {
                   {SPORT_LABELS[sport]}
                 </h3>
                 {sportCourts.length === 0 ? (
-                  <p className="muted" style={{ fontSize: "0.85rem" }}>No courts — add one above.</p>
+                  (() => {
+                    const hosts = courts.filter((c) => c.active && (c.sports ?? []).includes(sport));
+                    return hosts.length ? (
+                      <p className="muted" style={{ fontSize: "0.85rem" }} data-testid={`shares-${sport}`}>
+                        Played on the shared {hosts.map((h) => `${SPORT_LABELS[h.sport]} — ${h.name}`).join(", ")}. Slots booked for either sport block the other.
+                      </p>
+                    ) : (
+                      <p className="muted" style={{ fontSize: "0.85rem" }}>No courts — add one above.</p>
+                    );
+                  })()
                 ) : (
                   <table style={{ width: "100%", maxWidth: 700 }}>
                     <thead>
@@ -186,7 +225,7 @@ export function Courts() {
                     </thead>
                     <tbody>
                       {sportCourts.map((c) => (
-                        <tr key={c.id} style={{ opacity: c.active ? 1 : 0.55 }}>
+                        <tr key={c.id} data-testid={`court-row-${c.id}`} style={{ opacity: c.active ? 1 : 0.55 }}>
                           <td>
                             {editId === c.id ? (
                               <input
@@ -196,7 +235,21 @@ export function Courts() {
                                 onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
                               />
                             ) : (
-                              c.name
+                              <>
+                                {c.name}
+                                {(c.sports ?? []).filter((s) => s !== c.sport).map((s) => (
+                                  <span key={s} className="muted" data-testid={`shared-badge-${c.id}`}
+                                    style={{ marginLeft: "0.5rem", fontSize: "0.75rem", border: "1px solid var(--border)", borderRadius: 999, padding: "0.05rem 0.5rem" }}>
+                                    also {SPORT_LABELS[s] ?? s}
+                                  </span>
+                                ))}
+                              </>
+                            )}
+                            {editId === c.id && (
+                              <div style={{ marginTop: "0.5rem" }}>
+                                <AlsoUsedFor primary={c.sport} value={editForm.also}
+                                  onChange={(also) => setEditForm((f) => ({ ...f, also }))} />
+                              </div>
                             )}
                           </td>
                           <td>
@@ -208,7 +261,7 @@ export function Courts() {
                             {editId === c.id ? (
                               <span style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                                 {editError && <span className="field-error" style={{ fontSize: "0.8rem" }}>{editError}</span>}
-                                <button className="btn-action confirm" onClick={() => saveEdit(c.id)} disabled={saving}>
+                                <button className="btn-action confirm" onClick={() => saveEdit(c)} disabled={saving}>
                                   {saving ? "…" : "Save"}
                                 </button>
                                 <button className="btn-action cancel" onClick={() => setEditId(null)}>Cancel</button>

@@ -236,7 +236,7 @@ test.describe("Admin — schedule management", () => {
     await expect(exRow).toContainText(/all courts/i);
 
     // Every sport has zero slots that day (via the public API).
-    for (const sport of ["cricket", "badminton", "pickleball"]) {
+    for (const sport of ["cricket", "football", "badminton", "pickleball"]) {
       const res = await request.get(`${API}/slots?sport=${sport}&date=${day}`);
       expect((await res.json()).length).toBe(0);
     }

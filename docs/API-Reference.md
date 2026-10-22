@@ -16,7 +16,7 @@ FastAPI backend. Base URL: **`http://localhost:8000/api/v1`**. Interactive docs 
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/health` | Liveness check |
-| GET | `/sports` | List sports (Cricket, Badminton, Pickleball) + metadata |
+| GET | `/sports` | List sports (Cricket, Football, Badminton, Pickleball) + metadata |
 | GET | `/venue` | Venue details (name, contact, hours from CMS) |
 | GET | `/slots` | Live availability slots for a sport/date |
 | GET | `/gallery` | Approved gallery items (DB-driven, realtime) |
@@ -42,7 +42,7 @@ FastAPI backend. Base URL: **`http://localhost:8000/api/v1`**. Interactive docs 
 | GET / PATCH | `/admin/enquiries` · `/admin/enquiries/{id}` | List, update status |
 | GET | `/admin/customers` | Customer records |
 | GET / POST / PUT / DELETE | `/admin/cms` · `/admin/cms/{key}` | CMS CRUD (PUT label+value; 409 on dup key) |
-| GET / POST / PATCH / DELETE | `/admin/courts` · `/admin/courts/{id}` | Court CRUD |
+| GET / POST / PATCH / DELETE | `/admin/courts` · `/admin/courts/{id}` | Court CRUD. Court bodies carry `sports` (all sports the court serves, primary first); PATCH `sports` replaces the list and must include the court's own sport (422 otherwise) |
 | GET / POST / PATCH / DELETE | `/admin/promos` · `/admin/promos/{id}` | Promo CRUD |
 | GET / POST / PATCH / DELETE | `/admin/schedule/rules` · `/admin/schedule/rules/{id}` | Weekly schedule rule CRUD |
 | GET / POST / DELETE | `/admin/schedule/exceptions` · `/admin/schedule/exceptions/{id}` | Date exceptions (venue-wide or per-court) |
@@ -156,7 +156,7 @@ alembic heads               # show current head
 
 **Availability** — `GET /slots` derives open slots from a court's weekly `schedule_rules`, applies any `schedule_exceptions` for that date (per-court override wins over a venue-wide holiday), subtracts capacity already consumed by existing bookings. Default seeded grid: blocks 06:00–12:00, 14:00–17:00, 18:00–21:00 (12 one-hour slots). Default per-slot price: Cricket ₹1200, Badminton ₹500, Pickleball ₹700.
 
-**Booking integrity** — a capacity-aware unique index prevents double-booking the same court/slot beyond capacity (race-safe). Party size is validated against the sport max (Cricket 11, Pickleball 6, Badminton 4). Multi-slot bookings flag one row `is_primary`.
+**Booking integrity** — a capacity-aware unique index prevents double-booking the same court/slot beyond capacity (race-safe). Players are accepted from 1 to 25; the slot's `maxPlayers` (Cricket 25, Football 25, Badminton 4, Pickleball 4) is what the booking form enforces. Football shares the cricket court, so a slot booked under either sport is taken for both. Multi-slot bookings flag one row `is_primary`.
 
 **Booking payment (online prepay)** — a priced `POST /bookings` creates the booking as `pending` (reserving the slot) and a payment order via the pluggable adapter (`DAZY_PAYMENT_PROVIDER=noop|razorpay`; `apps/api/integrations/payments/`). Confirmation only happens via `POST /bookings/{ref}/payment/verify` (client callback) or `POST /payments/razorpay/webhook` (source of truth, signature-verified) — both idempotent. A `pending` booking older than 15 minutes is swept and the slot freed on the next availability read (no separate scheduler). `GET /bookings/lookup?ref=&contact=` lets a customer resume a payment (replaying the *same* stored checkout order, never a second gateway order) or view a confirmed booking — no login, same ref+contact identity model. Free bookings (price = 0, e.g. a 100%-off promo) skip payment and confirm immediately.
 

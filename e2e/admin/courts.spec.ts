@@ -36,10 +36,14 @@ test.describe("Admin — courts management", () => {
     await login(page);
     await gotoCourts(page);
 
-    // Three sport headings visible.
-    await expect(page.getByText(/cricket/i).first()).toBeVisible();
-    await expect(page.getByText(/badminton/i).first()).toBeVisible();
-    await expect(page.getByText(/pickleball/i).first()).toBeVisible();
+    // Sport headings visible.
+    await expect(page.getByRole("heading", { name: /cricket/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /football/i })).toBeVisible();
+    // Football has no court of its own: it is played on the shared cricket turf.
+    await expect(page.getByTestId("shares-football")).toContainText(/cricket/i);
+    await expect(page.getByTestId("shared-badge-court-cricket")).toContainText(/football/i);
+    await expect(page.getByRole("heading", { name: /badminton/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /pickleball/i })).toBeVisible();
 
     // Seeded courts show.
     await expect(page.getByText("Court 1").first()).toBeVisible();
@@ -91,7 +95,7 @@ test.describe("Admin — courts management", () => {
       await login(page);
       await gotoCourts(page);
 
-      const row = page.locator("tr", { hasText: "Edit Test Court" });
+      const row = page.getByTestId(`court-row-${courtId}`);
       await expect(row).toBeVisible({ timeout: 6_000 });
 
       // Click Edit.
@@ -152,8 +156,8 @@ test.describe("Admin — courts management", () => {
       await login(page);
       await gotoCourts(page);
 
-      const row = page.locator("tr", { hasText: "Court 1" }).filter({ hasText: /inactive/i });
-      await expect(row).toBeVisible({ timeout: 6_000 });
+      const row = page.getByTestId("court-row-court-cricket");
+      await expect(row.getByText(/inactive/i)).toBeVisible({ timeout: 6_000 });
 
       const patch = page.waitForResponse(
         (r) => r.url().includes("/admin/courts/court-cricket") && r.request().method() === "PATCH"
@@ -161,7 +165,7 @@ test.describe("Admin — courts management", () => {
       await row.getByRole("button", { name: /reactivate/i }).click();
       expect((await patch).status()).toBe(200);
 
-      await expect(row.getByText(/active/i)).toBeVisible({ timeout: 5_000 });
+      await expect(row.getByText(/^active$/i)).toBeVisible({ timeout: 5_000 });
     } finally {
       // Restore — reactivate if somehow still inactive.
       const tok2 = await token(request);
@@ -169,6 +173,32 @@ test.describe("Admin — courts management", () => {
         headers: { Authorization: `Bearer ${tok2}` },
         data: { active: true },
       });
+    }
+  });
+
+  test("a court can be shared with another sport from the Edit row", async ({ page, request }) => {
+    const tok = await token(request);
+    const createRes = await request.post(`${API}/admin/courts`, {
+      headers: { Authorization: `Bearer ${tok}` },
+      data: { venue_id: "venue-dazy", sport: "pickleball", name: "Share Test Court", capacity: 1 },
+    });
+    const { id: courtId } = await createRes.json();
+    try {
+      await login(page);
+      await gotoCourts(page);
+      const row = page.getByTestId(`court-row-${courtId}`);
+      await expect(row).toBeVisible({ timeout: 6_000 });
+      await row.getByRole("button", { name: /edit/i }).click();
+      await row.getByTestId("also-football").check();
+      const patch = page.waitForResponse((r) => r.url().includes(`/admin/courts/${courtId}`) && r.request().method() === "PATCH");
+      await row.getByRole("button", { name: /save/i }).click();
+      expect((await patch).status()).toBe(200);
+      await expect(row.getByTestId(`shared-badge-${courtId}`)).toContainText(/football/i);
+
+      const courts = await (await request.get(`${API}/admin/courts`, { headers: { Authorization: `Bearer ${tok}` } })).json();
+      expect(courts.find((c: any) => c.id === courtId).sports).toEqual(["pickleball", "football"]);
+    } finally {
+      await deleteCourt(request, courtId);
     }
   });
 

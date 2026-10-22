@@ -342,6 +342,7 @@ export async function createPreorder(
 
 export const SPORT_LABELS: Record<string, string> = {
   cricket: "Cricket",
+  football: "Football",
   badminton: "Badminton",
   pickleball: "Pickleball",
 };

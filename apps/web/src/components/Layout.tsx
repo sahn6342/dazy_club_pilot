@@ -19,7 +19,7 @@ export function Layout() {
 
       <footer className="footer">
         <strong>{BRAND.name}</strong>
-        <span>Premium sports experience. Cricket, Badminton &amp; Pickleball.</span>
+        <span>Premium sports experience. Cricket, Football, Badminton &amp; Pickleball.</span>
       </footer>
       <WhatsappFab />
     </main>

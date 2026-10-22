@@ -172,9 +172,9 @@ def test_booking_players_max_boundary(client):
 
 
 def test_booking_players_over_max_rejected(client):
-    """players=13 exceeds model max (le=12)."""
+    """players=26 exceeds model max (le=25)."""
     slot = _get_available_slot(client)
-    r = _book(client, slot, players=13)
+    r = _book(client, slot, players=26)
     assert r.status_code == 422
 
 

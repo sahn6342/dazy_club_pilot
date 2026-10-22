@@ -8,7 +8,7 @@ One-document guide to the whole platform: what it does, how each flow works, the
 
 ## 1. What Dazy Club is
 
-A sports-venue operating system for **Cricket, Badminton and Pickleball**, plus an in-venue **café**. It has four deployable parts:
+A sports-venue operating system for **Cricket, Football, Badminton and Pickleball**, plus an in-venue **café**. It has four deployable parts:
 
 | App | Path | Dev port | Users | Purpose |
 |---|---|---|---|---|
@@ -86,7 +86,7 @@ Login at `/login`, then:
 | Dashboard | Bookings and revenue today, café revenue, occupancy, pending bookings, new enquiries, day-close table (café payments by cash/UPI/card) |
 | Bookings | List, filter, sort (all in SQL, paged), CSV export; confirm / complete / no-show / cancel; cancel & refund / refund; delete, restore ("Deleted only" view) |
 | Schedule | Weekly open/close rules per court (slot length, price, discount) and date exceptions (holiday, special hours; venue-wide or per court) |
-| Courts | Court CRUD. One court = one booking per slot; add more courts for parallel play (capacity is fixed at 1) |
+| Courts | Court CRUD. One court = one booking per slot; add more courts for parallel play (capacity is fixed at 1). Each court has a primary sport and an **Also used for** list: tick other sports to share the turf (see 4.6) |
 | Promos | Percent or flat codes, date window, max uses, sport restriction |
 | Enquiries | Triage contact and corporate enquiries (new / handled) |
 | Gallery | CRUD with image upload (jpg/png/webp/gif, 10 MB, magic-byte check) |
@@ -151,7 +151,7 @@ Rules worth knowing:
 - The "hold" is the pending row. It occupies the slot for **15 minutes**, then the lazy sweep cancels it, releases promo usage and sends a cancellation notice.
 - Verify uses the stored `providerOrderId`, never the client's, so a signature cannot be reused across bookings.
 - Resume: `GET /bookings/lookup?ref&contact` returns the stored checkout payload while payment is due (only when contact is also supplied).
-- Slot id format: `slot-{courtId}-{YYYY-MM-DD}-{HHMM}`.
+- Slot id format: `slot-{courtId}-{YYYY-MM-DD}-{HHMM}`. It has no sport in it on purpose: courts can be shared between sports (see 4.6), and the shared id is what makes a booking under one sport take the slot for the others.
 
 ### 4.2 Booking state machine
 
@@ -230,7 +230,8 @@ flowchart LR
 - Horizon: next **7 days** in the venue timezone (default `Asia/Kolkata`). Past slots are hidden.
 - Rule per court, per weekday: open/close time, slot minutes (default 60), price (null = free), discount percent. Exceptions override rules; a court-specific exception beats a venue-wide one; an exception with no special hours means closed.
 - A slot is available while it has no active booking. One court = one booking per slot (`courts.capacity` is always 1; the API rejects higher values and the unique index enforces it). For parallel play, add more courts.
-- Max players per sport: cricket 11, badminton 4, pickleball 6; party size 1–12.
+- **Shared turf.** A court serves every sport in its `court_sports` rows (its own sport plus any ticked in Admin → Courts → *Also used for*). Football has no court of its own: it is linked to the cricket court (`court-cricket`), so `GET /slots?sport=football` and `?sport=cricket` return the *same* slots, with the same hours and prices (set on the court), each reporting the sport that was asked for. A booking under either sport takes the `(court_id, slotId)` and the other sport shows that slot as booked; the unique index `uq_active_court_slot` guards a race between them. Cancelling or expiring frees it for both. A venue-wide or court-specific closure closes every sport on the court. Unlinking a sport only stops new bookings under it; existing bookings keep their sport. With no `sport` filter the shared court is listed once.
+- Max players per sport (the slot's `maxPlayers`, enforced by the booking form): cricket 25, football 25, badminton 4, pickleball 4. The API itself accepts 1–25 players on any sport.
 - Price = sum of slot `finalPrice`; promo (percent or flat, never below zero) applied to the total.
 - Prices are **GST-inclusive**; GST (default 18%, CMS key `booking_gst_rate`) is split out and snapshotted on the booking.
 - Money uses Decimal, HALF_UP, 2 places.
@@ -277,7 +278,7 @@ Dates/times are stored as strings (ISO UTC timestamps, `YYYY-MM-DD`, `HH:MM`). 2
 
 | Group | Tables |
 |---|---|
-| Venue and schedule | `venues`, `courts`, `schedule_rules`, `schedule_exceptions` |
+| Venue and schedule | `venues`, `courts`, `court_sports` (which sports each court serves; cascades with the court), `schedule_rules`, `schedule_exceptions` |
 | Booking | `customers`, `bookings`, `booking_payments`, `promo_codes`, `notification_messages` |
 | Content and leads | `gallery`, `testimonials`, `cms`, `enquiries` |
 | Café | `cafe_settings`, `menu_categories`, `menu_items`, `cafe_tables`, `orders`, `order_items`, `kots`, `payments`, `invoices`, `invoice_lines`, `invoice_sequences` |

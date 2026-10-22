@@ -1,14 +1,14 @@
 export const BRAND = {
   name: "Dazy Club",
   adminTitle: "Dazy Admin",
-  tagline: "Cricket · Badminton · Pickleball",
+  tagline: "Cricket · Football · Badminton · Pickleball",
 } as const;
 
 export type LaunchScope = "launch" | "future" | "excluded";
 
 export type Sport = {
   id: string;
-  slug: "cricket" | "badminton" | "pickleball";
+  slug: "cricket" | "football" | "badminton" | "pickleball";
   name: string;
   tagline: string;
   description: string;
@@ -63,6 +63,15 @@ export const launchSports: Sport[] = [
     description:
       "A high-energy cricket experience for weekend games, friendly rivalries, and corporate tournaments.",
     highlights: ["Group-friendly turf", "Evening game energy", "Ideal for corporate tournaments"]
+  },
+  {
+    id: "sport-football",
+    slug: "football",
+    name: "Football",
+    tagline: "Big-pitch energy on the same premium turf.",
+    description:
+      "Turf football for friendly matches, team practice, and tournaments, played on the turf shared with cricket.",
+    highlights: ["Premium turf", "Teams of any size", "Great for friendly matches and events"]
   },
   {
     id: "sport-badminton",

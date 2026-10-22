@@ -123,8 +123,10 @@ def seed_if_empty() -> None:
     from datetime import datetime, timezone
     from sqlalchemy import select, func
     _seed_log.info("importing seed data modules")
-    from seed import GALLERY_ITEMS, TESTIMONIALS, SPORTS
-    from db_models import GalleryRow, TestimonialRow, CmsRow, VenueRow, CourtRow, ScheduleRuleRow, PromoCodeRow
+    from seed import GALLERY_ITEMS, TESTIMONIALS, SPORTS, SHARED_COURT_SPORTS
+    from db_models import GalleryRow, TestimonialRow, CmsRow, VenueRow, CourtRow, CourtSportRow, ScheduleRuleRow, PromoCodeRow
+    # Sports with their own court (a shared sport, e.g. football, uses another sport's court instead).
+    own_court_sports = [sp for sp in SPORTS if sp.slug not in SHARED_COURT_SPORTS]
     _seed_log.info("opening session")
 
     # Daily schedule blocks reproducing the original 12-slot grid (60-min slots,
@@ -162,7 +164,7 @@ def seed_if_empty() -> None:
         # Courts — re-seeded whenever the table is empty (e.g. after test teardown).
         _seed_log.info("seeding courts")
         if s.scalar(select(func.count()).select_from(CourtRow)) == 0:
-            for sport in SPORTS:
+            for sport in own_court_sports:
                 s.add(CourtRow(
                     id=f"court-{sport.slug}",
                     venue_id=venue_id,
@@ -172,11 +174,16 @@ def seed_if_empty() -> None:
                     active=True,
                     createdAt=now,
                 ))
-            s.flush()  # schedule_rules FK → courts; flush before rule inserts
+            s.flush()  # court_sports and schedule_rules FK → courts; flush before inserting them
+            for sport in own_court_sports:
+                s.add(CourtSportRow(court_id=f"court-{sport.slug}", sport_slug=sport.slug))
+            for shared, host in SHARED_COURT_SPORTS.items():
+                s.add(CourtSportRow(court_id=f"court-{host}", sport_slug=shared))
+            s.flush()
         # Schedule rules: one row per court / weekday / block (reproduces the 12-slot grid).
         _seed_log.info("seeding schedule rules")
         if s.scalar(select(func.count()).select_from(ScheduleRuleRow)) == 0:
-            for sport in SPORTS:
+            for sport in own_court_sports:
                 court_id = f"court-{sport.slug}"
                 price = _DEFAULT_PRICE.get(sport.slug)
                 for weekday in range(7):

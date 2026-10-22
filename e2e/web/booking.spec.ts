@@ -97,6 +97,7 @@ test.describe("Book page — slot selection", () => {
 
   test("shows sport tabs and date pills", async ({ page }) => {
     await expect(page.getByRole("tab", { name: /cricket/i })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /football/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /badminton/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /pickleball/i })).toBeVisible();
     await expect(page.locator(".date-pill")).toHaveCount(7);

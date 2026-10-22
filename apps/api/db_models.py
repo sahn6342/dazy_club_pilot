@@ -28,6 +28,15 @@ class CourtRow(Base):
     createdAt: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class CourtSportRow(Base):
+    """Which sports can be booked on a court. Every court has a row for its own sport (courts.sport); extra rows
+    let one physical court serve several sports (e.g. cricket and football on one turf). Slot ids do not contain
+    the sport, so bookings under any linked sport compete for the same (court_id, slotId)."""
+    __tablename__ = "court_sports"
+    court_id: Mapped[str] = mapped_column(String, ForeignKey("courts.id", ondelete="CASCADE"), primary_key=True)
+    sport_slug: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+
+
 class ScheduleRuleRow(Base):
     __tablename__ = "schedule_rules"
     id: Mapped[str] = mapped_column(String, primary_key=True)

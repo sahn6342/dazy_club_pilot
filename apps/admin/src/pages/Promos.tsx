@@ -173,6 +173,7 @@ export function Promos() {
                       value={form.sport_slug} onChange={(e) => setForm((f) => ({ ...f, sport_slug: e.target.value }))}>
                       <option value="">All sports</option>
                       <option value="cricket">Cricket</option>
+                      <option value="football">Football</option>
                       <option value="badminton">Badminton</option>
                       <option value="pickleball">Pickleball</option>
                     </select>

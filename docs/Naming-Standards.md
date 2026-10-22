@@ -25,7 +25,7 @@
 - IDs: text UUIDs or human-readable slugs (`court-cricket`, `venue-dazy`)
 
 ## IDs / Slugs
-- Sport slugs: `cricket`, `badminton`, `pickleball`
-- Court IDs (seeded): `court-{sport}` → `court-cricket`, `court-badminton`, `court-pickleball`
+- Sport slugs: `cricket`, `football`, `badminton`, `pickleball`
+- Court IDs (seeded): `court-{sport}` → `court-cricket`, `court-badminton`, `court-pickleball`. Football has no court of its own: it is linked to `court-cricket` through `court_sports`
 - Venue ID (seeded): `venue-dazy`
 - Slot IDs: `slot-{court.id}-{date}-{HHMM}` → `slot-court-cricket-2026-07-01-0600`

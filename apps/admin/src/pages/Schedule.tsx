@@ -5,7 +5,9 @@ import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 
-type Court = { id: string; venue_id: string; sport: string; name: string; capacity: number; active: boolean };
+type Court = { id: string; venue_id: string; sport: string; name: string; capacity: number; active: boolean; sports?: string[] };
+/** "cricket / football" for a shared court, just the sport otherwise. */
+const courtSports = (c: Court) => (c.sports && c.sports.length > 1 ? c.sports.join(" / ") : c.sport);
 type Rule = {
   id: string; court_id: string; weekday: number;
   open_time: string; close_time: string; slot_minutes: number;
@@ -270,7 +272,7 @@ export function Schedule() {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const courtName = (cid: string | null) =>
-    cid == null ? "All courts" : (() => { const c = courts.find((x) => x.id === cid); return c ? `${c.sport} — ${c.name}` : cid; })();
+    cid == null ? "All courts" : (() => { const c = courts.find((x) => x.id === cid); return c ? `${courtSports(c)} — ${c.name}` : cid; })();
 
   useEffect(() => {
     api.get<Court[]>("/admin/courts")
@@ -367,7 +369,7 @@ export function Schedule() {
             <label className="muted">Court&nbsp;
               <select data-testid="court-select" value={courtId} onChange={(e) => setCourtId(e.target.value)}>
                 {courts.map((c) => (
-                  <option key={c.id} value={c.id}>{c.sport} — {c.name}</option>
+                  <option key={c.id} value={c.id}>{courtSports(c)} — {c.name}</option>
                 ))}
               </select>
             </label>

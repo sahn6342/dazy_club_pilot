@@ -9,14 +9,14 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select, func, or_
 
 from db import _session
-from db_models import CourtRow, VenueRow, ScheduleRuleRow, ScheduleExceptionRow, BookingRow
+from db_models import CourtRow, CourtSportRow, VenueRow, ScheduleRuleRow, ScheduleExceptionRow, BookingRow
 from models import SlotDto
 from services.pricing_service import slot_price
 
 # for rebuild
 # Per-slot display cap (max players in a single booking). Distinct from court.capacity
 # (max concurrent parties per slot), which Phase 2 uses for availability.
-_MAX_PLAYERS = {"cricket": 11, "badminton": 4, "pickleball": 6}
+_MAX_PLAYERS = {"cricket": 25, "football": 25, "badminton": 4, "pickleball": 4}
 _DEFAULT_DAYS = 7
 
 # Phase 3: online-prepay timeout. A booking left "pending" (slot reserved, not
@@ -116,7 +116,8 @@ def generate_slots(sport: str | None = None, date: str | None = None, drop_past:
     with _session() as s:
         cstmt = select(CourtRow).where(CourtRow.active.is_(True))
         if sport:
-            cstmt = cstmt.where(CourtRow.sport == sport)
+            # Every court that serves this sport: its own, or one it shares (court_sports).
+            cstmt = cstmt.where(CourtRow.id.in_(select(CourtSportRow.court_id).where(CourtSportRow.sport_slug == sport)))
         courts = list(s.scalars(cstmt).all())
         if not courts:
             return []
@@ -125,6 +126,7 @@ def generate_slots(sport: str | None = None, date: str | None = None, drop_past:
         tz_cache: dict[str, ZoneInfo] = {}
 
         for court in courts:
+            shown_sport = sport or court.sport  # with no sport filter, a shared court is listed once, under its own sport
             if court.venue_id not in tz_cache:
                 venue = s.get(VenueRow, court.venue_id)
                 tz_cache[court.venue_id] = ZoneInfo(venue.timezone if venue else "UTC")
@@ -169,12 +171,12 @@ def generate_slots(sport: str | None = None, date: str | None = None, drop_past:
                         id=sid,
                         courtId=court.id,
                         courtName=court.name,
-                        sportSlug=court.sport,
+                        sportSlug=shown_sport,  # the sport asked for (a shared court serves several)
                         date=date_str,
                         startTime=start_hhmm,
                         endTime=end_hhmm,
                         available=under_capacity and not is_past,
-                        maxPlayers=_MAX_PLAYERS.get(court.sport, court.capacity),
+                        maxPlayers=_MAX_PLAYERS.get(shown_sport, court.capacity),
                         price=base_price,
                         discountPercent=discount,
                         finalPrice=final_price,

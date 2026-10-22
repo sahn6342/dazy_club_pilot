@@ -8,7 +8,7 @@ import { api, resolveImg } from "../lib/api";
 
 type GalleryItem = { id: string; title: string; sportSlug: string; tone: string; imageUrl: string | null; approved: boolean };
 
-const SPORTS = ["cricket", "badminton", "pickleball"];
+const SPORTS = ["cricket", "football", "badminton", "pickleball"];
 const EMPTY = { title: "", sportSlug: "cricket", tone: "", imageUrl: "" };
 
 function Thumb({ url, alt }: { url: string | null; alt: string }) {

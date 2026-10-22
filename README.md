@@ -1,6 +1,6 @@
 # Dazy Club
 
-**Dazy Club** is a premium sports-venue platform for Cricket, Badminton, and Pickleball. What began as a public marketing site is now a full operating system for the venue: a **public booking website**, a **staff admin back-office**, a **cafe POS + kitchen-display kiosk** with GST-compliant billing, and a **FastAPI backend** that powers all three.
+**Dazy Club** is a premium sports-venue platform for Cricket, Football, Badminton, and Pickleball. What began as a public marketing site is now a full operating system for the venue: a **public booking website**, a **staff admin back-office**, a **cafe POS + kitchen-display kiosk** with GST-compliant billing, and a **FastAPI backend** that powers all three.
 
 | App | Path | Port | Who uses it |
 |-----|------|------|-------------|

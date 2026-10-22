@@ -74,7 +74,7 @@ def test_slot_id_format(client):
 def test_slot_max_players_per_sport(client):
     """maxPlayers respects per-sport caps from _MAX_PLAYERS."""
     day = _future()
-    for sport, expected_max in [("cricket", 11), ("badminton", 4), ("pickleball", 6)]:
+    for sport, expected_max in [("cricket", 25), ("football", 25), ("badminton", 4), ("pickleball", 4)]:
         slots = client.get(f"/api/v1/slots?sport={sport}&date={day}").json()
         assert all(s["maxPlayers"] == expected_max for s in slots), \
             f"{sport} expected maxPlayers={expected_max}"
