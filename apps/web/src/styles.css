@@ -948,60 +948,6 @@ summary:focus-visible {
   color: #d8b456;
 }
 
-/* ── Stats band ── */
-.stats-band {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(22, 24, 29, 0.6);
-}
-
-.stats-inner {
-  width: min(1440px, calc(100% - 2rem));
-  margin: 0 auto;
-  padding: clamp(1.25rem, 3vw, 1.75rem) 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-evenly;
-  align-items: center;
-  row-gap: 1.5rem;
-  text-align: center;
-}
-
-.stat {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-width: 110px;
-  padding: 0 clamp(1rem, 3vw, 1.5rem);
-}
-
-/* Vertical divider between adjacent stats. */
-.stat:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.stat-value {
-  font-size: clamp(2rem, 5vw, 3rem);
-  font-weight: 800;
-  color: #d8b456;
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: 0.85rem;
-  color: #a7a9b1;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 /* ── How it works ── */
 .step-card {
   position: relative;
@@ -1328,10 +1274,6 @@ summary:focus-visible {
   .split {
     grid-template-columns: 1fr;
   }
-
-  .stats-inner {
-    gap: 2rem 3rem;
-  }
 }
 
 /* Mobile: all single column */
@@ -1344,14 +1286,6 @@ summary:focus-visible {
 
   nav {
     justify-content: flex-start;
-  }
-
-  .stats-inner {
-    gap: 1.75rem 2.5rem;
-  }
-  /* Dividers look wrong once stats wrap onto multiple rows. */
-  .stat:not(:last-child)::after {
-    display: none;
   }
 
   .card-grid,

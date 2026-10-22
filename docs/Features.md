@@ -23,7 +23,6 @@ The landing page: hero with CMS-driven tagline/copy, the three sports, a live ga
 - **Sports** — Cricket, Badminton, Pickleball cards.
 - **Gallery** — driven live from the API (`GET /gallery`, approved items only), images render from uploaded/managed `imageUrl`.
 - **Testimonials** — approved testimonials from the API.
-- **Stats band** — 3 Sports · 16h Open daily · 7 Days ahead · 11 Max players. Count-agnostic centered layout with dividers (no hardcoded 4-column grid), so stats can be added/removed without lopsiding; wraps to 2×2 on mobile.
 - **Footer** — venue name, tagline, contact, socials from CMS.
 
 **Mobile:**

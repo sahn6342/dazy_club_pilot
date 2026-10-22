@@ -260,22 +260,6 @@ export function Home() {
         </div>
       </section>
 
-      <section className="stats-band">
-        <div className="stats-inner">
-          {[
-            { value: "4", label: "Sports" },
-            { value: "16h", label: "Open daily" },
-            { value: "7", label: "Days ahead" },
-            { value: "25", label: "Max players" },
-          ].map((s) => (
-            <div className="stat" key={s.label}>
-              <span className="stat-value">{s.value}</span>
-              <span className="stat-label">{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
       <section id="sports" className="section">
         <div className="section-heading">
           <p className="eyebrow">Sports</p>
