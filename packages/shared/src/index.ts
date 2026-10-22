@@ -27,6 +27,8 @@ export type Testimonial = {
   name: string;
   context: string;
   quote: string;
+  /** Picks the placeholder avatar (reviewers have no photo). Defaults to male. */
+  gender?: "male" | "female";
 };
 
 export type Notification = {
@@ -100,17 +102,75 @@ export const galleryItems: GalleryItem[] = [
 ];
 
 export const testimonials: Testimonial[] = [
+  // Placeholder testimonials (replaced by the real Google reviews below):
+  // {
+  //   id: "testimonial-1",
+  //   name: "Priya R.",
+  //   context: "Weekend player",
+  //   quote: "A polished sports venue that feels made for weekend plans and team energy."
+  // },
+  // {
+  //   id: "testimonial-2",
+  //   name: "Arjun M.",
+  //   context: "Corporate organizer",
+  //   quote: "The enquiry flow makes it simple to start planning a team sports day."
+  // },
+  // Real Google reviews (5 stars), shown as first name + initial.
   {
-    id: "testimonial-1",
-    name: "Priya R.",
-    context: "Weekend player",
-    quote: "A polished sports venue that feels made for weekend plans and team energy."
+    id: "google-1",
+    name: "Sanraj S.",
+    context: "Google review",
+    quote: "Well-planned sports facility with cricket, football and pickleball options. Great to have a place like this nearby!",
+    gender: "male"
   },
   {
-    id: "testimonial-2",
-    name: "Arjun M.",
-    context: "Corporate organizer",
-    quote: "The enquiry flow makes it simple to start planning a team sports day."
+    id: "google-2",
+    name: "Lucky R.",
+    context: "Google review",
+    quote: "Visited DAZY CLUB recently and really liked the setup. The size of the turf definitely stands out.",
+    gender: "male"
+  },
+  {
+    id: "google-3",
+    name: "Shivam S.",
+    context: "Google Local Guide",
+    quote: "A fantastic place for sports enthusiasts. Great concept, spacious turf, and plenty of reasons to come back. The turf is seriously spacious!",
+    gender: "male"
+  },
+  {
+    id: "google-4",
+    name: "Ashish P.",
+    context: "Google Local Guide",
+    quote: "Best",
+    gender: "male"
+  },
+  {
+    id: "google-5",
+    name: "Rudra S.",
+    context: "Google review",
+    quote: "Finally, a large football turf near Saguna More! Plenty of room to enjoy the game. DAZY CLUB is definitely worth checking out.",
+    gender: "male"
+  },
+  {
+    id: "google-6",
+    name: "Yash R.",
+    context: "Google Local Guide",
+    quote: "A fantastic place for sports enthusiasts. Great concept, spacious turf, and plenty of reasons to come back.",
+    gender: "male"
+  },
+  {
+    id: "google-7",
+    name: "Ritik R.",
+    context: "Google review",
+    quote: "The turf is seriously spacious! One of the biggest I've seen around Patna. Great place to play with friends.",
+    gender: "male"
+  },
+  {
+    id: "google-8",
+    name: "Kumar A.",
+    context: "Google review",
+    quote: "Really nice cricket practice nets and a great setup for anyone who enjoys playing cricket. Had a good time!",
+    gender: "male"
   }
 ];
 

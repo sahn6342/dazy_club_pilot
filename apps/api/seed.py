@@ -50,18 +50,36 @@ GALLERY_ITEMS: list[GalleryItemDto] = [
 ]
 
 TESTIMONIALS: list[TestimonialDto] = [
-    TestimonialDto(
-        id="testimonial-1",
-        name="Priya R.",
-        context="Weekend player",
-        quote="A polished sports venue that feels made for weekend plans and team energy.",
-    ),
-    TestimonialDto(
-        id="testimonial-2",
-        name="Arjun M.",
-        context="Corporate organizer",
-        quote="The enquiry flow makes it simple to start planning a team sports day.",
-    ),
+    # Placeholder testimonials (replaced by the real Google reviews below):
+    # TestimonialDto(
+    #     id="testimonial-1",
+    #     name="Priya R.",
+    #     context="Weekend player",
+    #     quote="A polished sports venue that feels made for weekend plans and team energy.",
+    # ),
+    # TestimonialDto(
+    #     id="testimonial-2",
+    #     name="Arjun M.",
+    #     context="Corporate organizer",
+    #     quote="The enquiry flow makes it simple to start planning a team sports day.",
+    # ),
+    # Real Google reviews (5 stars), shown as first name + initial.
+    TestimonialDto(id="google-1", name="Sanraj S.", context="Google review",
+                   quote="Well-planned sports facility with cricket, football and pickleball options. Great to have a place like this nearby!"),
+    TestimonialDto(id="google-2", name="Lucky R.", context="Google review",
+                   quote="Visited DAZY CLUB recently and really liked the setup. The size of the turf definitely stands out."),
+    TestimonialDto(id="google-3", name="Shivam S.", context="Google Local Guide",
+                   quote="A fantastic place for sports enthusiasts. Great concept, spacious turf, and plenty of reasons to come back. The turf is seriously spacious!"),
+    TestimonialDto(id="google-4", name="Ashish P.", context="Google Local Guide",
+                   quote="Best"),
+    TestimonialDto(id="google-5", name="Rudra S.", context="Google review",
+                   quote="Finally, a large football turf near Saguna More! Plenty of room to enjoy the game. DAZY CLUB is definitely worth checking out."),
+    TestimonialDto(id="google-6", name="Yash R.", context="Google Local Guide",
+                   quote="A fantastic place for sports enthusiasts. Great concept, spacious turf, and plenty of reasons to come back."),
+    TestimonialDto(id="google-7", name="Ritik R.", context="Google review",
+                   quote="The turf is seriously spacious! One of the biggest I've seen around Patna. Great place to play with friends."),
+    TestimonialDto(id="google-8", name="Kumar A.", context="Google review",
+                   quote="Really nice cricket practice nets and a great setup for anyone who enjoys playing cricket. Had a good time!"),
 ]
 
 NOTIFICATIONS: list[NotificationDto] = [

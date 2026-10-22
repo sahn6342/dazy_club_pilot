@@ -3,10 +3,8 @@ import { Link } from "react-router-dom";
 import { BRAND, galleryItems, launchSports, testimonials } from "@dazy/shared";
 import { getGallery, resolveImg, type GalleryItem } from "../lib/api";
 
-const AVATAR: Record<string, string> = {
-  "testimonial-1": "priya",
-  "testimonial-2": "arjun",
-};
+// Reviewers have no photo: a male or female placeholder avatar, chosen by `gender` (default male).
+const avatarFor = (gender?: string) => `/images/avatar-${gender === "female" ? "female" : "male"}.svg`;
 
 function usePerView(desktop: number): number {
   const calc = () => {
@@ -374,7 +372,7 @@ export function Home() {
               <div className="testimonial-author">
                 <img
                   className="avatar"
-                  src={`/images/avatar-${AVATAR[item.id] ?? "priya"}.jpg`}
+                  src={avatarFor(item.gender)}
                   alt={item.name}
                   loading="lazy"
                 />
