@@ -59,4 +59,15 @@ test.describe("What players say", () => {
     for (const s of srcs) expect(s).toMatch(/\/images\/avatar-(male|female)\.svg$/);
     for (const s of new Set(srcs)) expect((await page.request.get(s!)).status()).toBe(200);
   });
+
+  for (const width of [1280, 800, 375]) {
+    test(`every review card has the same height (${width}px)`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/");
+      await page.locator(".testimonial-carousel").scrollIntoViewIfNeeded();
+      const heights = await page.locator(".testimonial-carousel .testimonial-card").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+      expect(heights.length).toBe(8);
+      expect(new Set(heights).size).toBe(1); // fixed height: the carousel does not jump between pages
+    });
+  }
 });

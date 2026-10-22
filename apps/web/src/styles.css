@@ -1157,7 +1157,12 @@ summary:focus-visible {
   margin: 0;
 }
 
-/* testimonial cards inside carousel fill the slide */
+/* Testimonial cards all share one fixed height: every page stacks in the same grid cell, so the cell is as
+   tall as the tallest page, and here the slides stretch to fill it (the author line sits at the bottom). */
+.testimonial-carousel .carousel-page {
+  align-items: stretch;
+}
+
 .testimonial-carousel .testimonial-card {
   height: 100%;
 }
