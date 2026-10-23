@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { api, Order } from "../lib/api";
-import { clearToken } from "../lib/auth";
 import { PaymentModal } from "../components/PaymentModal";
+import { KioskHeader } from "../components/KioskHeader";
 
 type Tab = "open" | "history";
 
@@ -37,7 +36,6 @@ export function Orders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [payOrder, setPayOrder] = useState<Order | null>(null);
-  const navigate = useNavigate();
 
   const load = useCallback(() => {
     api.get<Order[]>("/cafe/orders")
@@ -52,8 +50,6 @@ export function Orders() {
     return () => clearInterval(iv);
   }, [load]);
 
-  function logout() { clearToken(); navigate("/login"); }
-
   const openOrders = orders.filter((o) => OPEN_STATUSES.has(o.status));
   const historyOrders = orders.filter((o) => !OPEN_STATUSES.has(o.status));
   const shown = tab === "open" ? openOrders : historyOrders;
@@ -66,16 +62,7 @@ export function Orders() {
 
   return (
     <div className="kiosk-layout">
-      <header className="kiosk-header">
-        <span className="kiosk-logo"><img className="kiosk-logo-img" src="/logo-sm.webp" alt="" width="40" height="34" />Kiosk</span>
-        <nav className="kiosk-nav">
-          <button className="kiosk-nav-btn" onClick={() => navigate("/menu")}>Menu</button>
-          <button className="kiosk-nav-btn active" onClick={() => navigate("/orders")}>Orders</button>
-          <button className="kiosk-nav-btn" onClick={() => navigate("/tables")}>Tables</button>
-          <button className="kiosk-nav-btn" onClick={() => navigate("/kds")}>KDS</button>
-        </nav>
-        <button className="kiosk-logout" onClick={logout}>Logout</button>
-      </header>
+      <KioskHeader active="orders" />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* Tabs */}

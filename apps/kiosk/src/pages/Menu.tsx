@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { api, MenuCategory, MenuItem, MenuResponse, Order } from "../lib/api";
-import { clearToken } from "../lib/auth";
 import { PaymentModal } from "../components/PaymentModal";
+import { KioskHeader } from "../components/KioskHeader";
 
 const VEG_ICON: Record<string, string> = { veg: "🟢", nonveg: "🔴", egg: "🟡" };
 
@@ -18,18 +17,12 @@ export function Menu() {
   const [orderError, setOrderError] = useState("");
   const [placing, setPlacing] = useState(false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     api.get<MenuResponse>("/cafe/menu")
       .then(setData)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load menu."));
   }, []);
-
-  function logout() {
-    clearToken();
-    navigate("/login");
-  }
 
   function addToCart(id: string) {
     setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
@@ -95,16 +88,7 @@ export function Menu() {
 
   return (
     <div className="kiosk-layout">
-      <header className="kiosk-header">
-        <span className="kiosk-logo"><img className="kiosk-logo-img" src="/logo-sm.webp" alt="" width="40" height="34" />Kiosk</span>
-        <nav className="kiosk-nav">
-          <button className="kiosk-nav-btn active" onClick={() => navigate("/menu")}>Menu</button>
-          <button className="kiosk-nav-btn" onClick={() => navigate("/orders")}>Orders</button>
-          <button className="kiosk-nav-btn" onClick={() => navigate("/tables")}>Tables</button>
-          <button className="kiosk-nav-btn" onClick={() => navigate("/kds")}>KDS</button>
-        </nav>
-        <button className="kiosk-logout" onClick={logout}>Logout</button>
-      </header>
+      <KioskHeader active="menu" />
 
       <div className="kiosk-body">
         <aside className="category-rail">

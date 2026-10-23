@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { api, CafeTable } from "../lib/api";
-import { clearToken } from "../lib/auth";
+import { KioskHeader } from "../components/KioskHeader";
 
 const STATUS_COLOR: Record<string, string> = {
   free: "#4caf50",
@@ -12,7 +11,6 @@ const STATUS_COLOR: Record<string, string> = {
 export function Tables() {
   const [tables, setTables] = useState<CafeTable[]>([]);
   const [error, setError] = useState("");
-  const navigate = useNavigate();
 
   const load = useCallback(() => {
     api.get<CafeTable[]>("/cafe/tables")
@@ -34,16 +32,7 @@ export function Tables() {
 
   return (
     <div className="kiosk-layout">
-      <header className="kiosk-header">
-        <span className="kiosk-logo"><img className="kiosk-logo-img" src="/logo-sm.webp" alt="" width="40" height="34" />Kiosk</span>
-        <nav className="kiosk-nav">
-          <button className="kiosk-nav-btn" onClick={() => navigate("/menu")}>Menu</button>
-          <button className="kiosk-nav-btn" onClick={() => navigate("/orders")}>Orders</button>
-          <button className="kiosk-nav-btn active">Tables</button>
-          <button className="kiosk-nav-btn" onClick={() => navigate("/kds")}>KDS</button>
-        </nav>
-        <button className="kiosk-logout" onClick={() => { clearToken(); navigate("/login"); }}>Logout</button>
-      </header>
+      <KioskHeader active="tables" />
 
       <div className="kiosk-body tables-body">
         {error && <p className="kiosk-error">{error}</p>}

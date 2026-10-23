@@ -1,13 +1,11 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { api, Kot } from "../lib/api";
-import { clearToken } from "../lib/auth";
+import { KioskHeader } from "../components/KioskHeader";
 
 export function KDS() {
   const [kots, setKots] = useState<Kot[]>([]);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
-  const navigate = useNavigate();
 
   const load = useCallback(() => {
     api.get<Kot[]>("/cafe/kots?station=kitchen&status=pending")
@@ -41,23 +39,9 @@ export function KDS() {
     }
   }
 
-  function logout() {
-    clearToken();
-    navigate("/login");
-  }
-
   return (
     <div className="kiosk-layout">
-      <header className="kiosk-header">
-        <span className="kiosk-logo"><img className="kiosk-logo-img" src="/logo-sm.webp" alt="" width="40" height="34" />Kiosk</span>
-        <nav className="kiosk-nav">
-          <button className="kiosk-nav-btn" onClick={() => navigate("/menu")}>Menu</button>
-          <button className="kiosk-nav-btn" onClick={() => navigate("/orders")}>Orders</button>
-          <button className="kiosk-nav-btn" onClick={() => navigate("/tables")}>Tables</button>
-          <button className="kiosk-nav-btn active" onClick={() => navigate("/kds")}>KDS</button>
-        </nav>
-        <button className="kiosk-logout" onClick={logout}>Logout</button>
-      </header>
+      <KioskHeader active="kds" />
 
       <div style={{ flex: 1, overflow: "auto" }}>
         <div style={{ padding: "1rem 1rem 0.5rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

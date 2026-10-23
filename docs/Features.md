@@ -97,6 +97,10 @@ Real venue KPIs, computed in the venue's timezone (not browser/server local):
 - **Pending bookings** / **New enquiries** — quick-glance counts, unchanged from before.
 - **Day-close (Z-report)** — a date-pickable table of café payment totals by mode (cash/UPI/card), for reconciling the till.
 
+### Navigation on small screens
+
+At 760px wide or less the sidebar becomes a sticky bar (logo + menu button) and all links, including the Café POS group, open as a scrollable dropdown panel; it closes on choosing a link, Escape, a tap outside, or when the screen grows. Wider screens keep the sidebar.
+
 ### Bookings
 
 ![Admin bookings](screenshots/admin-bookings.png)
@@ -202,7 +206,7 @@ Back-office view of all POS orders (`/cafe/orders`). Filter tabs (All / Open / P
 
 ## 🍽️ Kiosk — Cafe POS & KDS
 
-Touch-first POS at **:5175**. Cashier logs in with staff name + 4-digit PIN. Top nav: **Menu · Orders · Tables · KDS**. Auth token in `localStorage` (`dazy_kiosk_token`).
+Touch-first POS at **:5175**. Cashier logs in with staff name + 4-digit PIN. Top nav: **Menu · Orders · Tables · KDS**. On screens 720px wide or less the nav buttons and Logout sit behind a menu button in the header (one shared `KioskHeader` component on every page). Auth token in `localStorage` (`dazy_kiosk_token`).
 
 ### Login
 

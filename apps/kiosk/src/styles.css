@@ -172,6 +172,62 @@ body {
 }
 .kiosk-logout:hover { border-color: var(--red); color: var(--red); }
 
+/* Menu button and its wrapper: on wide screens the wrapper disappears and the nav + Logout sit in the header row */
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(216, 180, 86, 0.5);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--gold);
+  cursor: pointer;
+}
+.nav-toggle:hover, .nav-toggle[aria-expanded="true"] { background: var(--gold-dim); }
+.nav-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.kiosk-menu { display: contents; }
+
+@keyframes nav-drop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Small screens: logo + menu button; the nav buttons and Logout drop down as a panel under the header. */
+@media (max-width: 720px) {
+  .kiosk-header { position: relative; z-index: 60; padding: 0 1rem; }
+  .nav-toggle { display: inline-flex; }
+  .kiosk-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem 1rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.5);
+  }
+  .kiosk-menu.open { display: flex; animation: nav-drop 0.18s ease-out; }
+  .kiosk-nav { flex-direction: column; gap: 0.5rem; }
+  .kiosk-nav-btn, .kiosk-logout {
+    width: 100%;
+    min-height: 48px;
+    margin-left: 0;
+    padding: 0.5rem 1rem;
+    text-align: left;
+    font-size: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kiosk-menu.open { animation: none; }
+}
+
 .kiosk-body {
   display: flex;
   flex: 1;
