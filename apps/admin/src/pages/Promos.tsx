@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Promo = {
   id: string; code: string; kind: string; value: number; active: boolean;
@@ -212,6 +213,7 @@ export function Promos() {
             </div>
           </div>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

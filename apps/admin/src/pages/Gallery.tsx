@@ -5,6 +5,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api, resolveImg } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type GalleryItem = { id: string; title: string; sportSlug: string; tone: string; imageUrl: string | null; approved: boolean };
 
@@ -185,6 +186,7 @@ export function Gallery() {
             ))}
           </div>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

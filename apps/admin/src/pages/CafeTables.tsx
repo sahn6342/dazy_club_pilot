@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Table = { id: string; label: string; area: string | null; capacity: number; status: string; active: boolean; sortOrder: number };
 
@@ -213,6 +214,7 @@ export function CafeTables() {
             </div>
           </div>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

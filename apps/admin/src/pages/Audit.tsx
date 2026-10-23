@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type AuditEntry = {
   id: string; at: string; actor: string; actorRole: string | null; action: string;
@@ -127,6 +128,7 @@ export function Audit() {
             </div>
           )}
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

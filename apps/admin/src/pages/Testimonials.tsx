@@ -5,6 +5,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Testimonial = { id: string; name: string; context: string; quote: string; approved: boolean };
 
@@ -143,6 +144,7 @@ export function Testimonials() {
             ))}
           </div>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

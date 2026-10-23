@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { StatusBadge } from "../components/StatusBadge";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Enquiry = {
   id: string; type: string; name: string; contact: string;
@@ -78,6 +79,7 @@ export function Enquiries() {
             </div>
           )}
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

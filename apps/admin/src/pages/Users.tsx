@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type User = { id: string; username: string; role: string; createdAt: string; createdBy: string };
 type Tab = "all" | "manager" | "staff";
@@ -274,6 +275,7 @@ export function Users() {
             </div>
           </div>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

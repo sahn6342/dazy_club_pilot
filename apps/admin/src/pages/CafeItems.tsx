@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Category = { id: string; name: string; active: boolean };
 type Item = { id: string; category_id: string; name: string; description: string | null; price: number; taxRatePercent: number; vegType: string | null; station: string; available: boolean; sortOrder: number };
@@ -283,6 +284,7 @@ export function CafeItems() {
             </div>
           </div>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

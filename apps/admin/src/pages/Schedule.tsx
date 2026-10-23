@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Court = { id: string; venue_id: string; sport: string; name: string; capacity: number; active: boolean; sports?: string[] };
 /** "cricket / football" for a shared court, just the sport otherwise. */
@@ -473,6 +474,7 @@ export function Schedule() {
             <button className="btn-primary" type="submit" data-testid="exception-add">Add exception</button>
           </form>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

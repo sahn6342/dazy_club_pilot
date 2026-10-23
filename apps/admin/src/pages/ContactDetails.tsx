@@ -4,6 +4,7 @@ import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type CmsEntry = { key: string; label: string; value: string };
 
@@ -129,6 +130,7 @@ export function ContactDetails() {
             )}
           </form>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

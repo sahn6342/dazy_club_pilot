@@ -7,6 +7,7 @@ import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 import { RefundDialog, type RefundTarget } from "../components/RefundDialog";
 import { CollectBalanceDialog, type CollectTarget } from "../components/CollectBalanceDialog";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Booking = {
   id: string; bookingRef: string; name: string; contact: string;
@@ -338,6 +339,7 @@ export function Bookings() {
             </>
           )}
         </div>
+        <SiteFooter />
       </div>
       {collectFor && (
         <CollectBalanceDialog

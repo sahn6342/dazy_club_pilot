@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Category = { id: string; name: string; kind: string; vegType: string | null; sortOrder: number; active: boolean; createdAt: string };
 
@@ -190,6 +191,7 @@ export function CafeCategories() {
             </div>
           </div>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

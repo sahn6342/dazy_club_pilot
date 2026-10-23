@@ -24,7 +24,7 @@ body { margin: 0; }
 .admin-layout {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr); /* minmax(0, ...): a wide table must scroll in its box, not stretch the page */
   background: #08090b;
 }
 
@@ -32,6 +32,7 @@ body { margin: 0; }
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;
 }
 
 .page-body {
@@ -261,6 +262,10 @@ body { margin: 0; }
 }
 .filter-bar select:focus { border-color: var(--gold); }
 
+/* a long option text (for example a court name) must not make the control wider than the screen */
+.filter-bar label { max-width: 100%; min-width: 0; }
+.filter-bar select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+
 .filter-bar input[type="date"] {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -389,6 +394,7 @@ td code {
 /* ── Tab bar ─────────────────────────────────────────── */
 .tab-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1.25rem;
   border-bottom: 1px solid var(--border);
@@ -541,7 +547,7 @@ td code {
 /* ── Users / Managers ────────────────────────────────── */
 .users-split {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 2rem;
   align-items: start;
 }
@@ -568,7 +574,7 @@ td code {
 .error-msg { color: #ff6b6b; font-size: 0.85rem; margin: 0; }
 
 @media (max-width: 760px) {
-  .users-split { grid-template-columns: 1fr; }
+  .users-split { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Menu button: only shown on small screens */
@@ -595,7 +601,7 @@ td code {
 
 /* Small screens: the sidebar is a sticky bar (brand + menu button); the links drop down as a scrollable panel. */
 @media (max-width: 760px) {
-  .admin-layout { grid-template-columns: 1fr; }
+  .admin-layout { grid-template-columns: minmax(0, 1fr); }
   .sidebar {
     position: sticky;
     top: 0;
@@ -783,3 +789,37 @@ td code {
 /* Logo */
 .brand-logo { height: 40px; width: auto; display: block; }
 .login-logo { display: block; margin: 0 auto 0.5rem; width: 140px; height: auto; }
+
+/* ── Footer (same look as the website footer) ───────────────────────── */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1.5rem 2rem;
+  padding: 1.5rem 2rem;
+  border-top: 1px solid var(--border);
+  color: #a7a9b1;
+  font-size: 0.9rem;
+}
+.footer strong { color: var(--gold); }
+.footer-brand { display: inline-flex; align-items: center; gap: 0.5rem; }
+.footer-brand .brand-logo { height: 40px; }
+.footer-about { display: flex; flex-direction: column; gap: 0.6rem; max-width: 340px; }
+.footer-contact {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+  max-width: 520px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.footer-contact li { display: flex; align-items: flex-start; gap: 0.65rem; line-height: 1.45; min-width: 0; overflow-wrap: anywhere; }
+.footer-contact a { color: #d8d7d1; text-decoration: none; }
+.footer-contact a:hover, .footer-contact a:focus-visible { color: var(--gold); }
+.footer-icon { flex: 0 0 1.4rem; text-align: center; }
+
+@media (max-width: 760px) {
+  .footer { padding: 1.25rem 1rem; }
+}

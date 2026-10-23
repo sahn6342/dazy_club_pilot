@@ -3,6 +3,7 @@ import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Court = {
   id: string;
@@ -215,7 +216,8 @@ export function Courts() {
                     );
                   })()
                 ) : (
-                  <table style={{ width: "100%", maxWidth: 700 }}>
+                  <div className="table-wrap" style={{ maxWidth: 700 }}>
+                  <table style={{ width: "100%" }}>
                     <thead>
                       <tr>
                         <th>Name</th>
@@ -282,11 +284,13 @@ export function Courts() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )}
               </div>
             ))
           )}
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

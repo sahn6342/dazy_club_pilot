@@ -3,6 +3,7 @@ import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Settings = {
   legalName: string; gstin: string; fssaiNumber: string;
@@ -211,6 +212,7 @@ export function CafeSettings() {
             </button>
           </form>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

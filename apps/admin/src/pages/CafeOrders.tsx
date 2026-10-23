@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type OrderItem = {
   id: string; order_id: string; menu_item_id: string;
@@ -213,6 +214,7 @@ export function CafeOrders() {
             </div>
           )}
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

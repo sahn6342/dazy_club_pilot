@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type Enquiry = { id: string; status: string };
 type Booking = { id: string; status: string };
@@ -109,6 +110,7 @@ export function Dashboard() {
             </div>
           )}
         </div>
+        <SiteFooter />
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { TopBar } from "../components/TopBar";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
+import { SiteFooter } from "../components/SiteFooter";
 
 type CmsEntry = { key: string; label: string; value: string };
 
@@ -136,6 +137,7 @@ export function CMS() {
             ))}
           </div>
         </div>
+        <SiteFooter />
       </div>
     </div>
   );
