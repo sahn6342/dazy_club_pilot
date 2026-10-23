@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, CafeTable } from "../lib/api";
 import { KioskHeader } from "../components/KioskHeader";
+import { KioskFooter } from "../components/KioskFooter";
 
 const STATUS_COLOR: Record<string, string> = {
   free: "#4caf50",
@@ -60,6 +61,7 @@ export function Tables() {
           </section>
         ))}
       </div>
+      <KioskFooter />
     </div>
   );
 }

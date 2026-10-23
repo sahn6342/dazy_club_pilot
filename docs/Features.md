@@ -99,7 +99,11 @@ Real venue KPIs, computed in the venue's timezone (not browser/server local):
 
 ### Navigation on small screens
 
-At 760px wide or less the sidebar becomes a sticky bar (logo + menu button) and all links, including the Café POS group, open as a scrollable dropdown panel; it closes on choosing a link, Escape, a tap outside, or when the screen grows. Wider screens keep the sidebar.
+At 760px wide or less the sidebar becomes a sticky bar (logo + menu button) and all links, including the Café POS group, open as a scrollable dropdown panel; it closes on choosing a link, Escape, a tap outside, or when the screen grows. Wider screens keep the sidebar. Pages never scroll sideways on a phone: the content column is `minmax(0, 1fr)`, so a wide table scrolls inside its own box instead of stretching the page (guarded by `e2e/admin/no-horizontal-scroll.spec.ts`, which checks the layout width of all 18 pages in real mobile emulation).
+
+### Footer
+
+Every admin page ends with the website's footer (logo, tagline, address linking to Google Maps, phone, email, hours, socials) from the public `GET /venue`, so Admin → Contact Details drives all three apps. Empty fields are not shown; if the details cannot be loaded only the logo and tagline remain. The login page has none.
 
 ### Bookings
 
@@ -206,7 +210,7 @@ Back-office view of all POS orders (`/cafe/orders`). Filter tabs (All / Open / P
 
 ## 🍽️ Kiosk — Cafe POS & KDS
 
-Touch-first POS at **:5175**. Cashier logs in with staff name + 4-digit PIN. Top nav: **Menu · Orders · Tables · KDS**. On screens 720px wide or less the nav buttons and Logout sit behind a menu button in the header (one shared `KioskHeader` component on every page). Auth token in `localStorage` (`dazy_kiosk_token`).
+Touch-first POS at **:5175**. Cashier logs in with staff name + 4-digit PIN. Top nav: **Menu · Orders · Tables · KDS**. On screens 720px wide or less the nav buttons and Logout sit behind a menu button in the header (one shared `KioskHeader` component on every page). Every page ends with a slim strip of the venue's address, phone and hours (from `GET /venue`; hidden if it cannot be loaded). On phones the menu screen stacks (category chips, items, then the order) and no page scrolls sideways. Auth token in `localStorage` (`dazy_kiosk_token`).
 
 ### Login
 

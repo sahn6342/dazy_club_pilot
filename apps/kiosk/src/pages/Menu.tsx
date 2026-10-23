@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api, MenuCategory, MenuItem, MenuResponse, Order } from "../lib/api";
 import { PaymentModal } from "../components/PaymentModal";
 import { KioskHeader } from "../components/KioskHeader";
+import { KioskFooter } from "../components/KioskFooter";
 
 const VEG_ICON: Record<string, string> = { veg: "🟢", nonveg: "🔴", egg: "🟡" };
 
@@ -211,6 +212,7 @@ export function Menu() {
           onComplete={handlePaymentComplete}
         />
       )}
+      <KioskFooter />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api, Kot } from "../lib/api";
 import { KioskHeader } from "../components/KioskHeader";
+import { KioskFooter } from "../components/KioskFooter";
 
 export function KDS() {
   const [kots, setKots] = useState<Kot[]>([]);
@@ -120,6 +121,7 @@ export function KDS() {
           ))}
         </div>
       </div>
+      <KioskFooter />
     </div>
   );
 }

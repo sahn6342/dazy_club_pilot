@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, Order } from "../lib/api";
 import { PaymentModal } from "../components/PaymentModal";
 import { KioskHeader } from "../components/KioskHeader";
+import { KioskFooter } from "../components/KioskFooter";
 
 type Tab = "open" | "history";
 
@@ -179,6 +180,7 @@ export function Orders() {
           onComplete={() => { setPayOrder(null); load(); }}
         />
       )}
+      <KioskFooter />
     </div>
   );
 }

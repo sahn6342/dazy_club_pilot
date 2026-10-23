@@ -228,6 +228,24 @@ body {
   .kiosk-menu.open { animation: none; }
 }
 
+/* Slim venue strip at the bottom of every kiosk page */
+.kiosk-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 1.25rem;
+  padding: 0.4rem 1.5rem;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.kiosk-footer a { color: var(--muted); text-decoration: none; overflow-wrap: anywhere; }
+.kiosk-footer a:hover, .kiosk-footer a:focus-visible { color: var(--gold); }
+.kiosk-footer-logo { height: 20px; width: auto; display: block; }
+
 .kiosk-body {
   display: flex;
   flex: 1;
@@ -539,7 +557,7 @@ body {
 .modal-success { color: var(--green); font-size: 0.9rem; font-weight: 600; text-align: center; }
 
 /* KDS */
-.kds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; padding: 1rem; }
+.kds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 1rem; padding: 1rem; }
 .kot-card { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .kot-card-header { background: var(--gold); padding: 0.6rem 1rem; display: flex; justify-content: space-between; align-items: center; }
 .kot-no { font-size: 1rem; font-weight: 800; color: #0e1117; }
@@ -557,3 +575,21 @@ body {
 /* Logo */
 .kiosk-logo-img { height: 34px; width: auto; display: block; }
 .login-logo { display: block; margin: 0 auto 0.5rem; width: 130px; height: auto; }
+
+/* Small screens: the menu screen stacks (category chips, items, then the order) and the whole body scrolls. */
+@media (max-width: 720px) {
+  .kiosk-body { flex-direction: column; overflow-x: hidden; overflow-y: auto; }
+  .category-rail {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem;
+  }
+  .cat-btn { white-space: nowrap; min-height: 44px; flex-shrink: 0; }
+  .item-grid { flex: none; overflow: visible; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); padding: 0.75rem; }
+  .cart-panel { width: 100%; border-left: none; border-top: 1px solid var(--border); flex-shrink: 0; }
+  .kiosk-footer { padding: 0.4rem 1rem; }
+}
