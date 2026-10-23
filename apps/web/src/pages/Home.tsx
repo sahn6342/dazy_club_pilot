@@ -449,6 +449,10 @@ export function Home() {
             <p>Yes. Use the corporate enquiry form on the Contact page and our team will get back to you to plan your event.</p>
           </details>
           <details>
+            <summary>Can I pay just an advance?</summary>
+            <p>Yes. When you pick a slot you can pay the full amount, or only a fixed advance (shown next to the price) and the rest at the venue. Your booking is confirmed once the advance is paid. The advance is non-refundable.</p>
+          </details>
+          <details>
             <summary>What is the maximum group size?</summary>
             <p>Cricket and Football support up to 25 players, Pickleball and Badminton up to 4 per court slot. For larger groups, use the corporate enquiry form.</p>
           </details>

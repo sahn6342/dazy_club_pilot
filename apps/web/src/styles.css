@@ -940,6 +940,59 @@ summary:focus-visible {
   font-weight: 600;
 }
 
+.balance-note {
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid rgba(216, 180, 86, 0.45);
+  background: rgba(216, 180, 86, 0.1);
+  color: #f7f4ea;
+}
+
+.pay-options {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.pay-options legend {
+  padding: 0;
+  margin-bottom: 0.4rem;
+  font-weight: 700;
+}
+
+.pay-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.pay-option.active {
+  border-color: #d8b456;
+  background: rgba(216, 180, 86, 0.1);
+}
+
+.pay-option input {
+  width: auto;
+  margin-top: 0.25rem;
+  accent-color: #d8b456;
+}
+
+.pay-option > span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.pay-option-amount {
+  color: #d8b456;
+  font-weight: 700;
+}
+
 .form-message.left-payment {
   display: flex;
   align-items: center;

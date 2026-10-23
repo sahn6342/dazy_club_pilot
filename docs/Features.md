@@ -43,6 +43,7 @@ The booking flow: choose a sport, choose a date, see **live availability slots**
 - **Party size & price** — party size limited per slot (Cricket 25, Football 25, Badminton 4, Pickleball 4); price derives from per-sport base price.
 - **Promo codes** — validated via `GET /promos/validate` before submission.
 - **Booking submission** — `POST /bookings` returns a booking reference immediately; customer record is created/linked. A priced slot goes to `pending` and opens the **payment panel** (dev-simulate buttons or real Razorpay checkout, depending on `DAZY_PAYMENT_PROVIDER`); a free slot (e.g. a 100%-off promo) confirms immediately.
+- **Advance or full payment** — when the booking total is more than the advance (default ₹500, set in Admin → Contact Details, `0` switches it off), the form shows "Pay in full ₹X" (preselected) or "Pay ₹500 advance now, ₹X−500 at the venue" next to the price. The advance is **non-refundable** and one flat amount per booking; paying only the advance still **confirms** the booking, and the confirmation card, My Bookings and the confirmation message show what was paid and the balance due at the venue. The option follows the promo-discounted total and disappears when that is not more than the advance; the API enforces it (`paymentOption`, 422 `advance_not_available`) and the page reads the amount from `GET /public-config` (`advanceAmount`).
 - **After booking** — the page is never locked. A confirmed booking becomes a compact card above the slot picker (booking ID with a Copy button, a "take a screenshot or note down this booking ID" reminder, the amount and a link to My Bookings) and stays there while the customer books more. Tapping another slot, sport or date while a payment is pending leaves the payment step (also possible with "Choose a different slot"): a banner says the slot is held for 15 minutes and can be resumed from My Bookings with the ID.
 - **No food & drinks ordering on the website** — the Book page and My Bookings do not offer a café pre-order (the `POST /bookings/{ref}/preorder` API and the kiosk's pre-order badge still exist).
 
@@ -55,7 +56,7 @@ The booking flow: choose a sport, choose a date, see **live availability slots**
 Self-service booking lookup at `/my-bookings` — no login. Enter the booking ref (pre-filled if arriving from a payment-reminder link) + the phone/email used at booking time.
 
 - **Pending booking** — resumes payment with the *original* checkout order (never a second gateway charge for one booking).
-- **Confirmed booking** — shows the details and the paid amount.
+- **Confirmed booking** — shows the details and the paid amount; an advance booking also shows the balance to pay at the venue.
 - Wrong contact or unknown ref → generic "not found" (no enumeration); rate-limited per IP.
 - Exists because a closed tab or reload had no other way back to a pending payment (there's no customer login/profile system).
 
@@ -102,6 +103,7 @@ Real venue KPIs, computed in the venue's timezone (not browser/server local):
 - List all bookings (`GET /admin/bookings`).
 - Update booking status (`PATCH /admin/bookings/{id}`) through the status lifecycle.
 - Cancel/delete a booking (`DELETE`, confirm dialog).
+- **Advance bookings** — the Price cell shows the advance and the balance; **Collect balance** (`POST /admin/bookings/{id}/collect-balance`, admin only) records cash / UPI / card taken at the venue (partial amounts allowed, never more than the balance) and is audited. The advance is never refundable: the refund dialog says so, nothing is refundable, and cancelling only frees the slot. The CSV export adds Payment Option, Amount Paid and Balance Due.
 
 ### Schedule
 
@@ -163,7 +165,7 @@ User/role management (`/admin/users`) — create admin/manager/cashier/kitchen u
 
 ![Admin contact details](screenshots/admin-contact-details.png)
 
-Edit the venue contact block (address, phone, email, hours, socials) surfaced on the public Contact page.
+Edit the venue contact block (address, phone, email, hours, socials) shown in the website footer, the slot booking GST rate and the **advance payment amount** (₹, non-refundable, `0` = customers must pay in full; validated by the API).
 
 ### Cafe — Menu Categories
 

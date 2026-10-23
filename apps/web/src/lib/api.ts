@@ -143,7 +143,10 @@ export interface BookingPayload {
   message?: string;
   email?: string;
   turnstileToken?: string;
+  paymentOption?: PaymentOption;   // "advance" = pay only the non-refundable advance now, the rest at the venue
 }
+
+export type PaymentOption = "full" | "advance";
 
 export interface CheckoutConfig {
   provider: string;         // "noop" | "razorpay"
@@ -174,6 +177,10 @@ export interface BookingResult {
   gstRatePercent?: number | null;
   taxableAmount?: number | null;
   gstAmount?: number | null;
+  paymentOption?: PaymentOption;
+  advanceAmount?: number | null;   // the non-refundable advance (advance bookings only)
+  amountDue?: number | null;       // what is paid online now: the advance or the full price
+  balanceDue?: number;             // left to pay at the venue
 }
 
 export interface PaymentVerifyPayload {
@@ -228,6 +235,11 @@ export interface BookingLookupResult {
   gstRatePercent?: number | null;
   taxableAmount?: number | null;
   gstAmount?: number | null;
+  paymentOption?: PaymentOption;
+  advanceAmount?: number | null;
+  amountDue?: number | null;
+  amountPaid?: number;
+  balanceDue?: number;
 }
 
 export async function lookupBooking(ref: string, contact?: string): Promise<BookingLookupResult> {
@@ -240,17 +252,18 @@ export class OtpRequiredError extends Error {
   constructor() { super("otp_required"); }
 }
 
-export type PublicConfig = { otpRequired: boolean };
+export type PublicConfig = { otpRequired: boolean; advanceAmount: number };
 
 let publicConfigPromise: Promise<PublicConfig> | null = null;
 
 /** Flags the API exposes for choosing a flow up front. Fetched once per page load; any failure falls back to the
- *  safe default (OTP required) instead of guessing that it is off. */
+ *  safe default (OTP required, no advance option) instead of guessing. `advanceAmount` is the non-refundable
+ *  advance a customer may pay instead of the full price (0 = not offered). */
 export function getPublicConfig(): Promise<PublicConfig> {
   if (!publicConfigPromise) {
     publicConfigPromise = request("/public-config")
-      .then((c) => ({ otpRequired: c?.otpRequired !== false }))
-      .catch(() => ({ otpRequired: true }));
+      .then((c) => ({ otpRequired: c?.otpRequired !== false, advanceAmount: Number(c?.advanceAmount) > 0 ? Number(c.advanceAmount) : 0 }))
+      .catch(() => ({ otpRequired: true, advanceAmount: 0 }));
   }
   return publicConfigPromise;
 }

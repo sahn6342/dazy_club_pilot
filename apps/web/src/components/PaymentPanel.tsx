@@ -29,6 +29,8 @@ interface PaymentPanelProps {
   bookingRef: string;
   checkout: CheckoutConfig;
   amount: number;
+  /** Left to pay at the venue after this payment (advance bookings); 0 or omitted when paying in full. */
+  balanceDue?: number;
   customerName: string;
   customerContact: string;
   onSuccess: () => void;
@@ -36,7 +38,7 @@ interface PaymentPanelProps {
   onChooseAnother?: () => void;
 }
 
-export function PaymentPanel({ bookingRef, checkout, amount, customerName, customerContact, onSuccess, onChooseAnother }: PaymentPanelProps) {
+export function PaymentPanel({ bookingRef, checkout, amount, balanceDue = 0, customerName, customerContact, onSuccess, onChooseAnother }: PaymentPanelProps) {
   const [status, setStatus] = useState<"idle" | "processing" | "dismissed" | "error" | "recheck">("idle");
   const [error, setError] = useState("");
   // The payment details of the last attempt, kept so a failed *check* can be repeated without paying again.
@@ -101,8 +103,13 @@ export function PaymentPanel({ bookingRef, checkout, amount, customerName, custo
   return (
     <div className="payment-panel">
       <p className="eyebrow">Payment required</p>
-      <h3>Complete payment to confirm your booking</h3>
+      <h3>{balanceDue > 0 ? "Pay the advance to confirm your booking" : "Complete payment to confirm your booking"}</h3>
       <p className="summary-total" data-testid="payment-amount">Amount due: ₹{amount.toFixed(2)}</p>
+      {balanceDue > 0 && (
+        <p className="muted" data-testid="payment-balance">
+          This is the advance, and it is non-refundable. The remaining ₹{balanceDue.toFixed(2)} is paid at the venue.
+        </p>
+      )}
       <p className="muted">Ref: {bookingRef} — your slot is held for 15 minutes while you pay.</p>
       <p className="muted">Closed this tab? Resume anytime from <a href="/my-bookings">My Bookings</a> with this ref.</p>
 

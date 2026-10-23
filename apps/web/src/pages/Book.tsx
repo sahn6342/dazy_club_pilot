@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Slot } from "@dazy/shared";
 import { Turnstile } from "../components/Turnstile";
-import { ApiError, createBooking, getNext7Days, TURNSTILE_SITE_KEY, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PromoValidationResult } from "../lib/api";
+import { ApiError, createBooking, getNext7Days, getPublicConfig, TURNSTILE_SITE_KEY, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PaymentOption, type PromoValidationResult } from "../lib/api";
 import { validateName, validateContact, validatePlayers } from "../lib/validate";
 import { PaymentPanel } from "../components/PaymentPanel";
 import { ConfirmedBookingCard, type ConfirmedBooking } from "../components/ConfirmedBookingCard";
@@ -91,6 +91,13 @@ export function Book() {
   const [bookedEndTime, setBookedEndTime] = useState("");
   const [bookedSlotCount, setBookedSlotCount] = useState(1);
   const [pendingCheckout, setPendingCheckout] = useState<CheckoutConfig | null>(null);
+  const [bookedAmountDue, setBookedAmountDue] = useState<number | null>(null);
+  const [bookedBalanceDue, setBookedBalanceDue] = useState(0);
+
+  // Advance option: pay only a fixed, non-refundable advance now and the rest at the venue.
+  const [advanceAmount, setAdvanceAmount] = useState(0);
+  const [payOption, setPayOption] = useState<PaymentOption>("full");
+  useEffect(() => { getPublicConfig().then((c) => setAdvanceAmount(c.advanceAmount)); }, []);
 
   // Confirmed bookings of this visit stay on the page as compact cards (newest first) while the visitor keeps booking.
   const [confirmed, setConfirmed] = useState<ConfirmedBooking[]>([]);
@@ -127,6 +134,10 @@ export function Book() {
   const slotTotal = totalFinalPrice(selectedSlots);
   const firstSlot = selectedSlots[0] ?? null;
   const lastSlot = selectedSlots[selectedSlots.length - 1] ?? null;
+  // What the customer would pay in total: the promo-discounted amount when a promo is applied.
+  const payableTotal = promoStatus === "valid" && promoResult?.discountedAmount != null ? promoResult.discountedAmount : slotTotal;
+  const advanceOffered = advanceAmount > 0 && payableTotal != null && payableTotal > advanceAmount;
+  const chosenOption: PaymentOption = advanceOffered ? payOption : "full";
 
   // Live promo validation — debounced 600ms, fires after 3+ chars.
   useEffect(() => {
@@ -243,6 +254,8 @@ export function Book() {
     setBookedPrice(null); setBookedPromo(null);
     setBookedGstRate(null); setBookedGstAmount(null);
     setBookedStartTime(""); setBookedEndTime(""); setBookedSlotCount(1);
+    setBookedAmountDue(null); setBookedBalanceDue(0);
+    setPayOption("full");
     setPendingCheckout(null);
     setTouched({ name: false, contact: false, players: false });
   }
@@ -270,6 +283,7 @@ export function Book() {
     setBookedPrice(null); setBookedPromo(null);
     setBookedGstRate(null); setBookedGstAmount(null);
     setBookedStartTime(""); setBookedEndTime(""); setBookedSlotCount(1);
+    setBookedAmountDue(null); setBookedBalanceDue(0);
   }
 
   function chooseSport(slug: string) { leavePayment(); setBookSport(slug); }
@@ -306,9 +320,12 @@ export function Book() {
         message: fields.message.trim(),
         email: fields.email.trim() || undefined,
         turnstileToken: tsToken ?? undefined,
+        paymentOption: chosenOption,
       });
       setBookingRef(result.bookingRef);
       setBookedPrice(result.price ?? null);
+      setBookedAmountDue(result.amountDue ?? result.price ?? null);
+      setBookedBalanceDue(result.balanceDue ?? 0);
       setBookedPromo(result.promoCode ?? null);
       setBookedGstRate(result.gstRatePercent ?? null);
       setBookedGstAmount(result.gstAmount ?? null);
@@ -327,6 +344,9 @@ export function Book() {
         promo: result.promoCode ?? null,
         gstRate: result.gstRatePercent ?? null,
         gstAmount: result.gstAmount ?? null,
+        amountPaid: result.amountDue ?? result.price ?? null,
+        balanceDue: result.balanceDue ?? 0,
+        advance: result.paymentOption === "advance" ? (result.advanceAmount ?? null) : null,
         contact: fields.contact.trim(),
       };
       if (result.paymentRequired && result.checkout) {
@@ -337,6 +357,7 @@ export function Book() {
       }
     } catch (err: unknown) {
       const failure = describeBookingError(err);
+      if (err instanceof ApiError && err.code === "advance_not_available") setPayOption("full"); // e.g. a promo lowered the total
       if (failure.promo) {
         setPromoError(failure.message);
       } else {
@@ -535,6 +556,11 @@ export function Book() {
                 )}
               </span>
             )}
+            {advanceOffered && (
+              <span className="muted" data-testid="summary-advance">
+                Advance: ₹{advanceAmount} (non-refundable) — or pay in full
+              </span>
+            )}
           </div>
           <form className="form-card" onSubmit={submitBooking} noValidate>
             <div className="field-group">
@@ -629,6 +655,31 @@ export function Book() {
 
             <label>Message (optional) <textarea value={fields.message} onChange={(e) => change("message", e.target.value)} rows={3} /></label>
 
+            {advanceOffered && payableTotal != null && (
+              <fieldset className="pay-options" data-testid="pay-options">
+                <legend>How would you like to pay?</legend>
+                <label className={`pay-option${chosenOption === "full" ? " active" : ""}`}>
+                  <input type="radio" name="payOption" value="full" checked={chosenOption === "full"}
+                    onChange={() => setPayOption("full")} data-testid="pay-option-full" />
+                  <span>
+                    <strong>Pay in full</strong>
+                    <span className="pay-option-amount" data-testid="pay-option-full-amount">₹{payableTotal}</span>
+                  </span>
+                </label>
+                <label className={`pay-option${chosenOption === "advance" ? " active" : ""}`}>
+                  <input type="radio" name="payOption" value="advance" checked={chosenOption === "advance"}
+                    onChange={() => setPayOption("advance")} data-testid="pay-option-advance" />
+                  <span>
+                    <strong>Pay ₹{advanceAmount} advance now</strong>
+                    <span className="pay-option-amount" data-testid="pay-option-advance-note">
+                      ₹{Math.round((payableTotal - advanceAmount) * 100) / 100} at the venue
+                    </span>
+                    <small className="muted">Your booking is confirmed once the advance is paid. The advance is non-refundable.</small>
+                  </span>
+                </label>
+              </fieldset>
+            )}
+
             <Turnstile onToken={setTsToken} resetKey={tsReset} />
             <button className="button primary" type="submit" disabled={submitting}>
               {submitting ? "Confirming…" : `Confirm booking${selectedSlots.length > 1 ? ` (${selectedSlots.length} slots)` : ""}`}
@@ -646,7 +697,8 @@ export function Book() {
         <PaymentPanel
           bookingRef={bookingRef}
           checkout={pendingCheckout}
-          amount={bookedPrice ?? 0}
+          amount={bookedAmountDue ?? bookedPrice ?? 0}
+          balanceDue={bookedBalanceDue}
           customerName={fields.name.trim()}
           customerContact={fields.contact.trim()}
           onSuccess={finishBooking}

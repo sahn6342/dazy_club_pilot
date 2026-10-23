@@ -284,10 +284,11 @@ export function MyBookings() {
             <PaymentPanel
               bookingRef={result.bookingRef}
               checkout={result.checkout}
-              amount={result.price ?? 0}
+              amount={result.amountDue ?? result.price ?? 0}
+              balanceDue={result.paymentOption === "advance" ? result.balanceDue : 0}
               customerName={result.name}
               customerContact={contact}
-              onSuccess={() => setResult({ ...result, status: "confirmed", paymentRequired: false, checkout: null })}
+              onSuccess={() => setResult({ ...result, status: "confirmed", paymentRequired: false, checkout: null, amountPaid: result.amountDue ?? result.price ?? 0 })}
             />
           )}
 
@@ -298,7 +299,15 @@ export function MyBookings() {
           )}
 
           {result.status === "confirmed" && result.price != null && (
-            <p className="summary-total">Amount paid: ₹{result.price}</p>
+            <p className="summary-total" data-testid="lookup-amount-paid">
+              Amount paid: ₹{result.paymentOption === "advance" ? (result.amountPaid ?? result.advanceAmount ?? 0) : result.price}
+            </p>
+          )}
+          {result.paymentOption === "advance" && (result.balanceDue ?? 0) > 0 && (result.status === "confirmed" || result.status === "completed") && (
+            <p className="balance-note" data-testid="lookup-balance" role="note">
+              Balance to pay at the venue: <strong>₹{result.balanceDue}</strong> (total ₹{result.price}).
+              {result.advanceAmount != null && <> The ₹{result.advanceAmount} advance is non-refundable.</>}
+            </p>
           )}
         </div>
       )}

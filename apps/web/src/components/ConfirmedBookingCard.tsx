@@ -13,6 +13,12 @@ export interface ConfirmedBooking {
   promo: string | null;
   gstRate: number | null;
   gstAmount: number | null;
+  /** What was paid online. Differs from `price` (the total) when only the advance was paid. */
+  amountPaid: number | null;
+  /** Still to pay at the venue after an advance payment; 0 when paid in full. */
+  balanceDue: number;
+  /** The non-refundable advance, when the advance option was chosen. */
+  advance: number | null;
   contact: string;
 }
 
@@ -71,19 +77,24 @@ export function ConfirmedBookingCard({ booking }: { booking: ConfirmedBooking })
       </p>
       {booking.price != null && (
         <p className="summary-total" data-testid="confirmed-amount">
-          Amount paid: ₹{booking.price}
+          Amount paid: ₹{booking.amountPaid ?? booking.price}
           {booking.promo && <span className="muted"> — promo {booking.promo}</span>}
+        </p>
+      )}
+      {booking.balanceDue > 0 && (
+        <p className="balance-note" data-testid="confirmed-balance" role="note">
+          Balance to pay at the venue: <strong>₹{booking.balanceDue}</strong> (total ₹{booking.price}).
+          {booking.advance != null && <> The ₹{booking.advance} advance is non-refundable.</>}
         </p>
       )}
       {booking.gstAmount != null && booking.gstRate != null && (
         <p className="gst-note muted" style={{ fontSize: "0.85em" }}>
-          Includes GST ({booking.gstRate}%): ₹{booking.gstAmount.toFixed(2)}
+          {booking.balanceDue > 0 ? `The total of ₹${booking.price} includes` : "Includes"} GST ({booking.gstRate}%): ₹{booking.gstAmount.toFixed(2)}
         </p>
       )}
       <p className="muted" style={{ fontSize: "0.85em" }}>
         Look it up any time in <Link to="/my-bookings">My Bookings</Link> with this ID and your phone or email.
       </p>
-
     </div>
   );
 }
