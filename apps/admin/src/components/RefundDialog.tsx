@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 type Quote = {
   paid: number; refunded: number; remaining: number; hoursBefore: number;
   percent: number; policyAmount: number; suggestedAmount: number;
+  nonRefundable?: number; // part of `paid` that is never refunded (the advance)
 };
 type QuoteResponse = { bookingRef: string; refundable: boolean; cancellable: boolean; quote: Quote | null };
 
@@ -101,6 +102,12 @@ export function RefundDialog({
               {q.refunded > 0 && <> · already refunded <strong>{inr(q.refunded)}</strong></>}
               {" "}· refundable <strong>{inr(q.remaining)}</strong>
             </p>
+            {(q.nonRefundable ?? 0) > 0 && (
+              <p className="muted" style={{ margin: "0 0 0.5rem", fontSize: "0.85rem" }} data-testid="refund-advance-note">
+                The {inr(q.nonRefundable!)} advance is non-refundable.
+                {q.remaining <= 0 && <> There is nothing to refund: cancelling only frees the slot.</>}
+              </p>
+            )}
             {mode === "cancel" && (
               <p style={{ margin: "0 0 0.75rem", fontSize: "0.9rem" }} data-testid="refund-policy-line">
                 Booking {startsIn(q.hoursBefore)} → policy refunds <strong>{q.percent}%</strong> = <strong>{inr(q.policyAmount)}</strong>

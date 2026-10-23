@@ -12,7 +12,7 @@ const CONTACT_DETAILS_KEYS = new Set([
   "venue_name", "venue_address", "venue_phone", "venue_email", "venue_hours",
   "social_instagram", "social_facebook",
   "whatsapp_phone", "whatsapp_message",
-  "booking_gst_rate",
+  "booking_gst_rate", "booking_advance_amount",
 ]);
 
 const inputStyle = { padding: "0.5rem 0.65rem", borderRadius: "8px", fontFamily: "inherit", width: "100%" };

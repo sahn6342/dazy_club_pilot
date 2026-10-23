@@ -6,6 +6,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useToast } from "../components/Toast";
 import { api } from "../lib/api";
 import { RefundDialog, type RefundTarget } from "../components/RefundDialog";
+import { CollectBalanceDialog, type CollectTarget } from "../components/CollectBalanceDialog";
 
 type Booking = {
   id: string; bookingRef: string; name: string; contact: string;
@@ -13,6 +14,7 @@ type Booking = {
   party_size: number; price: number | null; promo_code: string | null;
   gst_rate_percent: number | null; status: string; paymentStatus: string; createdAt: string;
   deleted_at?: string | null;
+  depositAmount?: number | null; balance_collected?: number;
 };
 
 const STATUS_MSG: Record<string, string> = {
@@ -25,6 +27,12 @@ const STATUS_MSG: Record<string, string> = {
 const PAYMENT_LABEL: Record<string, string> = {
   paid: "Paid", partially_refunded: "Partly refunded", refunded: "Refunded",
 };
+// Advance bookings: only `depositAmount` was paid online; the rest is paid at the venue.
+const isAdvance = (b: Booking) => b.depositAmount != null;
+const balanceDue = (b: Booking) =>
+  isAdvance(b) && b.status !== "cancelled"
+    ? Math.max(Math.round(((b.price ?? 0) - (b.depositAmount ?? 0) - (b.balance_collected ?? 0)) * 100) / 100, 0)
+    : 0;
 const isPaid = (b: { paymentStatus: string }) => b.paymentStatus === "paid" || b.paymentStatus === "partially_refunded";
 
 const EMPTY_FILTER = { sport: "", status: "", date_from: "", date_to: "", deleted: "no" };
@@ -106,6 +114,7 @@ export function Bookings() {
     }
   }
 
+  const [collectFor, setCollectFor] = useState<CollectTarget | null>(null);
   const [refundFor, setRefundFor] = useState<{ b: RefundTarget; mode: "cancel" | "refund" } | null>(null);
 
   function openRefund(b: Booking, mode: "cancel" | "refund") {
@@ -265,6 +274,11 @@ export function Bookings() {
                         <td title={b.promo_code ? `Promo: ${b.promo_code}` : undefined}>
                           {b.price != null ? `₹${b.price}` : "—"}
                           {b.promo_code && <small className="muted"> ({b.promo_code})</small>}
+                          {isAdvance(b) && (
+                            <small className="muted" data-testid={`advance-${b.bookingRef}`} style={{ display: "block", whiteSpace: "normal" }}>
+                              Advance ₹{b.depositAmount}{balanceDue(b) > 0 ? ` · balance ₹${balanceDue(b)}` : b.status === "cancelled" ? "" : " · balance collected"}
+                            </small>
+                          )}
                         </td>
                         <td>{b.gst_rate_percent != null ? `${b.gst_rate_percent}%` : "—"}</td>
                         <td>
@@ -295,7 +309,11 @@ export function Bookings() {
                               <button className="btn-action cancel" data-testid={`cancel-${b.bookingRef}`}
                                 onClick={() => (isPaid(b) ? openRefund(b, "cancel") : setStatus(b.id, "cancelled"))}>Cancel</button>
                             )}
-                            {!b.deleted_at && isPaid(b) && (
+                            {!b.deleted_at && isPaid(b) && (b.status === "confirmed" || b.status === "completed") && balanceDue(b) > 0 && (
+                              <button className="btn-action confirm" data-testid={`collect-${b.bookingRef}`}
+                                onClick={() => setCollectFor({ id: b.id, bookingRef: b.bookingRef, name: b.name, balanceDue: balanceDue(b) })}>Collect balance</button>
+                            )}
+                            {!b.deleted_at && isPaid(b) && !isAdvance(b) && (
                               <button className="btn-action secondary" data-testid={`refund-${b.bookingRef}`}
                                 onClick={() => openRefund(b, "refund")}>Refund</button>
                             )}
@@ -321,6 +339,13 @@ export function Bookings() {
           )}
         </div>
       </div>
+      {collectFor && (
+        <CollectBalanceDialog
+          booking={collectFor}
+          onClose={() => setCollectFor(null)}
+          onDone={(message) => { setCollectFor(null); setReloadKey((k) => k + 1); toast.success(message); }}
+        />
+      )}
       {refundFor && (
         <RefundDialog
           booking={refundFor.b}

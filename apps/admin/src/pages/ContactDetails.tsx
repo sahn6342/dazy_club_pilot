@@ -18,6 +18,7 @@ const VENUE_KEYS = [
   "whatsapp_phone",
   "whatsapp_message",
   "booking_gst_rate",
+  "booking_advance_amount",
 ];
 
 const inputStyle: React.CSSProperties = {
@@ -76,6 +77,7 @@ export function ContactDetails() {
     whatsapp_phone:    { label: "WhatsApp phone (country code + digits only)", placeholder: "919876543211" },
     whatsapp_message:  { label: "WhatsApp pre-filled message", placeholder: "Hello! I am interested.", multiline: true },
     booking_gst_rate:  { label: "Slot booking GST rate (%)", placeholder: "18" },
+    booking_advance_amount: { label: "Advance payment (₹, non-refundable; 0 = customers must pay in full)", placeholder: "500" },
   };
 
   return (
