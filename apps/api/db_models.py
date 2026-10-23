@@ -91,9 +91,15 @@ class BookingRow(Base):
     createdAt: Mapped[str] = mapped_column(String, nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     paymentStatus: Mapped[str] = mapped_column(String, nullable=False, default="unpaid")
+    # Advance option: the non-refundable amount charged online (the rest is paid at the venue). NULL = paid in full.
     depositAmount: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     gst_rate_percent: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     email: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Balance collected at the venue (cash/UPI/card) after an advance payment; written by the admin "Collect balance".
+    balance_collected: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0, server_default="0")
+    balance_mode: Mapped[str | None] = mapped_column(String, nullable=True)
+    balance_collected_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    balance_collected_by: Mapped[str | None] = mapped_column(String, nullable=True)
     # lower(trim(contact)), written on create: lets search and the pending-booking cap use an index
     contact_norm: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
     # Soft delete: hidden from every list and lookup, kept for the books. Deleting also cancels.

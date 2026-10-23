@@ -17,6 +17,7 @@ from rate_limit import (
     booking_lookup_limiter, booking_create_limiter, booking_create_contact_limiter,
     payment_verify_limiter, client_ip,
 )
+from services.advance import advance_offer, amount_paid, balance_due, is_advance
 from services.availability_service import find_slot
 from services.pricing_service import apply_promo, gst_components, PromoError
 from services.notification_service import notify_booking_confirmed, notify_booking_payment_pending
@@ -66,6 +67,11 @@ def _build_lookup_result(bookings: list, include_checkout: bool = True) -> Booki
         gst_rate_percent=_gst_rate,
         taxable_amount=_taxable,
         gst_amount=_gst_amt,
+        paymentOption="advance" if is_advance(primary) else "full",
+        advanceAmount=primary.depositAmount,
+        amountDue=primary.depositAmount if is_advance(primary) else primary.price,
+        amountPaid=amount_paid(primary),
+        balanceDue=balance_due(primary),
     )
     if include_checkout and result.paymentRequired:
         payment = booking_payment_repo.get_by_ref(primary.bookingRef)
@@ -123,6 +129,15 @@ def create_booking(request: BookingRequest, http_req: Request):
         final_price = apply_promo(promo, base_total)
         applied_promo = promo.code
 
+    # Advance option: pay only the non-refundable advance now, the rest at the venue. Judged on the final
+    # (post-promo) total, so a promo that brings the total down to the advance or below removes the option.
+    advance = advance_offer(final_price) if request.paymentOption == "advance" else None
+    if request.paymentOption == "advance" and advance is None:
+        if applied_promo:
+            promo_repo.decrement_use(applied_promo)
+        raise ApiError(422, "Paying an advance is not available for this booking. Please pay the full amount.", "advance_not_available")
+    charge = float(advance) if advance is not None else final_price
+
     # Read GST rate from CMS (default 18% if key not yet present).
     gst_entry = cms_repo.get_by_id("booking_gst_rate")
     gst_rate = float(gst_entry.value) if gst_entry and gst_entry.value else 18.0
@@ -154,6 +169,7 @@ def create_booking(request: BookingRequest, http_req: Request):
             is_primary=(i == 0),
             gst_rate_percent=gst_rate if i == 0 else None,
             email=request.email if i == 0 else None,
+            depositAmount=charge if (advance is not None and i == 0) else None,
         )
         for i, slot in enumerate(slots)
     ]
@@ -164,7 +180,7 @@ def create_booking(request: BookingRequest, http_req: Request):
     order = None
     if final_price:
         try:
-            order = payment_provider.create_order(amount=final_price, ref=ref)
+            order = payment_provider.create_order(amount=charge, ref=ref)  # the advance, or the full price
         except RuntimeError as exc:
             # Say why in the log (wrong keys, gateway down, timeout...): the customer only sees "unavailable".
             logger.warning("Payment gateway could not create an order for a new booking: %s", exc)
@@ -199,6 +215,10 @@ def create_booking(request: BookingRequest, http_req: Request):
         "gstRatePercent": gst_rate,
         "taxableAmount": taxable_val,
         "gstAmount": gst_amt,
+        "paymentOption": "advance" if advance is not None else "full",
+        "advanceAmount": float(advance) if advance is not None else None,
+        "amountDue": charge,
+        "balanceDue": round(final_price - charge, 2) if advance is not None else 0.0,
     }
 
     # A free booking (promo covers it entirely, or the slot has no price) needs

@@ -1,4 +1,5 @@
 import re as _re
+from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 _PHONE_RE = _re.compile(r"^\d{10}$")
@@ -139,6 +140,8 @@ class BookingRequest(BaseModel):
     promoCode: str | None = Field(default=None, max_length=40)
     message: str | None = Field(default=None, max_length=2000)
     turnstileToken: str | None = Field(default=None, max_length=2048)  # Cloudflare Turnstile response
+    # "advance" = pay only the (non-refundable) advance now, the rest at the venue. Default keeps old clients paying in full.
+    paymentOption: Literal["full", "advance"] = "full"
 
     @model_validator(mode="after")
     def resolve_slot_ids(self) -> "BookingRequest":
@@ -224,6 +227,10 @@ class BookingRecord(BaseModel):
     depositAmount: float | None = None
     gst_rate_percent: float | None = None
     email: str | None = None
+    balance_collected: float = 0.0
+    balance_mode: str | None = None
+    balance_collected_at: str | None = None
+    balance_collected_by: str | None = None
     deleted_at: str | None = None
     deleted_by: str | None = None
 
@@ -248,6 +255,13 @@ class CancelRefundRequest(BaseModel):
     """amount None = refund what the cancellation policy says; 0 = cancel without refund."""
     amount: float | None = Field(default=None, ge=0, le=1_000_000)
     reason: str | None = Field(default=None, max_length=500)
+
+
+class CollectBalanceRequest(BaseModel):
+    """Money taken at the venue for the part of an advance booking not paid online. amount None = the whole balance."""
+    mode: Literal["cash", "upi", "card"]
+    amount: float | None = Field(default=None, gt=0, le=1_000_000)
+    reference: str | None = Field(default=None, max_length=100)
 
 
 class BookingPaymentDto(BaseModel):
@@ -283,6 +297,12 @@ class BookingLookupResult(BaseModel):
     gst_rate_percent: float | None = None
     taxable_amount: float | None = None
     gst_amount: float | None = None
+    # Advance / partial payment (price above stays the total)
+    paymentOption: Literal["full", "advance"] = "full"
+    advanceAmount: float | None = None   # the non-refundable advance, when the advance option was chosen
+    amountDue: float | None = None       # what the customer pays online now (advance or full), while pending
+    amountPaid: float = 0.0              # received so far: online payment plus any balance collected at the venue
+    balanceDue: float = 0.0              # still to pay at the venue
 
 
 class DashboardDto(BaseModel):

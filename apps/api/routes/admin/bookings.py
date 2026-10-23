@@ -7,9 +7,10 @@ from fastapi.responses import StreamingResponse
 from audit import audit
 from dataclasses import asdict
 
-from models import BookingRecord, BookingStatusUpdate, BookingRefundRequest, CancelRefundRequest
+from models import BookingRecord, BookingStatusUpdate, BookingRefundRequest, CancelRefundRequest, CollectBalanceRequest
 from auth import get_current_admin, require_superadmin
 from deps import booking_repo, booking_payment_repo, order_repo
+from services.advance import balance_due, amount_paid, is_advance, non_refundable
 from services.refund_policy import build_quote, hours_until_start, load_tiers, money
 from services.refund_service import REFUNDABLE_PAYMENT_STATES, refund_booking
 from services.venue_tz import get_venue_zoneinfo
@@ -21,7 +22,7 @@ router = APIRouter()
 _DELETED_MODES = ("no", "only", "all")
 _EXPORT_HEADERS = [
     "Ref", "Name", "Contact", "Sport", "Date", "Start", "End", "Players", "Price (INR)",
-    "GST %", "GST Amount (INR)", "Promo", "Status", "Payment",
+    "GST %", "GST Amount (INR)", "Promo", "Status", "Payment", "Payment Option", "Amount Paid (INR)", "Balance Due (INR)",
 ]
 
 
@@ -56,7 +57,8 @@ def _csv_stream(rows):
     for b in rows:
         writer.writerow([_csv_cell(v) for v in (
             b.bookingRef, b.name, b.contact, b.sportSlug, b.date, b.startTime, b.endTime, b.party_size,
-            b.price, b.gst_rate_percent, _gst_amount(b.price, b.gst_rate_percent), b.promo_code, b.status, b.paymentStatus)])
+            b.price, b.gst_rate_percent, _gst_amount(b.price, b.gst_rate_percent), b.promo_code, b.status, b.paymentStatus,
+            "advance" if is_advance(b) else "full", f"{amount_paid(b):.2f}", f"{balance_due(b):.2f}")])
         n += 1
         if n % 200 == 0:
             yield buf.getvalue()
@@ -156,6 +158,31 @@ def delete_booking(booking_id: str, req: Request, admin: dict = Depends(get_curr
                   "price": booking.price, "cancelledByDelete": was_active})
 
 
+@router.post("/admin/bookings/{booking_id}/collect-balance")
+def collect_balance(booking_id: str, body: CollectBalanceRequest, req: Request, admin: dict = Depends(get_current_admin)):
+    """Record money taken at the venue for the balance of an advance booking (cash, UPI or card).
+    Amount defaults to the whole balance and can never exceed it."""
+    booking = _primary(booking_id)
+    if booking.deleted_at:
+        raise HTTPException(status_code=409, detail="This booking is deleted.")
+    if not is_advance(booking):
+        raise HTTPException(status_code=409, detail="This booking was paid in full online, so there is no balance to collect.")
+    if booking.status not in ("confirmed", "completed") or booking.paymentStatus != "paid":
+        raise HTTPException(status_code=409, detail="The balance can be collected only on a confirmed booking whose advance is paid.")
+    due = money(balance_due(booking))
+    if due <= 0:
+        raise HTTPException(status_code=409, detail="The balance has already been collected.")
+    amount = due if body.amount is None else money(body.amount)
+    if amount > due:
+        raise HTTPException(status_code=422, detail=f"Amount exceeds the balance due (Rs. {due}).")
+    updated = booking_repo.add_balance_collected(booking.id, float(amount), body.mode, datetime.now(timezone.utc).isoformat(), admin["sub"])
+    audit("booking.balance_collected", admin, request=req, entity_type="booking", entity_id=booking.id,
+          detail={"bookingRef": booking.bookingRef, "amount": float(amount), "mode": body.mode,
+                  "reference": body.reference, "balanceLeft": balance_due(updated)})
+    return {"bookingRef": booking.bookingRef, "collected": float(amount), "balanceDue": balance_due(updated),
+            "amountPaid": amount_paid(updated)}
+
+
 @router.post("/admin/bookings/{booking_id}/restore")
 def restore_booking(booking_id: str, req: Request, admin: dict = Depends(get_current_admin)):
     """Bring a soft-deleted booking back into the lists. It keeps the status it was left in (cancelled
@@ -205,7 +232,7 @@ def _quote_for(booking):
     if not payment:
         return None
     hours = hours_until_start(booking.date, booking.startTime, get_venue_zoneinfo())
-    return build_quote(payment.amount, payment.refundedAmount, hours, load_tiers())
+    return build_quote(payment.amount, payment.refundedAmount, hours, load_tiers(), non_refundable=non_refundable(booking))
 
 
 @router.get("/admin/bookings/{booking_id}/refund-quote")

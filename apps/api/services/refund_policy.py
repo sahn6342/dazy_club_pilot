@@ -96,15 +96,19 @@ class RefundQuote:
     percent: float
     policyAmount: float
     suggestedAmount: float  # policy amount, capped by what is still refundable
+    nonRefundable: float = 0.0  # part of `paid` that is never refunded (the advance of an advance booking)
 
 
-def build_quote(paid, refunded, hours: float, tiers: list[tuple[float, float]]) -> RefundQuote:
-    paid_d, refunded_d = money(paid), money(refunded)
-    remaining = max(paid_d - refunded_d, Decimal("0.00"))
+def build_quote(paid, refunded, hours: float, tiers: list[tuple[float, float]], non_refundable=0) -> RefundQuote:
+    """`paid` is what the customer paid online; `non_refundable` of it (the advance) is excluded, so the policy
+    percentage and the remaining balance are computed on the refundable part only."""
+    paid_d, refunded_d, keep_d = money(paid), money(refunded), money(non_refundable)
+    refundable = max(paid_d - keep_d, Decimal("0.00"))
+    remaining = max(refundable - refunded_d, Decimal("0.00"))
     percent = percent_for_notice(hours, tiers)
-    policy_amount = money(paid_d * Decimal(str(percent)) / Decimal(100))
+    policy_amount = money(refundable * Decimal(str(percent)) / Decimal(100))
     return RefundQuote(
         paid=float(paid_d), refunded=float(refunded_d), remaining=float(remaining),
         hoursBefore=round(hours, 2), percent=percent, policyAmount=float(policy_amount),
-        suggestedAmount=float(min(policy_amount, remaining)),
+        suggestedAmount=float(min(policy_amount, remaining)), nonRefundable=float(min(keep_d, paid_d)),
     )

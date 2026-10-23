@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from audit import audit
 from deps import booking_repo, booking_payment_repo, payment_provider
 from repositories.booking_payment_repo import REFUNDED, PARTIALLY_REFUNDED
+from services.advance import non_refundable
 from services.notification_service import notify_booking_refunded
 from services.refund_policy import money
 
@@ -47,9 +48,13 @@ def refund_booking(
     if not payment or not payment.providerPaymentId:
         raise HTTPException(status_code=409, detail="No verified payment found for this booking.")
 
-    paid = money(payment.amount)
+    # The advance of an advance booking is never refunded: only what was paid above it can go back.
+    keep = non_refundable(booking)
+    paid = max(money(payment.amount) - keep, Decimal("0.00"))
     already = money(payment.refundedAmount)
     remaining = max(paid - already, Decimal("0.00"))
+    if keep > 0 and remaining <= 0:
+        raise HTTPException(status_code=409, detail=f"The advance (Rs. {keep}) is non-refundable, so there is nothing to refund.")
     amount = remaining if amount is None else money(amount)
     if amount <= 0:
         raise HTTPException(status_code=422, detail="Refund amount must be greater than zero.")

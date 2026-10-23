@@ -327,7 +327,8 @@ Base path `/api/v1`. Swagger UI at `/docs`. Uploaded images are served read-only
 | `POST /bookings/{ref}/payment/verify` | Client payment callback |
 | `GET /bookings/lookup` | Self-service lookup by ref + contact (rate-limited) |
 | `POST /otp/request`, `POST /otp/verify` | One-time code (email, or WhatsApp for a phone number) proving the caller controls a contact; returns a 15-minute `otpToken` |
-| `GET /public-config` | Public flags for the web pages. Currently `{"otpRequired": bool}` (false when `DAZY_OTP_DISABLED` is set). No auth, `Cache-Control: no-store`, nothing sensitive |
+| `GET /public-config` | Public flags for the web pages. `{"otpRequired": bool, "advanceAmount": number}`: `otpRequired` is false when `DAZY_OTP_DISABLED` is set; `advanceAmount` is the non-refundable advance (CMS `booking_advance_amount`, default 500, 0 = off) a customer may pay instead of the full price. No auth, `Cache-Control: no-store`, nothing sensitive |
+| `POST /admin/bookings/{id}/collect-balance` | Record the balance of an advance booking taken at the venue (`{mode: cash\|upi\|card, amount?, reference?}`); admin only, audited. An advance booking is one with `paymentOption: "advance"` on `POST /bookings`: the provider order is for the advance only, `booking.price` stays the total, `depositAmount` is the advance, and the advance is never refundable (refund quote `nonRefundable`) |
 | `GET /bookings/search?contact` | Bookings for a contact, newest first. Requires `X-OTP-Token` for that contact (401 `otp_required` otherwise), max 10. With `DAZY_OTP_DISABLED=1` no token is needed and up to 200 are returned |
 | `POST /bookings/{ref}/preorder` | Café pre-order |
 | `POST /payments/razorpay/webhook` | Razorpay webhook (signature-verified) |

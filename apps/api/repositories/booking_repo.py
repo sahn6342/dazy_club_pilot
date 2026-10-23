@@ -32,6 +32,10 @@ def _to_model(row: BookingRow) -> BookingRecord:
         depositAmount=float(row.depositAmount) if row.depositAmount is not None else None,
         gst_rate_percent=float(row.gst_rate_percent) if row.gst_rate_percent is not None else None,
         email=row.email,
+        balance_collected=float(row.balance_collected or 0),
+        balance_mode=row.balance_mode,
+        balance_collected_at=row.balance_collected_at,
+        balance_collected_by=row.balance_collected_by,
         deleted_at=row.deleted_at,
         deleted_by=row.deleted_by,
     )
@@ -188,6 +192,17 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
                 .values(paymentStatus="paid")
             ).rowcount
             return pending + manual
+
+    def add_balance_collected(self, booking_id: str, amount: float, mode: str, at: str, by: str) -> Optional[BookingRecord]:
+        """Record money taken at the venue against the primary row (adds to what was collected before)."""
+        with _session() as s:
+            row = s.get(BookingRow, booking_id)
+            if not row:
+                return None
+            row.balance_collected = round(float(row.balance_collected or 0) + amount, 2)
+            row.balance_mode, row.balance_collected_at, row.balance_collected_by = mode, at, by
+            s.flush()
+            return _to_model(row)
 
     def apply_refund_state(self, booking_ref: str, payment_status: str, cancel: bool) -> None:
         """After a (partial) refund: record paymentStatus on every row; also cancel (frees the slot)."""

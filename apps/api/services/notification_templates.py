@@ -21,7 +21,7 @@ def booking_payment_pending(booking: BookingRecord) -> tuple[str, str]:
     """Returns (subject, body) for a booking still awaiting payment — lets the
     customer resume from a link even if they closed the tab (no login/profile
     system, so the ref + contact IS the recovery mechanism)."""
-    amount = f"Rs. {booking.price:.2f}" if booking.price is not None else "Rs. 0.00"
+    amount = _money(_amount_due_now(booking))
     subject = f"Complete your booking — {booking.bookingRef}"
     body = (
         f"Hi {booking.name},\n\n"
@@ -39,6 +39,11 @@ def booking_payment_pending(booking: BookingRecord) -> tuple[str, str]:
 
 def _money(value: float) -> str:
     return f"Rs. {value:.2f}"
+
+
+def _amount_due_now(booking: BookingRecord) -> float:
+    """What the customer must pay online now: the advance for an advance booking, else the full price."""
+    return booking.depositAmount if booking.depositAmount is not None else (booking.price or 0.0)
 
 
 def _paid_and_pending(booking: BookingRecord) -> tuple[str, str]:
@@ -138,7 +143,7 @@ def template_params(event: str, booking: BookingRecord, amount: float | None = N
     sport = booking.sportSlug.capitalize()
     when = f"{booking.startTime}-{booking.endTime}"
     if event == "booking_pending":
-        due = f"Rs. {booking.price:.2f}" if booking.price is not None else "Rs. 0.00"
+        due = _money(_amount_due_now(booking))
         return [booking.name, booking.bookingRef, due, f"{_WEB_BASE_URL}/my-bookings?ref={booking.bookingRef}"]
     if event == "booking_confirmed":
         paid, pending = _paid_and_pending(booking)

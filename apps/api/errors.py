@@ -8,7 +8,8 @@ Codes used by the booking and payment routes:
   slot_not_found, slot_unavailable, slots_not_consecutive, promo_invalid, pending_cap, rate_limited,
   verification_required (Turnstile), payment_unavailable (gateway down), booking_not_found,
   payment_record_missing, payment_verification_failed, booking_expired_paid, booking_expired_refunded,
-  contact_invalid, otp_required, no_bookings_found
+  contact_invalid, otp_required, no_bookings_found, advance_not_available (advance asked for but the
+  total is not more than the advance, or the advance is switched off)
 """
 from fastapi import HTTPException
 

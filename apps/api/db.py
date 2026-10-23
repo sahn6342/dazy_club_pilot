@@ -108,6 +108,7 @@ def _cms_seed():
         CmsEntry(key="whatsapp_phone",    label="WhatsApp phone (country code + digits only)", value="919315306294"),
         CmsEntry(key="whatsapp_message",  label="WhatsApp pre-filled message", value="Hello! I am interested."),
         CmsEntry(key="booking_gst_rate",  label="Slot booking GST rate (%)", value="18"),
+        CmsEntry(key="booking_advance_amount", label="Advance payment (₹, non-refundable; 0 = off)", value="500"),
         CmsEntry(key="refund_policy", label="Refund policy (JSON: tiers of hoursBefore start -> percent refunded)",
                  value='{"tiers": [{"hoursBefore": 24, "percent": 100}, {"hoursBefore": 4, "percent": 50}]}'),
     ]
