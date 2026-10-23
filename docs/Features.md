@@ -24,6 +24,7 @@ The landing page: hero with CMS-driven tagline/copy, the four sports, an "In act
 - **In action** — four short muted looping clips (`apps/web/public/videos/*.mp4` with posters), shown in the same kind of strip; only clips in view play, and none autoplay with reduced motion. The full-size originals live in the git-ignored `media/` folder.
 - **Gallery** — driven live from the API (`GET /gallery`, approved items only), images render from uploaded/managed `imageUrl`.
 - **Testimonials** — real Google reviews (first name + initial, placeholder avatars) in a carousel with a fixed card height.
+- **Header menu** — on screens 720px wide or less the header is a single row (logo + menu button) and the links (Home, Book, My Bookings, Contact) open as a dropdown panel with large touch targets; it closes when a link is chosen, on Escape, on a tap outside, or when the screen grows. Wider screens show the links in the header row.
 - **Footer (every page)** — logo, tagline and the venue's contact details from the CMS (Admin → Contact Details): address (links to Google Maps), phone, email, hours and social links; fields left empty in the admin are not shown. The Contact page no longer has its own venue strip. The WhatsApp button uses the admin's WhatsApp number, or the venue phone when none is set.
 
 **Mobile:**

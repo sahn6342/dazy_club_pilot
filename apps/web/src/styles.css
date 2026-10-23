@@ -101,6 +101,31 @@ nav a.active {
   border-bottom-color: #d8b456;
 }
 
+/* Menu button: only shown on small screens (see the mobile block below) */
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(216, 180, 86, 0.5);
+  border-radius: 12px;
+  background: transparent;
+  color: #d8b456;
+  cursor: pointer;
+}
+
+.nav-toggle:hover,
+.nav-toggle[aria-expanded="true"] {
+  background: rgba(216, 180, 86, 0.12);
+}
+
+.nav-toggle:focus-visible {
+  outline: 2px solid #d8b456;
+  outline-offset: 2px;
+}
+
 .corporate-band {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1389,16 +1414,65 @@ summary:focus-visible {
   }
 }
 
+@keyframes nav-drop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header nav.open { animation: none; }
+}
+
 /* Mobile: all single column */
 @media (max-width: 720px) {
+  /* One row: logo left, menu button right. The links drop down as a panel under the header. */
   .site-header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 0.5rem;
+    padding-block: 0.5rem;
   }
 
-  nav {
-    justify-content: flex-start;
+  .site-header .brand-logo {
+    height: 48px;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .site-header nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0;
+    padding: 0.25rem clamp(1rem, 5vw, 4rem) 0.75rem;
+    background: #0b0c0f; /* opaque: the page content must not show through the open menu */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.45);
+    font-size: 1.05rem;
+  }
+
+  .site-header nav.open {
+    display: flex;
+    animation: nav-drop 0.18s ease-out;
+  }
+
+  .site-header nav a {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 0.5rem 0.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .site-header nav a:last-child {
+    border-bottom-color: transparent;
+  }
+
+  .site-header nav a.active {
+    border-bottom-color: rgba(216, 180, 86, 0.6);
   }
 
   .card-grid,
@@ -1420,7 +1494,7 @@ summary:focus-visible {
   }
 
   .hero {
-    height: calc(100dvh - 90px); /* stacked nav is ~90px on mobile */
+    height: calc(100dvh - 73px); /* the one-row mobile header: 48px logo + padding + border */
   }
 
   .actions .button,
