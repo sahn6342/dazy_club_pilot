@@ -19,10 +19,27 @@ test.describe("Brand logo", () => {
     await expect(headerLogo).toHaveAttribute("alt", "Dazy Club");
     expect((await page.locator(".site-header .brand").innerText()).trim()).toBe("");
     await expect(page.locator(".footer .brand-logo")).toHaveCount(1);
-    await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon-32.png");
+    // Google shows a favicon only if it is square and a multiple of 48px, so the site offers 48 and 192 (and /favicon.ico)
+    await expect(page.locator('link[rel="icon"][sizes="48x48"][type="image/png"]')).toHaveAttribute("href", "/favicon-48.png");
+    await expect(page.locator('link[rel="icon"][sizes="192x192"]')).toHaveAttribute("href", "/favicon-192.png");
+    await expect(page.locator('link[rel="icon"][href="/favicon.ico"]')).toHaveCount(1);
     await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/apple-touch-icon.png");
-    const icon = await page.request.get("/favicon-32.png");
-    expect(icon.status()).toBe(200);
+    for (const [path, size] of [["/favicon-48.png", 48], ["/favicon-192.png", 192]] as const) {
+      const r = await page.request.get(path);
+      expect(r.status(), path).toBe(200);
+      expect(r.headers()["content-type"], path).toContain("image/png");
+      const buf = await r.body();
+      expect(buf.readUInt32BE(16), `${path} width`).toBe(size);   // PNG header: width, then height
+      expect(buf.readUInt32BE(20), `${path} height`).toBe(size);
+    }
+    const ico = await page.request.get("/favicon.ico");           // crawlers ask for this by default: it must be a real icon, not the app's HTML
+    expect(ico.status()).toBe(200);
+    expect(ico.headers()["content-type"]).toMatch(/image\/(x-icon|vnd\.microsoft\.icon)/);
+    const robots = await (await page.request.get("/robots.txt")).text();
+    expect(robots).toContain("Sitemap: https://dazyclub.com/sitemap.xml");
+    const sitemap = await (await page.request.get("/sitemap.xml")).text();
+    expect(sitemap).toContain("<loc>https://dazyclub.com/</loc>");
+    expect(await page.locator('script[type="application/ld+json"]').first().evaluate((el) => JSON.parse(el.textContent!)["@graph"][0].name)).toBe("Dazy Club");
   });
 
   test("admin login and kiosk login show the logo", async ({ page }) => {

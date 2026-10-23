@@ -7,8 +7,14 @@
       name="description"
       content="Dazy Club is a premium sports experience for Cricket, Football, Badminton, Pickleball, and corporate enquiries."
     />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <!-- Google shows a favicon only if it is a square whose side is a multiple of 48px (48, 96, 144, 192...): the
+         32px icon alone is ignored and an old cached one stays in the search results. /favicon.ico is what crawlers
+         and browsers request by default. -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://dazyclub.com/" />
     <meta name="theme-color" content="#08090b" />
     <title>Dazy Club — Premium Cricket, Football, Badminton & Pickleball</title>
 
@@ -19,7 +25,8 @@
       property="og:description"
       content="Book Cricket, Football, Badminton, and Pickleball courts at one premium venue. Casual games to corporate events."
     />
-    <meta property="og:image" content="/images/og-image.jpg" />
+    <meta property="og:url" content="https://dazyclub.com/" />
+    <meta property="og:image" content="https://dazyclub.com/images/og-image.jpg" />
     <meta property="og:site_name" content="Dazy Club" />
 
     <!-- Twitter -->
@@ -29,7 +36,30 @@
       name="twitter:description"
       content="Book Cricket, Football, Badminton, and Pickleball courts at one premium venue."
     />
-    <meta name="twitter:image" content="/images/og-image.jpg" />
+    <meta name="twitter:image" content="https://dazyclub.com/images/og-image.jpg" />
+
+    <!-- Tells Google the site's name and logo for search results -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://dazyclub.com/#website",
+            "url": "https://dazyclub.com/",
+            "name": "Dazy Club",
+            "alternateName": ["Dazy Club Patna"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://dazyclub.com/#organization",
+            "name": "Dazy Club",
+            "url": "https://dazyclub.com/",
+            "logo": "https://dazyclub.com/favicon-192.png"
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
