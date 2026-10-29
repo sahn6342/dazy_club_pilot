@@ -56,7 +56,9 @@ export function WalkInBooking() {
   const [promo, setPromo] = useState("");
   const [mode, setMode] = useState<"cash" | "upi">("cash");
   const [reference, setReference] = useState("");
-  const [touched, setTouched] = useState(false);
+  // A field shows its error as soon as the user leaves it; pressing Confirm shows every remaining one.
+  const [touched, setTouched] = useState({ name: false, contact: false, players: false });
+  const touch = (f: "name" | "contact" | "players") => setTouched((t) => ({ ...t, [f]: true }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<Created | null>(null);
@@ -98,8 +100,12 @@ export function WalkInBooking() {
   const invalid = !selected.length || !!(nameErr || contactErr || playersErr);
 
   async function submit() {
-    setTouched(true);
-    if (invalid || busy) return;
+    setTouched({ name: true, contact: true, players: true });
+    if (invalid || busy) {
+      const bad = nameErr ? "name" : contactErr ? "contact" : playersErr ? "players" : "";
+      if (bad) document.querySelector<HTMLElement>(`[data-testid="walkin-${bad}"]`)?.focus();
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -120,7 +126,7 @@ export function WalkInBooking() {
 
   function another() {
     setCreated(null); setSelected([]); setName(""); setContact(""); setPlayers("1"); setPromo(""); setReference("");
-    setMode("cash"); setTouched(false); setError(""); setReloadKey((k) => k + 1);
+    setMode("cash"); setTouched({ name: false, contact: false, players: false }); setError(""); setReloadKey((k) => k + 1);
   }
 
   return (
@@ -196,16 +202,16 @@ export function WalkInBooking() {
                   </p>
 
                   <label className="field-group">Customer name
-                    <input data-testid="walkin-name" className="cms-textarea" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
-                    {touched && nameErr && <span className="field-error">{nameErr}</span>}
+                    <input data-testid="walkin-name" className="cms-textarea" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} onBlur={() => touch("name")} />
+                    {touched.name && nameErr && <span className="field-error">{nameErr}</span>}
                   </label>
                   <label className="field-group">Phone (or email)
-                    <input data-testid="walkin-contact" className="cms-textarea" inputMode="tel" value={contact} onChange={(e) => setContact(e.target.value)} />
-                    {touched && contactErr && <span className="field-error">{contactErr}</span>}
+                    <input data-testid="walkin-contact" className="cms-textarea" inputMode="tel" value={contact} onChange={(e) => setContact(e.target.value)} onBlur={() => touch("contact")} />
+                    {touched.contact && contactErr && <span className="field-error">{contactErr}</span>}
                   </label>
                   <label className="field-group">Players
-                    <input data-testid="walkin-players" className="cms-textarea" type="number" min={1} max={25} value={players} onChange={(e) => setPlayers(e.target.value)} />
-                    {touched && playersErr && <span className="field-error">{playersErr}</span>}
+                    <input data-testid="walkin-players" className="cms-textarea" type="number" min={1} max={25} value={players} onChange={(e) => setPlayers(e.target.value)} onBlur={() => touch("players")} />
+                    {touched.players && playersErr && <span className="field-error">{playersErr}</span>}
                   </label>
                   <label className="field-group">Promo code (optional)
                     <input data-testid="walkin-promo" className="cms-textarea" maxLength={40} value={promo} onChange={(e) => setPromo(e.target.value)} />

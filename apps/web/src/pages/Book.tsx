@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import type { Slot } from "@dazy/shared";
 import { Turnstile } from "../components/Turnstile";
 import { ApiError, createBooking, getNext7Days, getPublicConfig, TURNSTILE_SITE_KEY, getSlots, SPORT_LABELS, validatePromo, type CheckoutConfig, type PaymentOption, type PromoValidationResult } from "../lib/api";
-import { validateName, validateContact, validatePlayers } from "../lib/validate";
+import { validateName, validateContact, validateEmail, validateMessage, validatePlayers } from "../lib/validate";
 import { PaymentPanel } from "../components/PaymentPanel";
 import { ConfirmedBookingCard, type ConfirmedBooking } from "../components/ConfirmedBookingCard";
 
@@ -20,8 +20,15 @@ interface BookingFields {
 interface FieldErrors {
   name?: string;
   contact?: string;
+  email?: string;
   players?: string;
+  message?: string;
 }
+
+/** Form order: the first field with an error gets the focus when the visitor presses Book. */
+const FIELD_ORDER: (keyof FieldErrors)[] = ["name", "contact", "email", "players", "message"];
+const touchedAll = (value: boolean): Record<keyof FieldErrors, boolean> =>
+  ({ name: value, contact: value, email: value, players: value, message: value });
 
 function totalFinalPrice(slots: Slot[]): number | null {
   if (slots.length === 0) return null;
@@ -108,7 +115,7 @@ export function Book() {
 
   const [fields, setFields] = useState<BookingFields>({ name: "", contact: "", email: "", players: "1", message: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [touched, setTouched] = useState<Record<keyof FieldErrors, boolean>>({ name: false, contact: false, players: false });
+  const [touched, setTouched] = useState<Record<keyof FieldErrors, boolean>>(touchedAll(false));
 
   // Only the newest slots request may update the page: switching sport or date quickly must not let a slower,
   // older response overwrite the newer one.
@@ -186,6 +193,8 @@ export function Book() {
     const errs: FieldErrors = {
       name: validateName(vals.name) ?? undefined,
       contact: validateContact(vals.contact) ?? undefined,
+      email: validateEmail(vals.email) ?? undefined,
+      message: validateMessage(vals.message) ?? undefined,
       players: validatePlayers(Number(vals.players), max) ?? undefined,
     };
     setErrors(errs);
@@ -224,7 +233,7 @@ export function Book() {
       setSelectedSlots(next);
       if (next.length === 0) {
         setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
-        setErrors({}); setTouched({ name: false, contact: false, players: false });
+        setErrors({}); setTouched(touchedAll(false));
       }
       return;
     }
@@ -240,7 +249,7 @@ export function Book() {
     setFields((f) => ({ ...f, players: "1" }));
     setErrors({});
     setPromo(""); setPromoError(""); setPromoStatus("idle"); setPromoResult(null);
-    setTouched({ name: false, contact: false, players: false });
+    setTouched(touchedAll(false));
   }
 
   /** Back to a clean booking form (keeps the confirmed cards). */
@@ -257,7 +266,7 @@ export function Book() {
     setBookedAmountDue(null); setBookedBalanceDue(0);
     setPayOption("full");
     setPendingCheckout(null);
-    setTouched({ name: false, contact: false, players: false });
+    setTouched(touchedAll(false));
   }
 
   /** A confirmed booking becomes a card above the picker, and the form is free for the next booking. */
@@ -293,9 +302,13 @@ export function Book() {
     event.preventDefault();
     if (!firstSlot) return;
 
-    setTouched({ name: true, contact: true, players: true });
+    setTouched(touchedAll(true));
     const errs = validateFields(fields);
-    if (Object.values(errs).some(Boolean)) return;
+    const firstBad = FIELD_ORDER.find((k) => errs[k]);
+    if (firstBad) {
+      document.querySelector<HTMLElement>(`[data-field="${firstBad}"]`)?.focus(); // take the visitor to what needs fixing
+      return;
+    }
 
     if (TURNSTILE_SITE_KEY && !tsToken) {
       setBookingError("Please complete the verification challenge first.");
@@ -567,6 +580,8 @@ export function Book() {
               <label>
                 Name
                 <input
+                  data-field="name"
+                  maxLength={80}
                   value={fields.name}
                   onChange={(e) => change("name", e.target.value)}
                   onBlur={() => onBlur("name")}
@@ -581,6 +596,7 @@ export function Book() {
               <label>
                 Phone or email
                 <input
+                  data-field="contact"
                   value={fields.contact}
                   onChange={(e) => change("contact", e.target.value)}
                   onBlur={() => onBlur("contact")}
@@ -591,22 +607,27 @@ export function Book() {
               {touched.contact && errors.contact && <p className="field-error">{errors.contact}</p>}
             </div>
 
-            <div>
+            <div className="field-group">
               <label>
                 Email (optional)
                 <input
+                  data-field="email"
                   type="email"
                   value={fields.email}
                   onChange={(e) => change("email", e.target.value)}
+                  onBlur={() => onBlur("email")}
+                  className={touched.email && errors.email ? "input-error" : ""}
                   placeholder="For booking confirmation"
                 />
               </label>
+              {touched.email && errors.email && <p className="field-error">{errors.email}</p>}
             </div>
 
             <div className="field-group">
               <label>
                 Number of players
                 <input
+                  data-field="players"
                   type="number"
                   min="1"
                   max={firstSlot!.maxPlayers}
@@ -653,7 +674,20 @@ export function Book() {
               {promoError && <p className="field-error" data-testid="promo-error">{promoError}</p>}
             </div>
 
-            <label>Message (optional) <textarea value={fields.message} onChange={(e) => change("message", e.target.value)} rows={3} /></label>
+            <div className="field-group">
+              <label>
+                Message (optional)
+                <textarea
+                  data-field="message"
+                  value={fields.message}
+                  onChange={(e) => change("message", e.target.value)}
+                  onBlur={() => onBlur("message")}
+                  className={touched.message && errors.message ? "input-error" : ""}
+                  rows={3}
+                />
+              </label>
+              {touched.message && errors.message && <p className="field-error">{errors.message}</p>}
+            </div>
 
             {advanceOffered && payableTotal != null && (
               <fieldset className="pay-options" data-testid="pay-options">
