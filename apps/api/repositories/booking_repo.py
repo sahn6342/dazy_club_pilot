@@ -36,6 +36,10 @@ def _to_model(row: BookingRow) -> BookingRecord:
         balance_mode=row.balance_mode,
         balance_collected_at=row.balance_collected_at,
         balance_collected_by=row.balance_collected_by,
+        source=row.source,
+        payment_mode=row.payment_mode,
+        payment_reference=row.payment_reference,
+        created_by=row.created_by,
         deleted_at=row.deleted_at,
         deleted_by=row.deleted_by,
     )

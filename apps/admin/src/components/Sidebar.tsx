@@ -5,6 +5,7 @@ import { BRAND } from "@dazy/shared";
 const NAV = [
   { to: "/", label: "Dashboard", icon: "⬛" },
   { to: "/bookings", label: "Bookings", icon: "📅" },
+  { to: "/bills", label: "Bills", icon: "🧮" },
   { to: "/schedule", label: "Schedule", icon: "🗓" },
   { to: "/promos", label: "Promos", icon: "🏷" },
   { to: "/enquiries", label: "Enquiries", icon: "✉️" },

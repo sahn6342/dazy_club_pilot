@@ -38,6 +38,8 @@ test.describe("Admin screenshots", () => {
 
     await shoot(page, "/", "admin-dashboard");
     await shoot(page, "/bookings", "admin-bookings");
+    await shoot(page, "/bookings/new", "admin-walkin-booking");
+    await shoot(page, "/bills", "admin-bills");
 
     // Schedule — default weekly view.
     await shoot(page, "/schedule", "admin-schedule");

@@ -231,6 +231,10 @@ class BookingRecord(BaseModel):
     balance_mode: str | None = None
     balance_collected_at: str | None = None
     balance_collected_by: str | None = None
+    source: str = "online"  # online | counter
+    payment_mode: str | None = None  # counter bookings: cash | upi
+    payment_reference: str | None = None
+    created_by: str | None = None
     deleted_at: str | None = None
     deleted_by: str | None = None
 
@@ -262,6 +266,43 @@ class CollectBalanceRequest(BaseModel):
     mode: Literal["cash", "upi", "card"]
     amount: float | None = Field(default=None, gt=0, le=1_000_000)
     reference: str | None = Field(default=None, max_length=100)
+
+
+class WalkinBookingRequest(BaseModel):
+    """A booking taken at the counter by staff: paid in full in cash or UPI, confirmed at once, no gateway."""
+    name: str = Field(min_length=1, max_length=80)
+    contact: str = Field(min_length=1)
+    email: str | None = Field(default=None, max_length=254)
+    slotIds: list[str] = Field(min_length=1, max_length=8)
+    sportSlug: str = Field(min_length=1)
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    players: int = Field(ge=1, le=25)
+    paymentMode: Literal["cash", "upi"]
+    reference: str | None = Field(default=None, max_length=100)  # UPI transaction id
+    promoCode: str | None = Field(default=None, max_length=40)
+    message: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("contact")
+    @classmethod
+    def validate_contact(cls, v: str) -> str:
+        return _validate_contact(v)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            return None
+        s = v.strip()
+        if not _EMAIL_RE.match(s):
+            raise ValueError("email must be a valid email address.")
+        return s
+
+    @field_validator("sportSlug")
+    @classmethod
+    def validate_sport(cls, v: str) -> str:
+        if v not in _VALID_SPORTS:
+            raise ValueError(f"sportSlug must be one of {sorted(_VALID_SPORTS)}.")
+        return v
 
 
 class BookingPaymentDto(BaseModel):
@@ -1092,3 +1133,63 @@ class InvoiceDto(BaseModel):
 class IssueInvoiceRequest(BaseModel):
     customerName: str | None = None
     customerGstin: str | None = None
+
+
+
+# ── Counter bills ──
+
+# 15 characters: 2 digits (state), 5 letters + 4 digits + 1 letter (PAN), entity digit/letter, "Z", check character
+GSTIN_PATTERN = r"\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]"
+
+
+class BillLineIn(BaseModel):
+    description: str = Field(min_length=1, max_length=200)
+    qty: float = Field(gt=0, le=100_000)
+    rate: float = Field(ge=0, le=10_000_000)  # per unit, before GST
+    gstRatePercent: float = Field(ge=0, le=28)
+
+    @field_validator("description")
+    @classmethod
+    def strip_description(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Item description is required.")
+        return v
+
+
+class BillCreate(BaseModel):
+    customerName: str | None = Field(default=None, max_length=80)
+    customerPhone: str | None = Field(default=None, max_length=15)
+    customerGstin: str | None = Field(default=None, max_length=15)
+    notes: str | None = Field(default=None, max_length=500)
+    bookingRef: str | None = Field(default=None, max_length=20)
+    lines: list[BillLineIn] = Field(min_length=1, max_length=50)
+
+    @field_validator("customerName", "notes", "bookingRef")
+    @classmethod
+    def blank_to_none(cls, v: str | None) -> str | None:
+        return (v or "").strip() or None
+
+    @field_validator("customerPhone")
+    @classmethod
+    def validate_phone(cls, v: str | None) -> str | None:
+        v = (v or "").strip()
+        if not v:
+            return None
+        if not _re.fullmatch(r"\d{10}", v):
+            raise ValueError("Phone must be a 10-digit mobile number.")
+        return v
+
+    @field_validator("customerGstin")
+    @classmethod
+    def validate_gstin(cls, v: str | None) -> str | None:
+        v = (v or "").strip().upper()
+        if not v:
+            return None
+        if not _re.fullmatch(GSTIN_PATTERN, v):
+            raise ValueError("GSTIN must be 15 characters, e.g. 10ABCDE1234F1Z5.")
+        return v
+
+
+class BillVoidRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=200)

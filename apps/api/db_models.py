@@ -100,6 +100,11 @@ class BookingRow(Base):
     balance_mode: Mapped[str | None] = mapped_column(String, nullable=True)
     balance_collected_at: Mapped[str | None] = mapped_column(String, nullable=True)
     balance_collected_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Counter (walk-in) bookings: taken by staff and paid in cash/UPI at the venue, no payment gateway involved.
+    source: Mapped[str] = mapped_column(String, nullable=False, default="online", server_default="online")
+    payment_mode: Mapped[str | None] = mapped_column(String, nullable=True)
+    payment_reference: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String, nullable=True)
     # lower(trim(contact)), written on create: lets search and the pending-booking cap use an index
     contact_norm: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
     # Soft delete: hidden from every list and lookup, kept for the books. Deleting also cancels.
@@ -437,3 +442,55 @@ class RateLimitEventRow(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     key: Mapped[str] = mapped_column(String, nullable=False, index=True)
     ts: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+
+class BillRow(Base):
+    """A counter bill (item, rate, GST %). Immutable once issued: a mistake is voided, never edited or deleted,
+    so the bill numbers stay gap-free."""
+    __tablename__ = "bills"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    bill_no: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    series: Mapped[str] = mapped_column(String, nullable=False)
+    financial_year: Mapped[str] = mapped_column(String, nullable=False)
+    bill_date: Mapped[str] = mapped_column(String, index=True, nullable=False)  # venue-local date
+    customer_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    customer_phone: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
+    customer_gstin: Mapped[str | None] = mapped_column(String, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    booking_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+    taxable_value: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    cgst: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    sgst: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    round_off: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    amount_in_words: Mapped[str] = mapped_column(String, nullable=False)
+    # Bills issued first took the rate EXCLUDING GST (False); newer ones take it INCLUDING GST (True).
+    prices_include_tax: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")  # active | void
+    void_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    voided_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    voided_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_by: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class BillLineRow(Base):
+    __tablename__ = "bill_lines"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    bill_id: Mapped[str] = mapped_column(String, ForeignKey("bills.id", name="fk_bill_lines_bill"), index=True, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+    qty: Mapped[float] = mapped_column(Numeric(12, 3), nullable=False)
+    rate: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    gst_rate_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    taxable_value: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    cgst: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    sgst: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    line_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+
+
+class BillSequenceRow(Base):
+    __tablename__ = "bill_sequences"
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # "{series}-{financialYear}"
+    last_number: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

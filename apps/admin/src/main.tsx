@@ -9,6 +9,9 @@ import { ToastProvider } from "./components/Toast";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
+import { WalkInBooking } from "./pages/WalkInBooking";
+import { Bills } from "./pages/Bills";
+import { BillPrint } from "./pages/BillPrint";
 import { Enquiries } from "./pages/Enquiries";
 import { Gallery } from "./pages/Gallery";
 import { Testimonials } from "./pages/Testimonials";
@@ -35,6 +38,9 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<AuthGuard><Dashboard /></AuthGuard>} />
         <Route path="/bookings" element={<AuthGuard><Bookings /></AuthGuard>} />
+        <Route path="/bookings/new" element={<AuthGuard><WalkInBooking /></AuthGuard>} />
+        <Route path="/bills" element={<AuthGuard><Bills /></AuthGuard>} />
+        <Route path="/bills/:id/print" element={<AuthGuard><BillPrint /></AuthGuard>} />
         <Route path="/schedule" element={<AuthGuard><Schedule /></AuthGuard>} />
         <Route path="/promos" element={<AuthGuard><Promos /></AuthGuard>} />
         <Route path="/enquiries" element={<AuthGuard><Enquiries /></AuthGuard>} />

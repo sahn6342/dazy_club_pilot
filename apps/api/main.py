@@ -37,6 +37,7 @@ from routes.venue import router as venue_router
 from routes.preorders import router as preorders_router
 from routes.admin.auth import router as admin_auth_router
 from routes.admin.bookings import router as admin_bookings_router
+from routes.admin.bills import router as admin_bills_router
 from routes.admin.enquiries import router as admin_enquiries_router
 from routes.admin.gallery import router as admin_gallery_router
 from routes.admin.testimonials import router as admin_testimonials_router
@@ -187,6 +188,7 @@ app.include_router(preorders_router, prefix=prefix)
 # Admin routes (JWT-protected except login)
 app.include_router(admin_auth_router, prefix=prefix)
 app.include_router(admin_bookings_router, prefix=prefix)
+app.include_router(admin_bills_router, prefix=prefix)
 app.include_router(admin_enquiries_router, prefix=prefix)
 app.include_router(admin_gallery_router, prefix=prefix)
 app.include_router(admin_testimonials_router, prefix=prefix)

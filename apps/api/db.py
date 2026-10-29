@@ -102,6 +102,7 @@ def _cms_seed():
         CmsEntry(key="venue_address", label="Venue address", value="J29M+RP5 D1, Chamari Chak Rd, Ram Krishna Puram, Balaji Nagar, New Tarachak, Danapur, Patna, Bihar 801503"),
         CmsEntry(key="venue_phone", label="Venue phone", value="+91 93153 06294"),
         CmsEntry(key="venue_email", label="Venue email", value="dazyclub1223@gmail.com"),
+        CmsEntry(key="venue_gstin", label="GSTIN (printed on bills)", value=""),
         CmsEntry(key="venue_hours", label="Venue hours", value="Open 24 hours"),
         CmsEntry(key="social_instagram",  label="Instagram handle / URL", value=""),
         CmsEntry(key="social_facebook",   label="Facebook page URL", value=""),

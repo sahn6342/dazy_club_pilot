@@ -56,6 +56,11 @@ FastAPI backend. Base URL: **`http://localhost:8000/api/v1`**. Interactive docs 
 | GET / PUT | `/admin/cafe/settings` | Cafe/GST settings |
 | GET | `/cafe/invoices` | All invoices (admin) |
 | POST | `/admin/bookings/{id}/refund` | Refund a paid booking (provider refund + frees the slot) |
+| GET | `/admin/slots?sport=&date=` | Slots for counter booking (the hour in progress is still bookable) |
+| POST | `/admin/bookings/walkin` | Counter booking paid in cash or UPI: confirmed and paid at once, no gateway (`paymentMode`, `reference`) |
+| POST / GET | `/admin/bills` | Create a bill (lines: description, qty, rate incl. GST, `gstRatePercent` 0–28) / list with `q`, `date_from`, `date_to`, `status`, `limit`, `offset` |
+| GET | `/admin/bills/{id}` · `/admin/bills/business` | One bill with its lines · the business header for printing |
+| POST | `/admin/bills/{id}/void` | Void a bill with a reason (bills are never edited or deleted) |
 | GET | `/admin/reports/dashboard` | Owner KPIs: bookings/revenue/occupancy today (venue-local timezone) |
 | GET | `/admin/reports/day-close` | Café Z-report — payment-mode totals for a date |
 | GET | `/admin/notifications` | Notification delivery log (sent/skipped/failed), filterable by `refType`/`refId` |

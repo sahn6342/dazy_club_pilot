@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from models import CmsEntry, CmsEntryUpdate, CmsCreate
+import re
+
+from models import CmsEntry, CmsEntryUpdate, CmsCreate, GSTIN_PATTERN
 from auth import get_current_admin
 from deps import cms_repo
 from services.advance import ADVANCE_KEY, parse_advance
@@ -19,6 +21,9 @@ def _validate_value(key: str, value: str) -> None:
     """Keys whose value drives money logic are checked here, so a typo cannot reach a booking."""
     if key == POLICY_KEY:
         _validate_policy(value)
+    elif key == "venue_gstin":  # printed on every bill: empty (not registered) or a well-formed GSTIN
+        if value.strip() and not re.fullmatch(GSTIN_PATTERN, value.strip().upper()):
+            raise HTTPException(status_code=422, detail="GSTIN must be 15 characters, e.g. 10ABCDE1234F1Z5.")
     elif key == ADVANCE_KEY:
         try:
             parse_advance(value)

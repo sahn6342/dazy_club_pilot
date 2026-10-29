@@ -108,9 +108,12 @@ def _occupied_by_slot(court_id: str, d: str, s) -> dict[str, int]:
     return {row.slotId: row.occ for row in rows}
 
 
-def generate_slots(sport: str | None = None, date: str | None = None, drop_past: bool = True) -> list[SlotDto]:
+def generate_slots(sport: str | None = None, date: str | None = None, drop_past: bool = True,
+                   allow_in_progress: bool = False) -> list[SlotDto]:
     """Generate slots for active courts (optionally one sport / one date).
-    drop_past=True omits elapsed slots (display); False keeps them flagged unavailable (booking lookup)."""
+    drop_past=True omits elapsed slots (display); False keeps them flagged unavailable (booking lookup).
+    allow_in_progress=True (counter bookings) treats a slot as elapsed only once it has ended, so the hour
+    a customer is standing in can still be booked."""
     _sweep_stale_pending()
     out: list[SlotDto] = []
     with _session() as s:
@@ -158,7 +161,9 @@ def generate_slots(sport: str | None = None, date: str | None = None, drop_past:
                 def _emit_slot(cur: int, step: int, date_str: str, base_price, final_price, discount) -> None:
                     start_hhmm = _min_to_hhmm(cur)
                     end_hhmm = _min_to_hhmm(cur + step)
-                    is_past = (date_str == today_local and cur <= (now_local.hour * 60 + now_local.minute))
+                    now_min = now_local.hour * 60 + now_local.minute
+                    elapsed_at = cur + step if allow_in_progress else cur
+                    is_past = (date_str == today_local and elapsed_at <= now_min)
                     if is_past and drop_past:
                         return
                     sid = f"slot-{court.id}-{date_str}-{start_hhmm.replace(':', '')}"
@@ -213,9 +218,9 @@ def generate_slots(sport: str | None = None, date: str | None = None, drop_past:
     return sorted(out, key=lambda s: (s.date, s.startTime, s.courtId))
 
 
-def find_slot(sport: str, date: str, slot_id: str) -> SlotDto | None:
+def find_slot(sport: str, date: str, slot_id: str, allow_in_progress: bool = False) -> SlotDto | None:
     """Find a single slot for booking validation (includes past slots, flagged unavailable)."""
-    for sl in generate_slots(sport=sport, date=date, drop_past=False):
+    for sl in generate_slots(sport=sport, date=date, drop_past=False, allow_in_progress=allow_in_progress):
         if sl.id == slot_id:
             return sl
     return None

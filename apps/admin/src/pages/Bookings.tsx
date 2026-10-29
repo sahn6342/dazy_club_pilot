@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useConfirm } from "../components/ConfirmDialog";
 import { Sidebar } from "../components/Sidebar";
 import { TopBar } from "../components/TopBar";
@@ -16,6 +17,7 @@ type Booking = {
   gst_rate_percent: number | null; status: string; paymentStatus: string; createdAt: string;
   deleted_at?: string | null;
   depositAmount?: number | null; balance_collected?: number;
+  source?: string; payment_mode?: string | null; payment_reference?: string | null;
 };
 
 const STATUS_MSG: Record<string, string> = {
@@ -34,6 +36,7 @@ const balanceDue = (b: Booking) =>
   isAdvance(b) && b.status !== "cancelled"
     ? Math.max(Math.round(((b.price ?? 0) - (b.depositAmount ?? 0) - (b.balance_collected ?? 0)) * 100) / 100, 0)
     : 0;
+const isCounter = (b: Booking) => b.source === "counter";
 const isPaid = (b: { paymentStatus: string }) => b.paymentStatus === "paid" || b.paymentStatus === "partially_refunded";
 
 const EMPTY_FILTER = { sport: "", status: "", date_from: "", date_to: "", deleted: "no" };
@@ -132,6 +135,16 @@ export function Bookings() {
     }
   }
 
+  /** A counter booking has no gateway payment to refund: cancelling frees the slot and any refund is handed back at the counter. */
+  async function cancelCounter(b: Booking) {
+    if (!isCounter(b)) return setStatus(b.id, "cancelled");
+    const ok = await confirm({
+      message: `Cancel counter booking ${b.bookingRef} (${b.name})? The slot is freed. Any refund of the ${b.payment_mode === "upi" ? "UPI" : "cash"} payment has to be handed back at the counter.`,
+      confirmLabel: "Cancel booking", danger: true,
+    });
+    if (ok) await setStatus(b.id, "cancelled");
+  }
+
   async function exportCsv() {
     const q = buildExportQuery();
     try {
@@ -215,9 +228,11 @@ export function Bookings() {
             {(filter.sport || filter.status || filter.date_from || filter.date_to || filter.deleted !== "no") && (
               <button className="btn-action secondary" onClick={() => { setPage(1); setFilter(EMPTY_FILTER); }}>Clear</button>
             )}
+            <Link to="/bookings/new" className="btn-primary small" style={{ marginLeft: "auto", textDecoration: "none" }} data-testid="new-walkin">
+              + Walk-in booking
+            </Link>
             <button
               className="btn-primary small"
-              style={{ marginLeft: "auto" }}
               data-testid="export-csv"
               title="Download every booking matching these filters"
               onClick={exportCsv}
@@ -285,6 +300,11 @@ export function Bookings() {
                         <td>
                           <StatusBadge status={b.status} />
                           {b.deleted_at && <small className="muted" data-testid={`deleted-${b.bookingRef}`} style={{ display: "block" }}>Deleted</small>}
+                          {isCounter(b) && (
+                            <small className="muted" data-testid={`counter-${b.bookingRef}`} style={{ display: "block" }}>
+                              Counter · {b.payment_mode === "upi" ? "UPI" : "Cash"}
+                            </small>
+                          )}
                           {PAYMENT_LABEL[b.paymentStatus] && (
                             <small className="muted" data-testid={`pay-${b.bookingRef}`} style={{ display: "block" }}>
                               {PAYMENT_LABEL[b.paymentStatus]}
@@ -308,13 +328,13 @@ export function Bookings() {
                             {!b.deleted_at && (b.status === "pending" || b.status === "confirmed") && (
                               // Paid bookings go through the refund dialog so a cancellation can never silently keep the money.
                               <button className="btn-action cancel" data-testid={`cancel-${b.bookingRef}`}
-                                onClick={() => (isPaid(b) ? openRefund(b, "cancel") : setStatus(b.id, "cancelled"))}>Cancel</button>
+                                onClick={() => (isPaid(b) && !isCounter(b) ? openRefund(b, "cancel") : cancelCounter(b))}>Cancel</button>
                             )}
                             {!b.deleted_at && isPaid(b) && (b.status === "confirmed" || b.status === "completed") && balanceDue(b) > 0 && (
                               <button className="btn-action confirm" data-testid={`collect-${b.bookingRef}`}
                                 onClick={() => setCollectFor({ id: b.id, bookingRef: b.bookingRef, name: b.name, balanceDue: balanceDue(b) })}>Collect balance</button>
                             )}
-                            {!b.deleted_at && isPaid(b) && !isAdvance(b) && (
+                            {!b.deleted_at && isPaid(b) && !isAdvance(b) && !isCounter(b) && (
                               <button className="btn-action secondary" data-testid={`refund-${b.bookingRef}`}
                                 onClick={() => openRefund(b, "refund")}>Refund</button>
                             )}

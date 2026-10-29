@@ -114,6 +114,19 @@ Every admin page ends with the website's footer (logo, tagline, address linking 
 - Update booking status (`PATCH /admin/bookings/{id}`) through the status lifecycle.
 - Cancel/delete a booking (`DELETE`, confirm dialog).
 - **Advance bookings** — the Price cell shows the advance and the balance; **Collect balance** (`POST /admin/bookings/{id}/collect-balance`, admin only) records cash / UPI / card taken at the venue (partial amounts allowed, never more than the balance) and is audited. The advance is never refundable: the refund dialog says so, nothing is refundable, and cancelling only frees the slot. The CSV export adds Payment Option, Amount Paid and Balance Due.
+- **Walk-in booking** — **+ Walk-in booking** opens `/bookings/new`: pick sport, day (today to +6), court and consecutive slots (the hour in progress is allowed), enter the customer's name and phone, choose **Cash** or **UPI** (optional reference) and confirm. The booking is confirmed and paid at once with no online payment (`POST /admin/bookings/walkin`, audited as `booking.walkin_create`). The list marks it "Counter · Cash/UPI"; it has no Refund button (no gateway payment), and the CSV export adds Source and Payment Mode.
+
+![Admin walk-in booking](screenshots/admin-walkin-booking.png)
+
+### Bills
+
+![Admin bills](screenshots/admin-bills.png)
+
+- **New bill** — add rows (item, qty, rate **including GST**, GST % typed in a box, default 18, 0–28 with decimals); the amount of a row is qty × rate, the tax is taken out of it, and the totals (taxable value, CGST, SGST, total) update as you type. The total is the sum of the rows, not rounded. The server recomputes every figure on save. **Save & print** gives the bill its number (`2026-27/0001`: financial year, then a running number that restarts each 1 April) and opens the A4 print view. Bills issued before this change took the rate without GST and still print that way ("Rate (excl. GST)").
+- **Print view** (`/bills/{id}/print`) — A4 sheet with logo, business name, address, phone, GSTIN, bill number and date, items with GST split, amount in words and a signature line. For paper that already has a printed letterhead, untick **Print letterhead** and set **Top space (mm)**; both are remembered on this browser.
+- **Past bills** — search by bill number, customer name or phone, filter by date and status, **Reprint** or **View** any old bill.
+- **Void** — a bill can never be edited or deleted. A mistake is voided with a reason; the bill prints with a VOID mark and its number is not reused.
+- The header (name, address, phone, email on separate lines, GSTIN) comes from Admin → Contact Details, including its **GSTIN** field; Café Settings are not used. With no GSTIN the sheet says "Bill" instead of "Tax Invoice". GST is intra-state only (CGST + SGST).
 
 ### Schedule
 

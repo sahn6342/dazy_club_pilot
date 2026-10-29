@@ -7,7 +7,7 @@ import { test, expect, devices, Page, Route } from "@playwright/test";
 const { defaultBrowserType: _ignored, ...iphone } = devices["iPhone 15"];
 
 const ROUTES = [
-  "/", "/bookings", "/schedule", "/promos", "/enquiries", "/gallery", "/testimonials", "/cms", "/courts",
+  "/", "/bookings", "/bookings/new", "/bills", "/schedule", "/promos", "/enquiries", "/gallery", "/testimonials", "/cms", "/courts",
   "/contact-details", "/users", "/audit", "/notifications", "/cafe/categories", "/cafe/items", "/cafe/tables",
   "/cafe/settings", "/cafe/orders",
 ];

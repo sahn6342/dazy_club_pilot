@@ -1,15 +1,23 @@
 import csv
 import io
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone, date as date_cls
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
+from sqlalchemy.exc import IntegrityError
 from audit import audit
 from dataclasses import asdict
 
-from models import BookingRecord, BookingStatusUpdate, BookingRefundRequest, CancelRefundRequest, CollectBalanceRequest
+from errors import ApiError
+from models import (
+    BookingRecord, BookingStatusUpdate, BookingRefundRequest, CancelRefundRequest, CollectBalanceRequest,
+    WalkinBookingRequest,
+)
 from auth import get_current_admin, require_superadmin
-from deps import booking_repo, booking_payment_repo, order_repo
+from deps import booking_repo, booking_payment_repo, order_repo, court_repo, customer_repo, promo_repo, cms_repo
+from services.availability_service import find_slot, generate_slots
+from services.pricing_service import apply_promo, gst_components, PromoError
 from services.advance import balance_due, amount_paid, is_advance, non_refundable
 from services.refund_policy import build_quote, hours_until_start, load_tiers, money
 from services.refund_service import REFUNDABLE_PAYMENT_STATES, refund_booking
@@ -23,6 +31,7 @@ _DELETED_MODES = ("no", "only", "all")
 _EXPORT_HEADERS = [
     "Ref", "Name", "Contact", "Sport", "Date", "Start", "End", "Players", "Price (INR)",
     "GST %", "GST Amount (INR)", "Promo", "Status", "Payment", "Payment Option", "Amount Paid (INR)", "Balance Due (INR)",
+    "Source", "Payment Mode",
 ]
 
 
@@ -58,7 +67,8 @@ def _csv_stream(rows):
         writer.writerow([_csv_cell(v) for v in (
             b.bookingRef, b.name, b.contact, b.sportSlug, b.date, b.startTime, b.endTime, b.party_size,
             b.price, b.gst_rate_percent, _gst_amount(b.price, b.gst_rate_percent), b.promo_code, b.status, b.paymentStatus,
-            "advance" if is_advance(b) else "full", f"{amount_paid(b):.2f}", f"{balance_due(b):.2f}")])
+            "advance" if is_advance(b) else "full", f"{amount_paid(b):.2f}", f"{balance_due(b):.2f}",
+            b.source, b.payment_mode)])
         n += 1
         if n % 200 == 0:
             yield buf.getvalue()
@@ -87,6 +97,86 @@ def list_bookings(
         sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
     )
     return {"items": items, "total": total}
+
+
+@router.get("/admin/slots")
+def admin_slots(sport: str, date: str, response: Response, _: dict = Depends(get_current_admin)):
+    """Slots for the counter-booking screen: like the public list, but the hour in progress is still bookable."""
+    response.headers["Cache-Control"] = "no-store"
+    return generate_slots(sport=sport, date=date, drop_past=True, allow_in_progress=True)
+
+
+@router.post("/admin/bookings/walkin", status_code=201)
+def create_walkin_booking(body: WalkinBookingRequest, req: Request, admin: dict = Depends(get_current_admin)):
+    """Book slots at the counter. Paid in full in cash or UPI, so the booking is confirmed and paid at once: no
+    gateway order, no payment hold. Slot clashes are still stopped by the unique active-slot index."""
+    if body.paymentMode == "upi" and body.reference is not None and not body.reference.strip():
+        raise ApiError(422, "UPI reference cannot be blank.", "reference_blank")
+    slots = []
+    for sid in body.slotIds:
+        slot = find_slot(body.sportSlug, body.date, sid, allow_in_progress=True)
+        if not slot:
+            raise ApiError(404, f"Slot {sid} not found.", "slot_not_found")
+        if not slot.available:
+            raise ApiError(409, f"Slot {slot.startTime} is unavailable (already booked or ended).", "slot_unavailable")
+        slots.append(slot)
+    for i in range(1, len(slots)):
+        if slots[i - 1].endTime != slots[i].startTime or slots[i - 1].courtId != slots[i].courtId:
+            raise ApiError(400, f"Slots {slots[i-1].startTime}–{slots[i-1].endTime} and {slots[i].startTime}–{slots[i].endTime} are not consecutive.",
+                           "slots_not_consecutive")
+    court_id = slots[0].courtId or court_repo.id_for_sport(body.sportSlug)
+
+    all_free = all(s.finalPrice is None for s in slots)
+    base_total: float | None = None if all_free else sum(s.finalPrice or 0.0 for s in slots)
+    final_price = base_total
+    applied_promo = None
+    if body.promoCode:
+        try:
+            promo = promo_repo.validate_and_increment(body.promoCode, body.sportSlug, date_cls.today().isoformat())
+        except PromoError as e:
+            raise ApiError(400, e.detail, "promo_invalid")
+        final_price = apply_promo(promo, base_total)
+        applied_promo = promo.code
+
+    gst_entry = cms_repo.get_by_id("booking_gst_rate")
+    gst_rate = float(gst_entry.value) if gst_entry and gst_entry.value else 18.0
+    customer = customer_repo.upsert_by_contact(body.name, body.contact, email=body.email)
+    ref = str(uuid.uuid4())[:8].upper()
+    now = datetime.now(timezone.utc).isoformat()
+    reference = body.reference.strip() if body.reference else None
+    records = [
+        BookingRecord(
+            id=str(uuid.uuid4()), bookingRef=ref, customer_id=customer.id, court_id=court_id, slotId=slot.id,
+            name=body.name, contact=body.contact, sportSlug=body.sportSlug, date=body.date,
+            startTime=slot.startTime, endTime=slot.endTime, party_size=body.players,
+            price=final_price if i == 0 else None, promo_code=applied_promo if i == 0 else None,
+            message=body.message if i == 0 else None, status="confirmed", paymentStatus="paid", createdAt=now,
+            is_primary=(i == 0), gst_rate_percent=gst_rate if i == 0 else None, email=body.email if i == 0 else None,
+            source="counter", payment_mode=body.paymentMode, payment_reference=reference if i == 0 else None,
+            created_by=admin["sub"],
+        )
+        for i, slot in enumerate(slots)
+    ]
+    try:
+        booking_repo.create_many(records)
+    except IntegrityError:
+        if applied_promo:
+            promo_repo.decrement_use(applied_promo)
+        raise ApiError(409, "One or more slots are unavailable (booking conflict).", "slot_unavailable")
+
+    notify_booking_confirmed(ref)
+    primary = records[0]
+    audit("booking.walkin_create", admin, request=req, entity_type="booking", entity_id=primary.id,
+          detail={"bookingRef": ref, "price": final_price, "paymentMode": body.paymentMode, "reference": reference,
+                  "slots": [s.id for s in slots], "promo": applied_promo})
+    taxable, gst_amt = gst_components(final_price, gst_rate) if final_price else (None, None)
+    return {
+        "id": primary.id, "bookingRef": ref, "name": body.name, "sport": body.sportSlug, "date": body.date,
+        "startTime": slots[0].startTime, "endTime": slots[-1].endTime, "slotCount": len(slots),
+        "price": final_price, "basePrice": base_total, "promoCode": applied_promo, "gstRatePercent": gst_rate,
+        "taxableAmount": taxable, "gstAmount": gst_amt, "status": "confirmed", "paymentStatus": "paid",
+        "paymentMode": body.paymentMode, "reference": reference,
+    }
 
 
 @router.get("/admin/bookings/export")

@@ -21,6 +21,7 @@ from repositories.order_repo import SqliteOrderRepository
 from repositories.kot_repo import SqliteKotRepository
 from repositories.payment_repo import SqlitePaymentRepository
 from repositories.invoice_repo import SqliteInvoiceRepository
+from repositories.bill_repo import SqliteBillRepository
 from repositories.booking_payment_repo import SqliteBookingPaymentRepository
 from repositories.reporting_repo import SqliteReportingRepository
 from repositories.notification_repo import SqliteNotificationRepository
@@ -46,6 +47,7 @@ order_repo = SqliteOrderRepository()
 kot_repo = SqliteKotRepository()
 payment_repo = SqlitePaymentRepository()
 invoice_repo = SqliteInvoiceRepository()
+bill_repo = SqliteBillRepository()
 booking_payment_repo = SqliteBookingPaymentRepository()
 reporting_repo = SqliteReportingRepository()
 notification_repo = SqliteNotificationRepository()
