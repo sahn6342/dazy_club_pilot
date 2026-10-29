@@ -1,22 +1,30 @@
+import { fetchWithWake, networkMessage, warmUpApi } from "@dazy/shared";
 import { getToken, clearToken } from "./auth";
 
 const BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+
+warmUpApi(BASE); // a sleeping server starts now, while the screen loads
 
 // API origin without the /api/v1 suffix — used for non-fetch links like the print-invoice window.open.
 export const API_ORIGIN = BASE.replace(/\/api\/v1\/?$/, "");
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    credentials: "include", // httpOnly session cookie
-    headers: {
-      "Content-Type": "application/json",
-      "X-Requested-With": "dazy", // CSRF guard: the API requires it on cookie-authenticated writes
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetchWithWake(`${BASE}${path}`, {
+      ...options,
+      credentials: "include", // httpOnly session cookie
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "dazy", // CSRF guard: the API requires it on cookie-authenticated writes
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (e) {
+    throw new Error(networkMessage(e));
+  }
   if (res.status === 401 && !path.startsWith("/cafe/login")) {
     clearToken();
     window.location.href = "/login";

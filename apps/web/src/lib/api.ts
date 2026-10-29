@@ -1,10 +1,12 @@
-import type { Slot } from "@dazy/shared";
+import { fetchWithWake, warmUpApi, type Slot } from "@dazy/shared";
 
 const API = (import.meta as any).env?.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
 // API origin without /api/v1 — resolves relative /media image paths to absolute URLs.
 // Cloudflare Turnstile PUBLIC site key (build-time). Unset in local dev => widget hidden, API skips the check.
 export const TURNSTILE_SITE_KEY: string = (import.meta as any).env?.VITE_TURNSTILE_SITE_KEY ?? "";
+
+warmUpApi(API); // a sleeping server starts now, while the visitor is still looking at the page
 
 export const API_ORIGIN = API.replace(/\/api\/v1\/?$/, "");
 
@@ -43,8 +45,6 @@ export const MESSAGES = {
   server: "Something went wrong on our side. Please try again in a moment.",
 };
 
-const REQUEST_TIMEOUT_MS = 15_000;
-
 /** Reduce FastAPI's `detail` (a string, or a list of {msg} objects for 422 validation errors) to one string. */
 function detailText(body: any): string | null {
   const detail = body?.detail;
@@ -63,19 +63,16 @@ export function errorMessage(err: unknown, fallback: string): string {
 
 async function request<T = any>(
   path: string,
-  init: RequestInit & { fallback?: string; timeoutMs?: number } = {},
+  init: RequestInit & { fallback?: string } = {},
 ): Promise<T> {
-  const { fallback = "Something went wrong. Please try again.", timeoutMs = REQUEST_TIMEOUT_MS, ...fetchInit } = init;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const { fallback = "Something went wrong. Please try again.", ...fetchInit } = init;
   let r: Response;
   try {
-    r = await fetch(`${API}${path}`, { ...fetchInit, signal: controller.signal });
+    // Waits for a sleeping server and repeats GETs that got no answer; a write is sent once (see fetchWithWake).
+    r = await fetchWithWake(`${API}${path}`, fetchInit);
   } catch (e: any) {
     if (e?.name === "AbortError") throw new ApiError(MESSAGES.timeout, { kind: "timeout" });
     throw new ApiError(MESSAGES.network, { kind: "network" });
-  } finally {
-    clearTimeout(timer);
   }
   if (!r.ok) {
     const body = await r.json().catch(() => null);

@@ -1,10 +1,22 @@
+import { fetchWithWake, networkMessage, warmUpApi } from "@dazy/shared";
 import { getToken, clearToken } from "./auth";
 
 const BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
+warmUpApi(BASE); // a sleeping server starts now, while the page loads
+
+/** fetch that waits for a sleeping server (see @dazy/shared wake.ts) and fails with a readable sentence. */
+async function send(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetchWithWake(url, init);
+  } catch (e) {
+    throw new Error(networkMessage(e));
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await send(`${BASE}${path}`, {
     ...options,
     credentials: "include", // httpOnly session cookie
     headers: {
@@ -50,7 +62,7 @@ export const api = {
   // List endpoints that report the full count in the X-Total-Count header (the body stays a plain array).
   list: async <T>(path: string): Promise<{ items: T[]; total: number }> => {
     const token = getToken();
-    const res = await fetch(`${BASE}${path}`, {
+    const res = await send(`${BASE}${path}`, {
       credentials: "include",
       headers: { "X-Requested-With": "dazy", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
@@ -70,7 +82,7 @@ export const api = {
   // File download (the CSV export streams from the API). Same cookie/CSRF/401 handling as request().
   download: async (path: string): Promise<{ blob: Blob; filename: string }> => {
     const token = getToken();
-    const res = await fetch(`${BASE}${path}`, {
+    const res = await send(`${BASE}${path}`, {
       credentials: "include",
       headers: { "X-Requested-With": "dazy", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
@@ -92,7 +104,7 @@ export const api = {
     const token = getToken();
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`${BASE}${path}`, {
+    const res = await send(`${BASE}${path}`, {
       method: "POST",
       credentials: "include",
       headers: { "X-Requested-With": "dazy", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
