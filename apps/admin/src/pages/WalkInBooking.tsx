@@ -14,7 +14,7 @@ type Slot = {
 
 type Created = {
   bookingRef: string; name: string; sport: string; date: string; startTime: string; endTime: string;
-  price: number | null; paymentMode: "cash" | "upi";
+  price: number | null; paymentMode: "cash" | "upi"; amountPaid: number | null; balanceDue: number;
 };
 
 const SPORTS: Record<string, string> = { cricket: "Cricket", football: "Football", badminton: "Badminton", pickleball: "Pickleball" };
@@ -56,9 +56,12 @@ export function WalkInBooking() {
   const [promo, setPromo] = useState("");
   const [mode, setMode] = useState<"cash" | "upi">("cash");
   const [reference, setReference] = useState("");
+  // Full payment is the default; part payment (an advance now, the rest collected later) is chosen on purpose.
+  const [partPay, setPartPay] = useState(false);
+  const [paid, setPaid] = useState("");
   // A field shows its error as soon as the user leaves it; pressing Confirm shows every remaining one.
-  const [touched, setTouched] = useState({ name: false, contact: false, players: false });
-  const touch = (f: "name" | "contact" | "players") => setTouched((t) => ({ ...t, [f]: true }));
+  const [touched, setTouched] = useState({ name: false, contact: false, players: false, paid: false });
+  const touch = (f: "name" | "contact" | "players" | "paid") => setTouched((t) => ({ ...t, [f]: true }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<Created | null>(null);
@@ -97,12 +100,22 @@ export function WalkInBooking() {
   const nameErr = name.trim() ? "" : "Enter the customer's name.";
   const contactErr = PHONE_RE.test(contact.trim()) || EMAIL_RE.test(contact.trim()) ? "" : "Enter a 10-digit mobile number or an email address.";
   const playersErr = Number.isInteger(playersN) && playersN >= 1 && playersN <= 25 ? "" : "Players must be 1 to 25.";
-  const invalid = !selected.length || !!(nameErr || contactErr || playersErr);
+  // Part payment only makes sense for a priced booking; the amount must be above 0 and below the total.
+  const partOn = partPay && total != null;
+  const paidN = Number(paid);
+  const paidErr = !partOn ? ""
+    : paid.trim() === "" ? "Enter the amount paid now."
+    : !(paidN > 0) ? "The amount must be more than 0."
+    : Math.round(paidN * 100) / 100 !== paidN ? "Use at most 2 decimals."
+    : paidN >= (total ?? 0) ? `Part payment must be less than the total (${inr(total ?? 0)}). Choose Full payment instead.`
+    : "";
+  const balanceLeft = partOn && !paidErr ? Math.round(((total ?? 0) - paidN) * 100) / 100 : null;
+  const invalid = !selected.length || !!(nameErr || contactErr || playersErr || paidErr);
 
   async function submit() {
-    setTouched({ name: true, contact: true, players: true });
+    setTouched({ name: true, contact: true, players: true, paid: true });
     if (invalid || busy) {
-      const bad = nameErr ? "name" : contactErr ? "contact" : playersErr ? "players" : "";
+      const bad = nameErr ? "name" : contactErr ? "contact" : playersErr ? "players" : paidErr ? "paid" : "";
       if (bad) document.querySelector<HTMLElement>(`[data-testid="walkin-${bad}"]`)?.focus();
       return;
     }
@@ -112,7 +125,7 @@ export function WalkInBooking() {
       const r = await api.post<Created>("/admin/bookings/walkin", {
         name: name.trim(), contact: contact.trim(), slotIds: selected.map((s) => s.id), sportSlug: sport, date,
         players: playersN, paymentMode: mode, reference: mode === "upi" && reference.trim() ? reference.trim() : undefined,
-        promoCode: promo.trim() || undefined,
+        promoCode: promo.trim() || undefined, amountPaid: partOn ? paidN : undefined,
       });
       setCreated(r);
       toast.success(`Booking ${r.bookingRef} confirmed`);
@@ -126,7 +139,7 @@ export function WalkInBooking() {
 
   function another() {
     setCreated(null); setSelected([]); setName(""); setContact(""); setPlayers("1"); setPromo(""); setReference("");
-    setMode("cash"); setTouched({ name: false, contact: false, players: false }); setError(""); setReloadKey((k) => k + 1);
+    setMode("cash"); setPartPay(false); setPaid(""); setTouched({ name: false, contact: false, players: false, paid: false }); setError(""); setReloadKey((k) => k + 1);
   }
 
   return (
@@ -143,9 +156,14 @@ export function WalkInBooking() {
                 {created.date} {created.startTime}–{created.endTime}
               </p>
               <p>
-                {created.price != null ? <strong>{inr(created.price)}</strong> : "Free"} received by{" "}
+                {created.price == null ? "Free booking" : created.balanceDue > 0
+                  ? <><strong data-testid="walkin-done-paid">{inr(created.amountPaid ?? 0)}</strong> of {inr(created.price)}</>
+                  : <strong>{inr(created.price)}</strong>} received by{" "}
                 <strong>{created.paymentMode === "upi" ? "UPI" : "cash"}</strong>.
               </p>
+              {created.balanceDue > 0 && (
+                <p data-testid="walkin-done-balance">Balance to collect later: <strong>{inr(created.balanceDue)}</strong> (Bookings → Collect balance, or when completing the booking).</p>
+              )}
               <div className="action-row">
                 <button className="btn-primary small" data-testid="walkin-another" onClick={another}>Book another</button>
                 <Link className="btn-action secondary" to="/bookings">View bookings</Link>
@@ -217,8 +235,25 @@ export function WalkInBooking() {
                     <input data-testid="walkin-promo" className="cms-textarea" maxLength={40} value={promo} onChange={(e) => setPromo(e.target.value)} />
                   </label>
 
+                  {total != null && (
+                    <>
+                      <fieldset className="walkin-mode">
+                        <legend>Payment</legend>
+                        <label><input type="radio" name="walkin-pay" data-testid="walkin-pay-full" checked={!partPay} onChange={() => setPartPay(false)} /> Full payment</label>
+                        <label><input type="radio" name="walkin-pay" data-testid="walkin-pay-part" checked={partPay} onChange={() => setPartPay(true)} /> Part payment (advance)</label>
+                      </fieldset>
+                      {partPay && (
+                        <label className="field-group">Amount paid now (₹)
+                          <input data-testid="walkin-paid" className="cms-textarea" type="number" min={0} step="0.01" inputMode="decimal"
+                            value={paid} onChange={(e) => setPaid(e.target.value)} onBlur={() => touch("paid")} />
+                          {touched.paid && paidErr && <span className="field-error" data-testid="walkin-paid-error">{paidErr}</span>}
+                          {balanceLeft != null && <span className="muted" data-testid="walkin-balance">Balance to collect later: <strong>{inr(balanceLeft)}</strong> (before any promo code)</span>}
+                        </label>
+                      )}
+                    </>
+                  )}
                   <fieldset className="walkin-mode">
-                    <legend>Payment received by</legend>
+                    <legend>{partOn ? "Advance received by" : "Payment received by"}</legend>
                     {(["cash", "upi"] as const).map((m) => (
                       <label key={m}><input type="radio" name="walkin-mode" data-testid={`walkin-mode-${m}`} checked={mode === m} onChange={() => setMode(m)} /> {m === "cash" ? "Cash" : "UPI"}</label>
                     ))}
@@ -230,8 +265,11 @@ export function WalkInBooking() {
                   )}
 
                   {error && <p className="field-error" data-testid="walkin-error">{error}</p>}
-                  <button className="btn-primary" data-testid="walkin-submit" disabled={busy} onClick={submit}>
-                    {busy ? "Saving…" : `Confirm booking${total != null ? ` · ${inr(total)} ${mode === "upi" ? "UPI" : "cash"}` : ""}`}
+                  <button className="btn-primary" data-testid="walkin-submit" disabled={busy} onClick={submit}
+                    onMouseDown={(e) => e.preventDefault() /* keep the field focused: a blur error would move the button before the click lands */}>
+                    {busy ? "Saving…" : partOn && !paidErr && paid.trim() !== ""
+                      ? `Confirm · ${inr(paidN)} now (${mode === "upi" ? "UPI" : "cash"}), ${inr(balanceLeft ?? 0)} later`
+                      : `Confirm booking${total != null ? ` · ${inr(total)} ${mode === "upi" ? "UPI" : "cash"}` : ""}`}
                   </button>
                 </div>
               )}

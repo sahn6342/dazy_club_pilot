@@ -715,7 +715,9 @@ export function Book() {
             )}
 
             <Turnstile onToken={setTsToken} resetKey={tsReset} />
-            <button className="button primary" type="submit" disabled={submitting}>
+            {/* onMouseDown: pressing the button must not blur the field first. A blur error would push the button down
+                before the click lands, and the click would be lost. Submitting validates every field anyway. */}
+            <button className="button primary" type="submit" disabled={submitting} onMouseDown={(e) => e.preventDefault()}>
               {submitting ? "Confirming…" : `Confirm booking${selectedSlots.length > 1 ? ` (${selectedSlots.length} slots)` : ""}`}
             </button>
             {bookingStatus === "error" && (

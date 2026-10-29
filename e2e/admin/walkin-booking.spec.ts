@@ -5,9 +5,14 @@ import { test, expect, APIRequestContext, Page } from "@playwright/test";
 const API = "http://localhost:8000/api/v1";
 const CREDS = { username: "admin", password: "admin" };
 
+// One API login for the whole file: the login endpoint allows 10 a minute, and every test also logs in through the page.
+let cachedToken: string | undefined;
 async function adminToken(request: APIRequestContext): Promise<string> {
-  const r = await request.post(`${API}/admin/login`, { data: CREDS });
-  return (await r.json()).access_token;
+  if (!cachedToken) {
+    const r = await request.post(`${API}/admin/login`, { data: CREDS });
+    cachedToken = (await r.json()).access_token;
+  }
+  return cachedToken!;
 }
 
 async function uiLogin(page: Page) {
@@ -106,3 +111,127 @@ test.describe("Admin — walk-in booking", () => {
     await expect(page.getByTestId("walkin-done")).toHaveCount(0);
   });
 });
+
+// ── part payment (advance) ──────────────────────────────────────────────────
+
+const rupees = (text: string | null) => Number((text ?? "").replace(/[^\d.]/g, ""));
+
+/** Open the walk-in form on the first bookable PRICED slot (tomorrow, badminton); returns the total shown. */
+async function openPricedSlot(page: Page): Promise<number> {
+  await page.goto("/bookings/new");
+  await page.getByTestId("walkin-sport").selectOption("badminton");
+  await page.getByTestId("walkin-date").selectOption({ index: 1 });
+  const slot = page.locator('[data-testid^="walkin-slot-"]:not([disabled])').filter({ hasText: "₹" }).first();
+  await expect(slot).toBeVisible({ timeout: 8_000 });
+  await slot.click();
+  await expect(page.getByTestId("walkin-form")).toBeVisible();
+  return rupees(await page.getByTestId("walkin-total").textContent());
+}
+
+async function bookPart(page: Page, phone: string, paid: number) {
+  const total = await openPricedSlot(page);
+  await page.getByTestId("walkin-name").fill("E2E Part Payer");
+  await page.getByTestId("walkin-contact").fill(phone);
+  await page.getByTestId("walkin-pay-part").check();
+  await page.getByTestId("walkin-paid").fill(String(paid));
+  await page.getByTestId("walkin-mode-upi").check();
+  await page.getByTestId("walkin-submit").click();
+  await expect(page.getByTestId("walkin-done")).toBeVisible({ timeout: 8_000 });
+  const ref = (await page.getByTestId("walkin-ref").textContent())!;
+  return { ref, total };
+}
+
+async function bookingsOwing(page: Page) {
+  await page.goto("/bookings");
+  await page.getByTestId("balance-filter").selectOption("due");
+}
+
+test.describe("Admin — walk-in part payment", () => {
+  test("full payment is the default; part payment asks for an amount and checks it field by field", async ({ page }) => {
+    await uiLogin(page);
+    const total = await openPricedSlot(page);
+    await expect(page.getByTestId("walkin-pay-full")).toBeChecked();
+    await expect(page.getByTestId("walkin-paid")).toHaveCount(0);
+
+    await page.getByTestId("walkin-pay-part").check();
+    await expect(page.getByTestId("walkin-paid")).toBeVisible();
+    await page.getByTestId("walkin-paid").focus();
+    await page.getByTestId("walkin-name").focus(); // leave it empty
+    await expect(page.getByTestId("walkin-paid-error")).toHaveText("Enter the amount paid now.");
+    await page.getByTestId("walkin-paid").fill("0");
+    await page.getByTestId("walkin-name").focus();
+    await expect(page.getByTestId("walkin-paid-error")).toContainText("more than 0");
+    await page.getByTestId("walkin-paid").fill(String(total));
+    await page.getByTestId("walkin-name").focus();
+    await expect(page.getByTestId("walkin-paid-error")).toContainText("less than the total");
+    await page.getByTestId("walkin-paid").fill("100");
+    await expect(page.getByTestId("walkin-paid-error")).toHaveCount(0);
+    await expect(page.getByTestId("walkin-balance")).toContainText(`₹${(total - 100).toLocaleString("en-IN")}`);
+    await expect(page.getByTestId("walkin-submit")).toContainText("₹100 now");
+    await page.getByTestId("walkin-pay-full").check(); // back to full: no amount needed
+    await expect(page.getByTestId("walkin-paid")).toHaveCount(0);
+  });
+
+  test("an advance shows its balance and the balance filter; Complete collects it", async ({ page, request }) => {
+    const phone = "9" + String(Date.now()).slice(-9);
+    await uiLogin(page);
+    const { ref, total } = await bookPart(page, phone, 100);
+    try {
+      await expect(page.getByTestId("walkin-done-paid")).toHaveText("₹100");
+      await expect(page.getByTestId("walkin-done-balance")).toContainText(`₹${(total - 100).toLocaleString("en-IN")}`);
+
+      await bookingsOwing(page);
+      await expect(page.getByTestId(`balance-${ref}`)).toHaveText(`Balance ₹${total - 100} due`, { timeout: 8_000 });
+      await expect(page.getByTestId(`counter-${ref}`)).toHaveText("Counter · UPI");
+
+      await page.getByTestId(`complete-${ref}`).click(); // a balance is due: offers to collect it
+      await expect(page.getByTestId("collect-dialog")).toContainText("Complete booking");
+      await expect(page.getByTestId("collect-amount")).toHaveValue(String(total - 100));
+      await page.getByTestId("collect-submit").click();
+      await expect(page.getByTestId(`balance-${ref}`)).toHaveCount(0, { timeout: 8_000 }); // settled: left the filter
+      await page.getByTestId("balance-filter").selectOption("");
+      await expect(page.locator("tr", { hasText: phone }).first()).toContainText(/completed/i);
+      await expect(page.getByTestId(`advance-${ref}`)).toContainText("balance collected");
+    } finally {
+      await cleanup(request, ref);
+    }
+  });
+
+  test("Complete without collecting leaves the balance due, and it can still be collected", async ({ page, request }) => {
+    const phone = "9" + String(Date.now()).slice(-9);
+    await uiLogin(page);
+    const { ref, total } = await bookPart(page, phone, 100);
+    try {
+      await bookingsOwing(page);
+      await page.getByTestId(`complete-${ref}`).click();
+      await page.getByTestId("collect-skip").click();
+      await expect(page.locator("tr", { hasText: phone }).first()).toContainText(/completed/i, { timeout: 8_000 });
+      await expect(page.getByTestId(`balance-${ref}`)).toHaveText(`Balance ₹${total - 100} due`); // still owed, still in the filter
+
+      await page.getByTestId(`collect-${ref}`).click();
+      await page.getByTestId("collect-submit").click();
+      await expect(page.getByTestId(`balance-${ref}`)).toHaveCount(0, { timeout: 8_000 });
+    } finally {
+      await cleanup(request, ref);
+    }
+  });
+
+  test("a fully paid booking is completed straight away, with no dialog", async ({ page, request }) => {
+    const phone = "9" + String(Date.now()).slice(-9);
+    await uiLogin(page);
+    const { ref } = await bookViaUi(page, phone, "cash");
+    try {
+      await page.goto("/bookings");
+      const d = new Date(); d.setDate(d.getDate() + 1);
+      const tomorrow = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+      await page.getByTitle("From date").fill(tomorrow);
+      await page.getByTitle("To date").fill(tomorrow);
+      await page.getByTestId(`complete-${ref}`).click();
+      await expect(page.getByTestId("collect-dialog")).toHaveCount(0);
+      await expect(page.locator("tr", { hasText: phone }).first()).toContainText(/completed/i, { timeout: 8_000 });
+    } finally {
+      await cleanup(request, ref);
+    }
+  });
+});
+

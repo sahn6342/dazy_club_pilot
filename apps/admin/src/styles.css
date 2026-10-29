@@ -902,3 +902,8 @@ td code {
   .bill-page { background: #fff; padding: 0; min-height: 0; }
   .bill-sheet { width: 210mm; min-height: 297mm; margin: 0; overflow: visible; box-shadow: none; }
 }
+
+.balance-due {
+  display: inline-block; margin-top: 0.25rem; padding: 0.1rem 0.5rem; border-radius: 999px; white-space: nowrap;
+  background: rgba(216, 180, 86, 0.16); color: var(--gold); border: 1px solid var(--gold); font-size: 0.75rem; font-weight: 600;
+}

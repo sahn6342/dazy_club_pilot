@@ -39,7 +39,7 @@ const balanceDue = (b: Booking) =>
 const isCounter = (b: Booking) => b.source === "counter";
 const isPaid = (b: { paymentStatus: string }) => b.paymentStatus === "paid" || b.paymentStatus === "partially_refunded";
 
-const EMPTY_FILTER = { sport: "", status: "", date_from: "", date_to: "", deleted: "no" };
+const EMPTY_FILTER = { sport: "", status: "", date_from: "", date_to: "", deleted: "no", balance: "" };
 const PAGE_SIZE = 10;
 
 type SortDir = "asc" | "desc";
@@ -81,6 +81,7 @@ export function Bookings() {
     if (filter.date_from) q.set("date_from", filter.date_from);
     if (filter.date_to)   q.set("date_to",   filter.date_to);
     if (filter.deleted !== "no") q.set("deleted", filter.deleted);
+    if (filter.balance)   q.set("balance",   filter.balance);
     q.set("sort_by", sortBy);
     q.set("sort_dir", sortDir);
     return q;
@@ -93,6 +94,7 @@ export function Bookings() {
     if (filter.date_from) q.set("date_from", filter.date_from);
     if (filter.date_to)   q.set("date_to",   filter.date_to);
     if (filter.deleted !== "no") q.set("deleted", filter.deleted);
+    if (filter.balance)   q.set("balance",   filter.balance);
     q.set("sort_by", sortBy);
     q.set("sort_dir", sortDir);
     q.set("limit",  String(PAGE_SIZE));
@@ -139,7 +141,7 @@ export function Bookings() {
   async function cancelCounter(b: Booking) {
     if (!isCounter(b)) return setStatus(b.id, "cancelled");
     const ok = await confirm({
-      message: `Cancel counter booking ${b.bookingRef} (${b.name})? The slot is freed. Any refund of the ${b.payment_mode === "upi" ? "UPI" : "cash"} payment has to be handed back at the counter.`,
+      message: `Cancel counter booking ${b.bookingRef} (${b.name})? The slot is freed. Any refund of the ${b.payment_mode === "upi" ? "UPI" : "cash"} payment${isAdvance(b) ? ` (advance ₹${b.depositAmount})` : ""} has to be handed back at the counter.`,
       confirmLabel: "Cancel booking", danger: true,
     });
     if (ok) await setStatus(b.id, "cancelled");
@@ -202,6 +204,10 @@ export function Bookings() {
               <option value="badminton">Badminton</option>
               <option value="pickleball">Pickleball</option>
             </select>
+            <select data-testid="balance-filter" value={filter.balance} onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, balance: e.target.value })); }}>
+              <option value="">All payments</option>
+              <option value="due">Balance due</option>
+            </select>
             <select data-testid="deleted-filter" value={filter.deleted} onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, deleted: e.target.value })); }}>
               <option value="no">Hide deleted</option>
               <option value="only">Deleted only</option>
@@ -225,7 +231,7 @@ export function Bookings() {
               value={filter.date_to}
               onChange={(e) => { setPage(1); setFilter((f) => ({ ...f, date_to: e.target.value })); }}
             />
-            {(filter.sport || filter.status || filter.date_from || filter.date_to || filter.deleted !== "no") && (
+            {(filter.sport || filter.status || filter.date_from || filter.date_to || filter.deleted !== "no" || filter.balance) && (
               <button className="btn-action secondary" onClick={() => { setPage(1); setFilter(EMPTY_FILTER); }}>Clear</button>
             )}
             <Link to="/bookings/new" className="btn-primary small" style={{ marginLeft: "auto", textDecoration: "none" }} data-testid="new-walkin">
@@ -295,6 +301,9 @@ export function Bookings() {
                               Advance ₹{b.depositAmount}{balanceDue(b) > 0 ? ` · balance ₹${balanceDue(b)}` : b.status === "cancelled" ? "" : " · balance collected"}
                             </small>
                           )}
+                          {isAdvance(b) && balanceDue(b) > 0 && isPaid(b) && (
+                            <span className="balance-due" data-testid={`balance-${b.bookingRef}`}>Balance ₹{balanceDue(b)} due</span>
+                          )}
                         </td>
                         <td>{b.gst_rate_percent != null ? `${b.gst_rate_percent}%` : "—"}</td>
                         <td>
@@ -320,7 +329,10 @@ export function Bookings() {
                               <button className="btn-action confirm" onClick={() => setStatus(b.id, "confirmed")}>Confirm</button>
                             )}
                             {!b.deleted_at && b.status === "confirmed" && (
-                              <button className="btn-action confirm" onClick={() => setStatus(b.id, "completed")}>Complete</button>
+                              <button className="btn-action confirm" data-testid={`complete-${b.bookingRef}`}
+                                onClick={() => (balanceDue(b) > 0
+                                  ? setCollectFor({ id: b.id, bookingRef: b.bookingRef, name: b.name, balanceDue: balanceDue(b), thenComplete: true })
+                                  : setStatus(b.id, "completed"))}>Complete</button>
                             )}
                             {!b.deleted_at && b.status === "confirmed" && (
                               <button className="btn-action cancel" onClick={() => setStatus(b.id, "no_show")}>No-show</button>
@@ -365,6 +377,7 @@ export function Bookings() {
         <CollectBalanceDialog
           booking={collectFor}
           onClose={() => setCollectFor(null)}
+          onSkip={() => { const id = collectFor.id; setCollectFor(null); setStatus(id, "completed"); }}
           onDone={(message) => { setCollectFor(null); setReloadKey((k) => k + 1); toast.success(message); }}
         />
       )}

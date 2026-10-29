@@ -35,6 +35,14 @@ _EXPORT_HEADERS = [
 ]
 
 
+def _check_balance(balance: str | None) -> str | None:
+    if balance in (None, ""):
+        return None
+    if balance != "due":
+        raise HTTPException(status_code=422, detail="balance must be 'due'.")
+    return balance
+
+
 def _check_deleted(deleted: str) -> str:
     if deleted not in _DELETED_MODES:
         raise HTTPException(status_code=422, detail=f"deleted must be one of {', '.join(_DELETED_MODES)}.")
@@ -85,16 +93,18 @@ def list_bookings(
     date_to: str | None = None,
     status: str | None = None,
     deleted: str = "no",
+    balance: str | None = None,
     sort_by: str = "date",
     sort_dir: str = "desc",
     limit: int = 25,
     offset: int = 0,
     _: str = Depends(get_current_admin),
 ):
-    """One page, filtered and sorted in SQL. `deleted`: no (default) | only | all."""
+    """One page, filtered and sorted in SQL. `deleted`: no (default) | only | all. `balance=due`: advance
+    bookings with money still to collect."""
     items, total = booking_repo.query(
         sport=sport, date_from=date_from, date_to=date_to, status=status, deleted=_check_deleted(deleted),
-        sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
+        balance=_check_balance(balance), sort_by=sort_by, sort_dir=sort_dir, limit=limit, offset=offset,
     )
     return {"items": items, "total": total}
 
@@ -138,6 +148,18 @@ def create_walkin_booking(body: WalkinBookingRequest, req: Request, admin: dict 
         final_price = apply_promo(promo, base_total)
         applied_promo = promo.code
 
+    # Part payment: the amount paid now becomes the advance (depositAmount); the balance is collected later with
+    # "Collect balance". Paying the whole total is simply full payment. A free booking has nothing to split.
+    deposit: float | None = None
+    if body.amountPaid is not None and final_price:
+        paid, total = money(body.amountPaid), money(final_price)
+        if paid > total:
+            if applied_promo:
+                promo_repo.decrement_use(applied_promo)
+            raise ApiError(422, f"Amount paid cannot exceed the total (Rs. {total}).", "amount_exceeds_total")
+        if paid < total:
+            deposit = float(paid)
+
     gst_entry = cms_repo.get_by_id("booking_gst_rate")
     gst_rate = float(gst_entry.value) if gst_entry and gst_entry.value else 18.0
     customer = customer_repo.upsert_by_contact(body.name, body.contact, email=body.email)
@@ -153,7 +175,7 @@ def create_walkin_booking(body: WalkinBookingRequest, req: Request, admin: dict 
             message=body.message if i == 0 else None, status="confirmed", paymentStatus="paid", createdAt=now,
             is_primary=(i == 0), gst_rate_percent=gst_rate if i == 0 else None, email=body.email if i == 0 else None,
             source="counter", payment_mode=body.paymentMode, payment_reference=reference if i == 0 else None,
-            created_by=admin["sub"],
+            created_by=admin["sub"], depositAmount=deposit if i == 0 else None,
         )
         for i, slot in enumerate(slots)
     ]
@@ -168,7 +190,9 @@ def create_walkin_booking(body: WalkinBookingRequest, req: Request, admin: dict 
     primary = records[0]
     audit("booking.walkin_create", admin, request=req, entity_type="booking", entity_id=primary.id,
           detail={"bookingRef": ref, "price": final_price, "paymentMode": body.paymentMode, "reference": reference,
-                  "slots": [s.id for s in slots], "promo": applied_promo})
+                  "slots": [s.id for s in slots], "promo": applied_promo,
+                  "amountPaid": deposit if deposit is not None else final_price,
+                  "balanceDue": round(final_price - deposit, 2) if deposit is not None else 0.0})
     taxable, gst_amt = gst_components(final_price, gst_rate) if final_price else (None, None)
     return {
         "id": primary.id, "bookingRef": ref, "name": body.name, "sport": body.sportSlug, "date": body.date,
@@ -176,6 +200,8 @@ def create_walkin_booking(body: WalkinBookingRequest, req: Request, admin: dict 
         "price": final_price, "basePrice": base_total, "promoCode": applied_promo, "gstRatePercent": gst_rate,
         "taxableAmount": taxable, "gstAmount": gst_amt, "status": "confirmed", "paymentStatus": "paid",
         "paymentMode": body.paymentMode, "reference": reference,
+        "amountPaid": deposit if deposit is not None else final_price,
+        "balanceDue": round(final_price - deposit, 2) if deposit is not None else 0.0,
     }
 
 
@@ -187,12 +213,14 @@ def export_bookings(
     date_to: str | None = None,
     status: str | None = None,
     deleted: str = "no",
+    balance: str | None = None,
     sort_by: str = "date",
     sort_dir: str = "desc",
     admin: dict = Depends(get_current_admin),
 ):
     """CSV download, streamed row by row so a large export never sits in memory."""
-    filters = dict(sport=sport, date_from=date_from, date_to=date_to, status=status, deleted=_check_deleted(deleted))
+    filters = dict(sport=sport, date_from=date_from, date_to=date_to, status=status, deleted=_check_deleted(deleted),
+               balance=_check_balance(balance))
     audit("booking.export", admin, request=req, entity_type="booking", detail=filters)  # contains customer PII
     rows = booking_repo.iter_primary(**filters, sort_by=sort_by, sort_dir=sort_dir)
     filename = f"bookings-{datetime.now(timezone.utc).date().isoformat()}.csv"

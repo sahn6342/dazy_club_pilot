@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 
-export type CollectTarget = { id: string; bookingRef: string; name: string; balanceDue: number };
+/** `thenComplete`: opened from the Complete button, so the booking is marked completed as well. */
+export type CollectTarget = { id: string; bookingRef: string; name: string; balanceDue: number; thenComplete?: boolean };
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 /** Record the balance of an advance booking taken at the venue (cash, UPI or card). */
 export function CollectBalanceDialog({
-  booking, onClose, onDone,
+  booking, onClose, onDone, onSkip,
 }: {
   booking: CollectTarget; onClose: () => void; onDone: (message: string) => void;
+  /** Complete the booking without collecting (only with `thenComplete`); the balance stays due. */
+  onSkip?: () => void;
 }) {
   const [mode, setMode] = useState<"cash" | "upi" | "card">("cash");
   const [amount, setAmount] = useState(String(booking.balanceDue));
@@ -26,7 +29,8 @@ export function CollectBalanceDialog({
     setError("");
     try {
       await api.post(`/admin/bookings/${booking.id}/collect-balance`, { mode, amount: value, reference: reference.trim() || undefined });
-      onDone(`${inr(value)} collected (${mode.toUpperCase()}) for ${booking.bookingRef}`);
+      if (booking.thenComplete) await api.patch(`/admin/bookings/${booking.id}`, { status: "completed" });
+      onDone(`${inr(value)} collected (${mode.toUpperCase()}) for ${booking.bookingRef}${booking.thenComplete ? " and the booking is completed" : ""}`);
     } catch (e: any) {
       setError(e?.message ?? "The balance could not be recorded.");
     } finally {
@@ -38,7 +42,7 @@ export function CollectBalanceDialog({
     <div className="confirm-overlay" role="dialog" aria-modal="true" data-testid="collect-dialog"
       onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
       <div className="confirm-dialog" style={{ maxWidth: 420, textAlign: "left" }}>
-        <h3 style={{ margin: "0 0 0.25rem" }}>Collect balance</h3>
+        <h3 style={{ margin: "0 0 0.25rem" }}>{booking.thenComplete ? "Complete booking" : "Collect balance"}</h3>
         <p className="muted" style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}>
           {booking.bookingRef} · {booking.name} · balance due <strong data-testid="collect-due">{inr(booking.balanceDue)}</strong>
         </p>
@@ -75,8 +79,11 @@ export function CollectBalanceDialog({
 
         <div className="confirm-actions" style={{ marginTop: "1rem" }}>
           <button className="btn-action cancel" onClick={onClose} disabled={busy}>Close</button>
+          {booking.thenComplete && onSkip && (
+            <button className="btn-action secondary" data-testid="collect-skip" disabled={busy} onClick={onSkip}>Complete without collecting</button>
+          )}
           <button className="btn-action confirm" data-testid="collect-submit" disabled={busy || invalid} onClick={submit}>
-            {busy ? "Saving…" : `Collect ${inr(value || 0)}`}
+            {busy ? "Saving…" : booking.thenComplete ? `Collect ${inr(value || 0)} & complete` : `Collect ${inr(value || 0)}`}
           </button>
         </div>
       </div>

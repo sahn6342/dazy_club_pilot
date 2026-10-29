@@ -153,3 +153,126 @@ def test_ended_slot_is_not_bookable_at_the_counter(client, auth_headers, mid_slo
     assert all(s["id"] != ended["id"] for s in _slots(client, auth_headers, day=ended["date"]))
     r = _walkin(client, auth_headers, [ended["id"]], day=ended["date"])
     assert r.status_code in (404, 409), r.text
+
+
+# ── part payment (advance) ──────────────────────────────────────────────────
+
+def _priced_slot(client, auth_headers):
+    """A slot that has a price (the walk-in tests above work on whatever the seed gives)."""
+    for sport in ("badminton", "pickleball", "cricket"):
+        for s in _slots(client, auth_headers, sport=sport):
+            if s["finalPrice"]:
+                return sport, s
+    pytest.skip("no priced slot in the seed")
+
+
+def _advance_walkin(client, auth_headers, paid, mode="upi", **extra):
+    sport, slot = _priced_slot(client, auth_headers)
+    r = _walkin(client, auth_headers, [slot["id"]], mode, sport=sport, amountPaid=paid, **extra)
+    return r, slot
+
+
+def test_part_payment_is_stored_as_an_advance_with_a_balance(client, auth_headers):
+    sport, slot = _priced_slot(client, auth_headers)
+    price = slot["finalPrice"]
+    paid = round(price / 4, 2)
+    r = _walkin(client, auth_headers, [slot["id"]], "upi", sport=sport, amountPaid=paid)
+    assert r.status_code == 201, r.text
+    b = r.json()
+    assert b["amountPaid"] == paid and b["balanceDue"] == round(price - paid, 2) and b["paymentStatus"] == "paid"
+    row = _admin_row(client, auth_headers, b["bookingRef"])
+    assert row["depositAmount"] == paid and row["source"] == "counter" and row["payment_mode"] == "upi"
+    assert row["status"] == "confirmed" and row["balance_collected"] == 0
+
+
+def test_full_amount_or_no_amount_is_just_full_payment(client, auth_headers):
+    sport, slot = _priced_slot(client, auth_headers)
+    r = _walkin(client, auth_headers, [slot["id"]], sport=sport, amountPaid=slot["finalPrice"])
+    assert r.status_code == 201 and r.json()["balanceDue"] == 0.0
+    assert _admin_row(client, auth_headers, r.json()["bookingRef"])["depositAmount"] is None
+    other = next(s for s in _slots(client, auth_headers, sport=sport) if s["id"] != slot["id"] and s["finalPrice"])
+    r2 = _walkin(client, auth_headers, [other["id"]], sport=sport)
+    assert _admin_row(client, auth_headers, r2.json()["bookingRef"])["depositAmount"] is None
+
+
+def test_amount_above_the_total_or_not_positive_is_rejected_and_books_nothing(client, auth_headers):
+    sport, slot = _priced_slot(client, auth_headers)
+    over = _walkin(client, auth_headers, [slot["id"]], sport=sport, amountPaid=slot["finalPrice"] + 1)
+    assert over.status_code == 422 and over.json()["code"] == "amount_exceeds_total"
+    assert _walkin(client, auth_headers, [slot["id"]], sport=sport, amountPaid=0).status_code == 422
+    assert _walkin(client, auth_headers, [slot["id"]], sport=sport, amountPaid=-5).status_code == 422
+    assert any(s["id"] == slot["id"] for s in _slots(client, auth_headers, sport=sport))  # slot still free
+
+
+def test_amount_is_checked_against_the_total_after_the_promo(client, auth_headers):
+    sport, slot = _priced_slot(client, auth_headers)
+    # WELCOME10 takes 10% off: paying the pre-promo price must now be too much
+    r = _walkin(client, auth_headers, [slot["id"]], sport=sport, promoCode="WELCOME10", amountPaid=slot["finalPrice"])
+    assert r.status_code == 422 and r.json()["code"] == "amount_exceeds_total"
+
+
+def test_balance_is_collected_later_in_parts_until_settled(client, auth_headers):
+    r, slot = _advance_walkin(client, auth_headers, 100)
+    b = r.json()
+    row = _admin_row(client, auth_headers, b["bookingRef"])
+    due = b["balanceDue"]
+    first = client.post(f"/api/v1/admin/bookings/{row['id']}/collect-balance", json={"mode": "cash", "amount": 50}, headers=auth_headers)
+    assert first.status_code == 200 and first.json()["balanceDue"] == round(due - 50, 2)
+    too_much = client.post(f"/api/v1/admin/bookings/{row['id']}/collect-balance", json={"mode": "cash", "amount": due}, headers=auth_headers)
+    assert too_much.status_code == 422
+    rest = client.post(f"/api/v1/admin/bookings/{row['id']}/collect-balance", json={"mode": "upi"}, headers=auth_headers)
+    assert rest.status_code == 200 and rest.json()["balanceDue"] == 0.0
+
+
+def test_audit_records_what_was_paid_and_what_is_left(client, auth_headers):
+    r, _ = _advance_walkin(client, auth_headers, 100)
+    items, _total = deps.audit_repo.query(limit=200)
+    row = next(x for x in items if x.action == "booking.walkin_create")
+    assert "100" in str(row.detail) and "balanceDue" in str(row.detail)
+
+
+# ── balance filter ──────────────────────────────────────────────────────────
+
+def _listed(client, auth_headers, qs=""):
+    return client.get(f"/api/v1/admin/bookings?limit=100&{qs}", headers=auth_headers).json()
+
+
+def test_balance_filter_lists_only_bookings_with_money_still_to_collect(client, auth_headers):
+    sport, slots_ = _priced_slot(client, auth_headers)
+    free = [s for s in _slots(client, auth_headers, sport=sport) if s["finalPrice"]]
+    assert len(free) >= 3
+    owing = _walkin(client, auth_headers, [free[0]["id"]], sport=sport, amountPaid=100).json()
+    settled = _walkin(client, auth_headers, [free[1]["id"]], sport=sport, amountPaid=100).json()
+    full = _walkin(client, auth_headers, [free[2]["id"]], sport=sport).json()
+    sid = _admin_row(client, auth_headers, settled["bookingRef"])["id"]
+    client.post(f"/api/v1/admin/bookings/{sid}/collect-balance", json={"mode": "cash"}, headers=auth_headers)
+
+    refs = [x["bookingRef"] for x in _listed(client, auth_headers, "balance=due")["items"]]
+    assert refs == [owing["bookingRef"]]
+    assert settled["bookingRef"] not in refs and full["bookingRef"] not in refs
+    assert _listed(client, auth_headers, "balance=due")["total"] == 1
+
+
+def test_balance_filter_drops_cancelled_and_still_lists_completed(client, auth_headers):
+    sport, _slot = _priced_slot(client, auth_headers)
+    free = [s for s in _slots(client, auth_headers, sport=sport) if s["finalPrice"]]
+    a = _walkin(client, auth_headers, [free[0]["id"]], sport=sport, amountPaid=100).json()
+    b = _walkin(client, auth_headers, [free[1]["id"]], sport=sport, amountPaid=100).json()
+    client.patch(f"/api/v1/admin/bookings/{a['id']}", json={"status": "cancelled"}, headers=auth_headers)
+    client.patch(f"/api/v1/admin/bookings/{b['id']}", json={"status": "completed"}, headers=auth_headers)
+    refs = [x["bookingRef"] for x in _listed(client, auth_headers, "balance=due")["items"]]
+    assert refs == [b["bookingRef"]]  # completed with a balance is still owed; and can still be collected
+    done = client.post(f"/api/v1/admin/bookings/{b['id']}/collect-balance", json={"mode": "cash"}, headers=auth_headers)
+    assert done.status_code == 200
+    assert _listed(client, auth_headers, "balance=due")["total"] == 0
+
+
+def test_balance_filter_rejects_other_values_and_applies_to_the_export(client, auth_headers):
+    assert client.get("/api/v1/admin/bookings?balance=zzz", headers=auth_headers).status_code == 422
+    sport, _s = _priced_slot(client, auth_headers)
+    free = [s for s in _slots(client, auth_headers, sport=sport) if s["finalPrice"]]
+    owing = _walkin(client, auth_headers, [free[0]["id"]], sport=sport, amountPaid=100).json()
+    _walkin(client, auth_headers, [free[1]["id"]], sport=sport)  # fully paid
+    text = client.get("/api/v1/admin/bookings/export?balance=due", headers=auth_headers).text
+    assert owing["bookingRef"] in text and text.count("counter") == 1
+    assert client.get("/api/v1/admin/bookings/export?balance=zzz", headers=auth_headers).status_code == 422

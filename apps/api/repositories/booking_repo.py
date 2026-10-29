@@ -53,7 +53,7 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
     }
 
     @staticmethod
-    def _conditions(sport, date_from, date_to, status, deleted):
+    def _conditions(sport, date_from, date_to, status, deleted, balance=None):
         conds = [BookingRow.is_primary.is_(True)]  # one row per booking
         if sport:
             conds.append(BookingRow.sportSlug == sport)
@@ -63,6 +63,14 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
             conds.append(BookingRow.date <= date_to)
         if status:
             conds.append(BookingRow.status == status)
+        if balance == "due":
+            # An advance booking whose advance is paid and which still has money to collect (cancelled ones owe nothing).
+            conds += [
+                BookingRow.depositAmount.is_not(None),
+                BookingRow.status.in_(["confirmed", "completed"]),
+                BookingRow.paymentStatus.in_(["paid", "partially_refunded"]),
+                BookingRow.price - BookingRow.depositAmount - BookingRow.balance_collected > 0.004,
+            ]
         if deleted == "only":
             conds.append(BookingRow.deleted_at.is_not(None))
         elif deleted != "all":
@@ -82,10 +90,10 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
     def query(
         self, *, sport: str | None = None, date_from: str | None = None, date_to: str | None = None,
         status: str | None = None, deleted: str = "no", sort_by: str = "date", sort_dir: str = "desc",
-        limit: int = 25, offset: int = 0,
+        limit: int = 25, offset: int = 0, balance: str | None = None,
     ) -> "tuple[list[BookingRecord], int]":
         """One page of primary rows plus the total matching count (two queries, however big the table)."""
-        conds = self._conditions(sport, date_from, date_to, status, deleted)
+        conds = self._conditions(sport, date_from, date_to, status, deleted, balance)
         with _session() as s:
             total = s.scalar(select(func.count()).select_from(BookingRow).where(*conds)) or 0
             stmt = self._ordered(select(BookingRow).where(*conds), sort_by, sort_dir)
@@ -95,10 +103,10 @@ class SqliteBookingRepository(BaseRepository[BookingRecord]):
     def iter_primary(
         self, *, sport: str | None = None, date_from: str | None = None, date_to: str | None = None,
         status: str | None = None, deleted: str = "no", sort_by: str = "date", sort_dir: str = "desc",
-        batch: int = 500,
+        batch: int = 500, balance: str | None = None,
     ) -> Iterator[BookingRecord]:
         """Stream every matching primary row in batches (server-side cursor): memory stays flat for exports."""
-        conds = self._conditions(sport, date_from, date_to, status, deleted)
+        conds = self._conditions(sport, date_from, date_to, status, deleted, balance)
         with _session() as s:
             stmt = self._ordered(select(BookingRow).where(*conds), sort_by, sort_dir).execution_options(yield_per=batch)
             for row in s.scalars(stmt):

@@ -38,7 +38,7 @@ FastAPI backend. Base URL: **`http://localhost:8000/api/v1`**. Interactive docs 
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/admin/login` | Admin login → JWT |
-| GET / PATCH / DELETE | `/admin/bookings` · `/admin/bookings/{id}` | List, update status, cancel |
+| GET / PATCH / DELETE | `/admin/bookings` · `/admin/bookings/{id}` | List (filter `balance=due` = advance bookings with a balance to collect), update status, cancel |
 | GET / PATCH | `/admin/enquiries` · `/admin/enquiries/{id}` | List, update status |
 | GET | `/admin/customers` | Customer records |
 | GET / POST / PUT / DELETE | `/admin/cms` · `/admin/cms/{key}` | CMS CRUD (PUT label+value; 409 on dup key) |
@@ -57,7 +57,7 @@ FastAPI backend. Base URL: **`http://localhost:8000/api/v1`**. Interactive docs 
 | GET | `/cafe/invoices` | All invoices (admin) |
 | POST | `/admin/bookings/{id}/refund` | Refund a paid booking (provider refund + frees the slot) |
 | GET | `/admin/slots?sport=&date=` | Slots for counter booking (the hour in progress is still bookable) |
-| POST | `/admin/bookings/walkin` | Counter booking paid in cash or UPI: confirmed and paid at once, no gateway (`paymentMode`, `reference`) |
+| POST | `/admin/bookings/walkin` | Counter booking paid in cash or UPI, no gateway (`paymentMode`, `reference`); optional `amountPaid` below the total = advance, the balance is collected later via `collect-balance` |
 | POST / GET | `/admin/bills` | Create a bill (lines: description, qty, rate incl. GST, `gstRatePercent` 0–28) / list with `q`, `date_from`, `date_to`, `status`, `limit`, `offset` |
 | GET | `/admin/bills/{id}` · `/admin/bills/business` | One bill with its lines · the business header for printing |
 | POST | `/admin/bills/{id}/void` | Void a bill with a reason (bills are never edited or deleted) |

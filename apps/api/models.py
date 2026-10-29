@@ -279,6 +279,8 @@ class WalkinBookingRequest(BaseModel):
     players: int = Field(ge=1, le=25)
     paymentMode: Literal["cash", "upi"]
     reference: str | None = Field(default=None, max_length=100)  # UPI transaction id
+    # Part payment: what the customer pays now (the advance); the rest is collected later. None = paid in full.
+    amountPaid: float | None = Field(default=None, gt=0, le=1_000_000)
     promoCode: str | None = Field(default=None, max_length=40)
     message: str | None = Field(default=None, max_length=2000)
 
